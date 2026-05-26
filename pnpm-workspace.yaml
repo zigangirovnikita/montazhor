@@ -1,0 +1,12 @@
+onlyBuiltDependencies:
+  - '@google/genai'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - ffmpeg-static
+  - onnxruntime-node
+  - prisma
+  - protobufjs
+  - puppeteer
+  - sharp
+  - unrs-resolver

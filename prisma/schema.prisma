@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  originalFilename String
+  originalPath     String
+  status           String   @default("uploaded")
+  platform         String   @default("instagram_reels")
+  editMode         String   @default("cut_subtitles")
+  cleanupMode      String   @default("semantic_cleanup")
+  presentationMode String   @default("subtitles_only")
+  stylePreset      String   @default("clean_expert")
+  styleOptionsJson String?
+  language         String   @default("auto")
+  durationTarget   String   @default("auto")
+  aggressiveness   String   @default("medium")
+  durationOriginal Float?
+  durationFinal    Float?
+  reviewVideoPath  String?
+  finalVideoPath   String?
+  errorMessage     String?
+  contentPlanJson  String?
+
+  transcripts   Transcript[]
+  editDecisions EditDecision[]
+  renderAssets  RenderAsset[]
+  logs          ProcessingLog[]
+  aiUsages      AiUsage[]
+}
+
+model Transcript {
+  id        String   @id @default(cuid())
+  projectId String
+  language  String
+  jsonPath  String
+  text      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model EditDecision {
+  id        String   @id @default(cuid())
+  projectId String
+  jsonPath  String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model RenderAsset {
+  id           String   @id @default(cuid())
+  projectId    String
+  type         String
+  path         String
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProcessingLog {
+  id        String   @id @default(cuid())
+  projectId String
+  level     String
+  message   String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AiUsage {
+  id                 String   @id @default(cuid())
+  projectId          String
+  source             String
+  phase              String
+  provider           String   @default("openrouter")
+  model              String?
+  responseId         String?
+  promptTokens       Int?
+  completionTokens   Int?
+  totalTokens        Int?
+  reasoningTokens    Int?
+  cachedTokens       Int?
+  cacheWriteTokens   Int?
+  audioTokens        Int?
+  cost               Float?
+  upstreamCost       Float?
+  metadataJson       String?
+  createdAt          DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}

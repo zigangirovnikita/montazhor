@@ -1,0 +1,13 @@
+.next
+node_modules
+.pnpm-store
+storage
+.env
+.env.local
+*.db
+*.db-journal
+.venv
+dist
+coverage
+*.tsbuildinfo
+.DS_Store

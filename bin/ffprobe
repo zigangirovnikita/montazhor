@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const ffprobe = require("ffprobe-static").path;
+
+if (!ffprobe) {
+  console.error("ffprobe-static did not provide a binary for this platform.");
+  process.exit(1);
+}
+
+const result = spawnSync(ffprobe, process.argv.slice(2), { stdio: "inherit" });
+process.exit(result.status ?? 1);
