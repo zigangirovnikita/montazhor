@@ -1,8 +1,12 @@
 export const russianFillers = ["ээ", "эм", "ну", "типа", "короче", "как бы", "вот", "значит", "это самое"];
 export const englishFillers = ["um", "uh", "like", "you know", "so", "basically", "actually", "i mean"];
 
+export function normalizeFillerToken(text: string) {
+  return text.toLowerCase().trim().replace(/[^\p{L}\p{N}\s]+/gu, "");
+}
+
 export function isFillerWord(text: string) {
-  const normalized = text.toLowerCase().trim().replace(/[^\p{L}\p{N}\s]+/gu, "");
+  const normalized = normalizeFillerToken(text);
   if (russianFillers.includes(normalized) || englishFillers.includes(normalized)) return true;
 
   // Whisper often writes hesitation sounds with repeated letters:

@@ -17,7 +17,7 @@ export interface VoiceActivityMap {
 
 export async function detectVoiceActivity(audioPath: string): Promise<VoiceActivityMap> {
   const python = process.env.WHISPER_PYTHON ?? defaultPython();
-  const provider = process.env.VOICE_ACTIVITY_PROVIDER ?? "pyannote";
+  const provider = process.env.VOICE_ACTIVITY_PROVIDER ?? "silero";
 
   if (provider === "silero") {
     return detectSileroVoiceActivity(python, audioPath);

@@ -5,6 +5,7 @@
  */
 
 import type { TranscriptJson } from "@/lib/types";
+import { isFillerWord } from "@/server/ai/fillerWords";
 
 export interface WordBoundary {
   start: number;
@@ -14,6 +15,7 @@ export interface WordBoundary {
 
 const MIN_RELIABLE_WORD_DURATION = 0.04;
 const MAX_RELIABLE_WORD_DURATION = 1.5;
+const MAX_RELIABLE_FILLER_DURATION = 4;
 
 export function normalizeToken(text: string) {
   return text.toLowerCase().trim().replace(/[^\p{L}\p{N}\s]+/gu, "");
@@ -39,5 +41,10 @@ export function collectWordBoundaries(transcript: TranscriptJson): WordBoundary[
 export function isReliableWordBoundary(word: WordBoundary): boolean {
   const duration = word.end - word.start;
   const text = normalizeToken(word.word ?? "");
-  return text.length > 0 && duration >= MIN_RELIABLE_WORD_DURATION && duration <= MAX_RELIABLE_WORD_DURATION;
+  if (text.length === 0 || duration < MIN_RELIABLE_WORD_DURATION) return false;
+
+  const maxDuration = isFillerWord(text)
+    ? MAX_RELIABLE_FILLER_DURATION
+    : MAX_RELIABLE_WORD_DURATION;
+  return duration <= maxDuration;
 }

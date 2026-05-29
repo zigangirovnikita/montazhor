@@ -212,6 +212,31 @@ async function main() {
   }
 
   {
+    const elongatedFillerTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 0,
+          end: 4,
+          text: "я эээ потом",
+          words: [
+            { word: "я", start: 0.2, end: 0.35 },
+            { word: "эээ", start: 1.0, end: 1.25 },
+            { word: "потом", start: 2.1, end: 2.45 },
+          ],
+        },
+      ],
+    };
+    const [range] = normalizeRemovalRanges(
+      elongatedFillerTranscript,
+      [{ sourceStart: 1.0, sourceEnd: 1.25, reason: "filler_word", text: "эээ" }],
+      4
+    );
+    assertRange(range, 0.65, 1.6);
+  }
+
+  {
     const [range] = normalizeRemovalRanges(
       transcript,
       [{ sourceStart: 5.1, sourceEnd: 6.8, reason: "hesitation" }],
@@ -398,6 +423,31 @@ async function main() {
       5
     );
     assertRange(range, 1.75, 2.65);
+  }
+
+  {
+    const longFillerTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 0,
+          end: 5,
+          text: "я эээ потом",
+          words: [
+            { word: "я", start: 0.1, end: 0.25 },
+            { word: "ээээ", start: 0.6, end: 2.55 },
+            { word: "потом", start: 3.0, end: 3.3 },
+          ],
+        },
+      ],
+    };
+    const { transcript: normalized, stats } = normalizeTranscriptTimings(longFillerTranscript, { duration: 5 });
+    const filler = normalized.segments[0].words?.[1];
+    assert.equal(stats.repairedWords, 0, "long hesitation fillers should not be compressed just because they last around two seconds");
+    assert(filler, "normalized filler word should still exist");
+    assert.equal(filler?.start, 0.6);
+    assert.equal(filler?.end, 2.55);
   }
 
   {

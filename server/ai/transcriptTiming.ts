@@ -1,4 +1,5 @@
 import type { TranscriptJson, TranscriptSegment, TranscriptWord } from "@/lib/types";
+import { isFillerWord } from "@/server/ai/fillerWords";
 
 interface SpeechRange {
   start: number;
@@ -23,6 +24,7 @@ interface TimedWord extends TranscriptWord {
 
 const MIN_WORD_DURATION = 0.08;
 const MAX_WORD_DURATION = 2.4;
+const MAX_FILLER_DURATION = 4;
 const FAST_CHARS_PER_SECOND = 34;
 const SLOW_CHARS_PER_SECOND = 5;
 const MIN_SYLLABLE_SECONDS = 0.11;
@@ -202,12 +204,22 @@ function plausibleMinDuration(word: string): number {
 }
 
 function plausibleTargetDuration(word: string): number {
+  if (isFillerWord(word)) {
+    const syllables = countSyllables(word);
+    return roundTime(Math.min(2.2, Math.max(0.22, syllables * 0.32)));
+  }
+
   const length = normalizedLength(word);
   const syllables = countSyllables(word);
   return roundTime(Math.min(1.4, Math.max(0.16, length / 14, syllables * 0.2)));
 }
 
 function plausibleMaxDuration(word: string): number {
+  if (isFillerWord(word)) {
+    const syllables = countSyllables(word);
+    return roundTime(Math.min(MAX_FILLER_DURATION, Math.max(1.6, syllables * 0.8)));
+  }
+
   const length = normalizedLength(word);
   const syllables = countSyllables(word);
   return roundTime(Math.min(MAX_WORD_DURATION, Math.max(0.75, length / SLOW_CHARS_PER_SECOND, syllables * MAX_SYLLABLE_SECONDS)));

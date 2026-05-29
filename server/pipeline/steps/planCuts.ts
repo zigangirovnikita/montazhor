@@ -20,6 +20,7 @@ const LONG_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
 const MEDIUM_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
 const SHORT_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
 const SEMANTIC_EDGE_GUARD = 0.08;
+const FILLER_EDGE_GUARD = 0.35;
 const MIN_KEPT_FRAGMENT = 0.5;
 const MAX_VAD_EDGE_PROTECTED_WORD_DURATION = 0.8;
 const GAP_REASONS = new Set(["pause", "silence", "long_pause", "non_silent_gap", "noisy_pause", "vad_pause", "untranscribed_voice"]);
@@ -116,18 +117,26 @@ function normalizeSemanticRange(
 
   const leftGap = previousWord ? Math.max(0, firstWord.start - previousWord.end) : 0;
   const rightGap = nextWord ? Math.max(0, nextWord.start - lastWord.end) : 0;
+  const fillerExpansion = shouldExpandFillerRemoval(range, overlappedWords)
+    ? FILLER_EDGE_GUARD
+    : SEMANTIC_EDGE_GUARD;
 
   const sourceStart = Math.max(
     0,
-    firstWord.start - Math.min(SEMANTIC_EDGE_GUARD, leftGap)
+    firstWord.start - Math.min(fillerExpansion, leftGap)
   );
   const sourceEnd = Math.min(
     duration,
-    lastWord.end + Math.min(SEMANTIC_EDGE_GUARD, rightGap)
+    lastWord.end + Math.min(fillerExpansion, rightGap)
   );
 
   if (sourceEnd <= sourceStart) return undefined;
   return { ...clamped, sourceStart, sourceEnd };
+}
+
+function shouldExpandFillerRemoval(range: EditRange, overlappedWords: WordBoundary[]): boolean {
+  if (range.reason !== "filler_word" && range.reason !== "hesitation") return false;
+  return overlappedWords.some((word) => word.word && isFillerWord(word.word));
 }
 
 export function normalizeRemovalRanges(
