@@ -1,0 +1,17 @@
+.git
+.github
+.next
+node_modules
+.pnpm-store
+.venv
+storage
+coverage
+dist
+docker-compose*.yml
+docker-compose*.yaml
+.env
+.env.local
+.env.production
+*.log
+*.tsbuildinfo
+.DS_Store

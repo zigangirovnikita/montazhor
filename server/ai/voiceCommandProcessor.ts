@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
-import type { ContentPlan, StylePreset } from "@/lib/types";
+import type { CleanupMode, ContentPlan, StylePreset } from "@/lib/types";
 import type { VoiceCommandInput, VoiceCommandResult } from "@/lib/types";
 import { LocalWhisperTranscriptionProvider } from "@/server/ai/transcription";
 
@@ -36,17 +36,17 @@ export class DeterministicVoiceCommandProcessor {
       return { transcriptText: text, applied: true, message: `Стиль изменен на ${styleLabel(stylePreset)}.` };
     }
 
-    const aggressiveness = parseAggressiveness(normalized);
-    if (aggressiveness) {
+    const cleanupMode = parseCleanupMode(normalized);
+    if (cleanupMode) {
       await prisma.project.update({
         where: { id: input.projectId },
-        data: { aggressiveness }
+        data: { cleanupMode }
       });
-      await logProject(input.projectId, "info", `Voice command applied: aggressiveness set to ${aggressiveness}. Text: ${text}`);
+      await logProject(input.projectId, "info", `Voice command applied: cleanup mode set to ${cleanupMode}. Text: ${text}`);
       return {
         transcriptText: text,
         applied: true,
-        message: `Агрессивность нарезки изменена на ${aggressivenessLabel(aggressiveness)}. Запусти анализ заново, чтобы пересобрать черновик.`
+        message: `Режим чистки изменен: ${cleanupModeLabel(cleanupMode)}. Запусти анализ заново, чтобы пересобрать черновик.`
       };
     }
 
@@ -78,10 +78,10 @@ function parseStylePreset(text: string): StylePreset | null {
   return null;
 }
 
-function parseAggressiveness(text: string) {
-  if (text.includes("мягче") || text.includes("менее агрессив") || text.includes("low")) return "low";
-  if (text.includes("жестче") || text.includes("агрессивнее") || text.includes("high")) return "high";
-  if (text.includes("средн") || text.includes("medium")) return "medium";
+function parseCleanupMode(text: string): CleanupMode | null {
+  if (text.includes("только пауз")) return "pauses_only";
+  if (text.includes("паузы и запин") || text.includes("речевой мусор")) return "pauses_and_fillers";
+  if (text.includes("по смыслу") || text.includes("оставить только суть")) return "semantic_cleanup";
   return null;
 }
 
@@ -91,8 +91,8 @@ function styleLabel(stylePreset: StylePreset) {
   return "чистый экспертный";
 }
 
-function aggressivenessLabel(aggressiveness: string) {
-  if (aggressiveness === "low") return "мягкую";
-  if (aggressiveness === "high") return "агрессивную";
-  return "среднюю";
+function cleanupModeLabel(cleanupMode: CleanupMode) {
+  if (cleanupMode === "pauses_only") return "убрать только паузы";
+  if (cleanupMode === "pauses_and_fillers") return "убрать паузы и запинки";
+  return "убрать лишнее по смыслу";
 }

@@ -74,6 +74,21 @@ export function voiceActivityFromTranscript(transcript: TranscriptJson): VoiceAc
   };
 }
 
+export function mergeVoiceActivityMaps(
+  primary: VoiceActivityMap | undefined,
+  secondary: VoiceActivityMap | undefined
+): VoiceActivityMap | undefined {
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+
+  return {
+    provider: primary.provider,
+    speechRanges: primary.speechRanges,
+    mainSpeakerId: primary.mainSpeakerId ?? secondary.mainSpeakerId,
+    speakerRanges: primary.speakerRanges ?? secondary.speakerRanges,
+  };
+}
+
 async function detectSileroVoiceActivity(python: string, audioPath: string): Promise<VoiceActivityMap> {
   const scriptPath = path.join(process.cwd(), "scripts", "detect_silero_vad.py");
   const threshold = process.env.SILERO_VAD_THRESHOLD ?? "0.5";

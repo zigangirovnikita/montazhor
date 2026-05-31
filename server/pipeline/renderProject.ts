@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject } from "@/lib/storage";
 import type { ContentPlan, MotionInsert, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
-import { diagnosePuppeteerLaunch } from "@/server/hyperframes/diagnostics";
+import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
@@ -139,8 +139,7 @@ async function buildStyledReview(projectId: string) {
     await logProject(projectId, "info", "Subtitles rendered via HyperFrames overlay.");
   } catch (hyperframesError) {
     const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
-    const diagnosis = await diagnosePuppeteerLaunch();
-    await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${diagnosis} Original error: ${msg}`);
+    await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
     await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, paths.subtitledVideo);
     await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS fallback.");
   }

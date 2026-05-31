@@ -1,6 +1,6 @@
 /**
  * Profanity word lists for Russian and English.
- * Used by the AI prompt at aggressiveness level "high"
+ * Used by semantic cleanup
  * and by the heuristic fallback.
  */
 

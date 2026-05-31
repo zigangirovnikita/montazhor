@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
-type StartScreen = "home" | "soon" | "upload" | "uploading";
+type StartScreen = "home" | "soon" | "upload" | "confirm" | "uploading";
 
 export function UploadCockpit() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export function UploadCockpit() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [fileDurationHint, setFileDurationHint] = useState("");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -19,8 +20,7 @@ export function UploadCockpit() {
     setScreen("uploading");
 
     try {
-      const form = event.currentTarget;
-      const formData = new FormData(form);
+      const formData = new FormData(event.currentTarget);
       formData.set("stylePreset", "clean_expert");
       formData.set("platform", "instagram_reels");
       formData.set("language", "ru");
@@ -42,80 +42,117 @@ export function UploadCockpit() {
   }
 
   return (
-    <main className="gosha-stage">
-      <section className="wizard-card">
+    <main className="mobile-stage">
+      <section className="phone-shell">
         {screen === "home" ? (
-          <>
-            <Mascot size="large" />
-            <div className="wizard-copy">
-              <h1>Привет! Я Гоша</h1>
-              <p>Загрузи talking-head видео. Сначала соберем чистый черновик, а оформление выберем уже после монтажа.</p>
+          <div className="home-flow">
+            <HeroPreview />
+            <div className="home-copy">
+              <h1>Загрузи видео. Монтаж сделаем за тебя.</h1>
+              <p>Для talking-head: уберем паузы, повторы, запинки, соберем черновик и дадим поправить текстом.</p>
             </div>
-            <div className="wizard-actions">
-              <button className="mode-button ghost" type="button" onClick={() => setScreen("soon")}>
-                Мой банк фото/видео
-              </button>
-              <button className="mode-button ghost" type="button" onClick={() => setScreen("soon")}>
-                Мои шаблоны
-              </button>
-              <button className="cta-button" type="button" onClick={() => setScreen("upload")}>
-                Загрузить видео
-              </button>
+            <button className="cta-button" type="button" onClick={() => setScreen("upload")}>
+              Начать монтаж
+            </button>
+            <div className="scenario-grid">
+              <ScenarioCard title="Очистить talking-head" text="Главный сценарий MVP" active />
+              <ScenarioCard title="Сделать клипы" text="Скоро" />
+              <ScenarioCard title="Только субтитры" text="Скоро" />
             </div>
-          </>
+            <div className="library-links">
+              {["Мои работы", "Мои пресеты", "База футажей"].map((item) => (
+                <button key={item} type="button" onClick={() => setScreen("soon")}>{item}</button>
+              ))}
+            </div>
+          </div>
         ) : null}
 
         {screen === "soon" ? (
-          <>
+          <div className="center-flow">
             <Mascot mood="blink" />
-            <div className="wizard-copy">
-              <h2>Скоро будет готово</h2>
-              <p>Этот раздел уже заложен в новый flow, но пока активен основной сценарий: загрузка → чистка → оформление → предпросмотр → скачивание.</p>
-            </div>
-            <button className="cta-button" type="button" onClick={() => setScreen("home")}>
-              Назад
-            </button>
-          </>
+            <h2>Раздел появится позже</h2>
+            <p>Сейчас главный маршрут: загрузить исходник, получить черновик, поправить текстом и оформить ролик.</p>
+            <button className="cta-button" type="button" onClick={() => setScreen("home")}>В меню</button>
+          </div>
         ) : null}
 
-        {screen === "upload" ? (
-          <form className="upload-wizard" onSubmit={onSubmit}>
-            <Mascot />
-            <div className="wizard-copy">
-              <h2>Добавь исходник</h2>
-              <p>После загрузки я сначала спрошу, как именно чистить речь, а уже потом предложу оформление.</p>
+        {screen === "upload" || screen === "confirm" ? (
+          <form className="upload-flow" onSubmit={onSubmit}>
+            <div className="screen-head">
+              <p className="screen-step">Загрузка видео</p>
+              <h1>Добавь исходник</h1>
+              <p>Лучше всего работает с видео, где вы говорите в камеру.</p>
             </div>
-
-            <label className="video-drop">
+            <label className="upload-dropzone">
               <input
                 name="file"
                 type="file"
                 accept="video/mp4,video/quicktime,video/webm"
                 required
-                onChange={(event) => setFileName(event.currentTarget.files?.[0]?.name ?? "")}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  setFileName(file?.name ?? "");
+                  setFileDurationHint(file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "");
+                  setScreen(file ? "confirm" : "upload");
+                }}
               />
-              <span>{fileName || "Добавить видео с устройства"}</span>
+              <span>{fileName || "Загрузить видео"}</span>
+              <small>Галерея или файлы · mp4, mov, webm</small>
             </label>
-
+            <div className="upload-options">
+              <button type="button" disabled>Вставить ссылку</button>
+              <button type="button" disabled>Записать сейчас</button>
+            </div>
+            {screen === "confirm" ? (
+              <div className="confirm-card">
+                <strong>Видео загружено</strong>
+                <span>{fileDurationHint || "Готово к обработке"}</span>
+                <p>Дальше выберем, что именно убрать из речи.</p>
+              </div>
+            ) : null}
             {error ? <p className="error">{error}</p> : null}
-            <button className="cta-button" disabled={busy} type="submit">
-              {busy ? "Загружаю..." : "Видео принято"}
-            </button>
+            <div className="sticky-actions">
+              <button className="cta-button" disabled={busy || !fileName} type="submit">
+                {busy ? "Загружаю..." : "Что сделать?"}
+              </button>
+            </div>
           </form>
         ) : null}
 
         {screen === "uploading" ? (
-          <>
+          <div className="center-flow">
             <Mascot />
             <div className="loader-ring" aria-label="Загрузка видео" />
-            <div className="wizard-copy">
-              <h2>Загружаю видео</h2>
-              <p>Видео загружается, дальше перейдем к выбору режима чистки.</p>
-            </div>
-          </>
+            <h2>Загружаю видео</h2>
+            <p>После загрузки откроется выбор типа чистки.</p>
+          </div>
         ) : null}
       </section>
     </main>
+  );
+}
+
+function HeroPreview() {
+  return (
+    <div className="hero-preview" aria-hidden="true">
+      <div className="phone-video before">
+        <span>до</span>
+        <i />
+      </div>
+      <div className="phone-video after">
+        <span>после</span>
+        <b>СИЛЬНАЯ МЫСЛЬ</b>
+      </div>
+    </div>
+  );
+}
+
+function ScenarioCard({ title, text, active = false }: { title: string; text: string; active?: boolean }) {
+  return (
+    <button className={`scenario-card ${active ? "active" : ""}`} type="button" disabled={!active}>
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </button>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { Aggressiveness, EditDecisionList, EditRange, KeepSegment, TranscriptJson } from "@/lib/types";
+import type { CleanupMode, EditDecisionList, EditRange, KeepSegment, TranscriptJson } from "@/lib/types";
 import { isFillerWord } from "@/server/ai/fillerWords";
 import { isProfanity } from "@/server/ai/profanity";
 import { complementRanges, mergeCloseRanges } from "@/server/video/cutting";
@@ -12,17 +12,18 @@ import { detectUntranscribedVoiceRemovals } from "@/server/pipeline/steps/untran
 import { selectScriptWithAi } from "@/server/ai/scriptSelector";
 import { collectWordBoundaries, isReliableWordBoundary, normalizeToken } from "@/server/ai/wordBoundaries";
 import type { WordBoundary } from "@/server/ai/wordBoundaries";
+import {
+  CONSERVATIVE_TRANSCRIPT_GAP_FALLBACK_SECONDS,
+  FILLER_EDGE_GUARD_SECONDS,
+  isElongatedHesitationToken,
+  MAX_VAD_EDGE_PROTECTED_WORD_DURATION,
+  MIN_KEPT_FRAGMENT_SECONDS,
+  PAUSE_KEEP_HANDLE_SECONDS,
+  SCRIPT_KEEP_HANDLE_SECONDS,
+  SEMANTIC_EDGE_GUARD_SECONDS,
+  WORD_GAP_REMOVAL_THRESHOLD
+} from "@/server/ai/cutTimingPolicy";
 
-const SCRIPT_KEEP_HANDLE_SECONDS = 0.3;
-const PAUSE_KEEP_HANDLE_SECONDS = 0.2;
-const WORD_GAP_REMOVAL_THRESHOLD = 0.4;
-const LONG_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
-const MEDIUM_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
-const SHORT_GAP_INWARD_MARGIN = PAUSE_KEEP_HANDLE_SECONDS;
-const SEMANTIC_EDGE_GUARD = 0.08;
-const FILLER_EDGE_GUARD = 0.35;
-const MIN_KEPT_FRAGMENT = 0.5;
-const MAX_VAD_EDGE_PROTECTED_WORD_DURATION = 0.8;
 const GAP_REASONS = new Set(["pause", "silence", "long_pause", "non_silent_gap", "noisy_pause", "vad_pause", "untranscribed_voice"]);
 const NON_SEMANTIC_REASONS = new Set([...GAP_REASONS, "not_selected"]);
 
@@ -36,9 +37,7 @@ function clampRange(range: EditRange, duration: number): EditRange {
 }
 
 function marginForGap(gapDuration: number): number {
-  if (gapDuration >= 1.5) return LONG_GAP_INWARD_MARGIN;
-  if (gapDuration >= 0.8) return MEDIUM_GAP_INWARD_MARGIN;
-  return SHORT_GAP_INWARD_MARGIN;
+  return Math.min(PAUSE_KEEP_HANDLE_SECONDS, gapDuration / 2);
 }
 
 function normalizeGapRange(range: EditRange, duration: number): EditRange | undefined {
@@ -118,8 +117,8 @@ function normalizeSemanticRange(
   const leftGap = previousWord ? Math.max(0, firstWord.start - previousWord.end) : 0;
   const rightGap = nextWord ? Math.max(0, nextWord.start - lastWord.end) : 0;
   const fillerExpansion = shouldExpandFillerRemoval(range, overlappedWords)
-    ? FILLER_EDGE_GUARD
-    : SEMANTIC_EDGE_GUARD;
+    ? FILLER_EDGE_GUARD_SECONDS
+    : SEMANTIC_EDGE_GUARD_SECONDS;
 
   const sourceStart = Math.max(
     0,
@@ -160,7 +159,7 @@ export function normalizeRemovalRanges(
     .sort((a, b) => a.sourceStart - b.sourceStart);
 }
 
-function mergeShortKeptFragments(ranges: EditRange[], minKeptDuration = MIN_KEPT_FRAGMENT): EditRange[] {
+function mergeShortKeptFragments(ranges: EditRange[], minKeptDuration = MIN_KEPT_FRAGMENT_SECONDS): EditRange[] {
   if (ranges.length < 2) return ranges;
 
   const merged: EditRange[] = [];
@@ -168,7 +167,7 @@ function mergeShortKeptFragments(ranges: EditRange[], minKeptDuration = MIN_KEPT
     const previous = merged.at(-1);
     if (previous && range.sourceStart - previous.sourceEnd < minKeptDuration) {
       previous.sourceEnd = Math.max(previous.sourceEnd, range.sourceEnd);
-      previous.reason = previous.reason === range.reason ? previous.reason : "mixed";
+      previous.reason = mergeRangeReasons(previous.reason, range.reason);
       previous.text = previous.text ?? range.text;
       continue;
     }
@@ -177,6 +176,12 @@ function mergeShortKeptFragments(ranges: EditRange[], minKeptDuration = MIN_KEPT
   }
 
   return merged;
+}
+
+function mergeRangeReasons(left: string, right: string): string {
+  if (left === right) return left;
+  if (left === "untranscribed_voice" || right === "untranscribed_voice") return "untranscribed_voice";
+  return "mixed";
 }
 
 function buildEditDecisionList(transcript: TranscriptJson, removed: EditRange[], duration: number): EditDecisionList {
@@ -214,7 +219,7 @@ export function buildEditDecisionListFromKeepSegments(
 
   return {
     keptRanges: complementRanges(duration, removedRanges)
-      .filter((range) => range.sourceEnd - range.sourceStart >= MIN_KEPT_FRAGMENT),
+      .filter((range) => range.sourceEnd - range.sourceStart >= MIN_KEPT_FRAGMENT_SECONDS),
     removedRanges,
   };
 }
@@ -274,25 +279,37 @@ function shouldKeepContextualFiller(words: { word: string; start: number; end: n
 export async function planCuts(
   transcript: TranscriptJson,
   duration: number,
-  aggressiveness: Aggressiveness,
+  cleanupMode: CleanupMode,
   log?: (message: string) => void,
   audioPath?: string,
   precomputedVad?: VoiceActivityMap,
+  precomputedSileroVad?: VoiceActivityMap,
   projectId?: string
 ): Promise<EditDecisionList> {
   const info = log ?? (() => {});
-  const { transcript: normalizedTranscript, stats: timingStats } = normalizeTranscriptTimings(transcript, { duration });
+  const { transcript: normalizedTranscript, stats: timingStats } = normalizeTranscriptTimings(transcript, {
+    duration,
+    speechRanges: precomputedVad?.speechRanges,
+  });
   if (timingStats.repairedWords > 0) {
     info(formatTranscriptTimingStats(timingStats));
   }
 
-  const deterministicGapRemovals = await detectDeterministicGapRemovals(normalizedTranscript, duration, aggressiveness, audioPath, info, precomputedVad);
-  const safetyRemovals = detectSafetyRemovals(normalizedTranscript, aggressiveness, info);
+  const deterministicGapRemovals = await detectDeterministicGapRemovals(
+    normalizedTranscript,
+    duration,
+    cleanupMode,
+    audioPath,
+    info,
+    precomputedVad,
+    precomputedSileroVad
+  );
+  const safetyRemovals = detectSafetyRemovals(normalizedTranscript, cleanupMode, info);
 
-  if (isAiConfigured("script_selector_pass_1") && isAiConfigured("script_selector_pass_2")) {
+  if (cleanupMode === "semantic_cleanup" && isAiConfigured("script_selector_pass_1") && isAiConfigured("script_selector_pass_2")) {
     try {
       info("AI script selection enabled — selecting final spoken script...");
-      const scriptPlan = await selectScriptWithAi(normalizedTranscript, aggressiveness, duration, info, projectId);
+      const scriptPlan = await selectScriptWithAi(normalizedTranscript, cleanupMode, duration, info, projectId);
       info(`AI script selection complete: ${scriptPlan.keepSegments.length} keep segments selected. Reasoning: ${scriptPlan.reasoning}`);
 
       const edl = buildEditDecisionListFromKeepSegments(
@@ -307,27 +324,38 @@ export async function planCuts(
       const message = error instanceof Error ? error.message : String(error);
       info(`AI script selection failed, falling back to heuristic: ${message}`);
     }
-  } else {
+  } else if (cleanupMode === "semantic_cleanup") {
     info("AI script selector not fully configured. Using heuristic analysis.");
   }
 
   // Heuristic fallback
-  const edl = planCutsHeuristic(normalizedTranscript, duration, aggressiveness, [...deterministicGapRemovals, ...safetyRemovals]);
+  const edl = planCutsHeuristic(normalizedTranscript, duration, cleanupMode, [...deterministicGapRemovals, ...safetyRemovals]);
   logFinalEdl(edl, info);
   return edl;
 }
 
 function detectSafetyRemovals(
   transcript: TranscriptJson,
-  aggressiveness: Aggressiveness,
+  cleanupMode: CleanupMode,
   log: (message: string) => void
 ): EditRange[] {
-  const removals: EditRange[] = detectAbandonedRestartRemovals(transcript);
-  if (removals.length > 0) {
-    log(`Restart safety pass: ${removals.length} abandoned transcript restarts added before AI/heuristic analysis.`);
+  const removals: EditRange[] = [];
+
+  if (cleanupMode === "semantic_cleanup") {
+    const restartRemovals = detectAbandonedRestartRemovals(transcript);
+    if (restartRemovals.length > 0) {
+      removals.push(...restartRemovals);
+      log(`Restart safety pass: ${restartRemovals.length} abandoned transcript restarts added before AI/heuristic analysis.`);
+    }
   }
 
-  if (aggressiveness !== "high") return removals;
+  const hesitationRemovals = detectObviousHesitationRemovals(transcript, cleanupMode);
+  if (hesitationRemovals.length > 0) {
+    removals.push(...hesitationRemovals);
+    log(`Hesitation safety pass: ${hesitationRemovals.length} obvious elongated filler sounds added before final EDL.`);
+  }
+
+  if (cleanupMode !== "semantic_cleanup") return removals;
 
   for (const segment of transcript.segments) {
     const words = segment.words ?? [];
@@ -350,7 +378,34 @@ function detectSafetyRemovals(
   }
 
   if (removals.length > 0) {
-    log(`Safety profanity pass: ${removals.length} high-mode profanity removals added/confirmed before final EDL.`);
+    log(`Safety profanity pass: ${removals.length} profanity removals added/confirmed before final EDL.`);
+  }
+
+  return removals;
+}
+
+function detectObviousHesitationRemovals(
+  transcript: TranscriptJson,
+  cleanupMode: CleanupMode
+): EditRange[] {
+  if (cleanupMode === "pauses_only") return [];
+
+  const removals: EditRange[] = [];
+  for (const segment of transcript.segments) {
+    const words = segment.words ?? [];
+    for (const [index, word] of words.entries()) {
+      if (shouldKeepContextualFiller(words, index)) continue;
+      const normalized = normalizeToken(word.word);
+      const duration = word.end - word.start;
+      if (isElongatedHesitationToken(normalized) && duration > 0 && duration <= 1.8) {
+        removals.push({
+          sourceStart: word.start,
+          sourceEnd: word.end,
+          reason: "hesitation",
+          text: word.word,
+        });
+      }
+    }
   }
 
   return removals;
@@ -407,10 +462,11 @@ function isProfanityOutburst(text: string, wordCount: number, profanityCount: nu
 async function detectDeterministicGapRemovals(
   transcript: TranscriptJson,
   duration: number,
-  aggressiveness: Aggressiveness,
+  cleanupMode: CleanupMode,
   audioPath: string | undefined,
   log: (message: string) => void,
-  precomputedVad?: VoiceActivityMap
+  precomputedVad?: VoiceActivityMap,
+  precomputedSileroVad?: VoiceActivityMap
 ): Promise<EditRange[]> {
   const minSpeechGap = WORD_GAP_REMOVAL_THRESHOLD;
   const transcriptGaps = detectTranscriptGaps(transcript, minSpeechGap);
@@ -418,34 +474,53 @@ async function detectDeterministicGapRemovals(
 
   try {
     const vad = precomputedVad ?? await detectVoiceActivity(audioPath);
-    const vadGaps = speechGapsFromVad(vad, duration, minSpeechGap);
-    const refinedWordGaps = await detectWordGapRemovalsWithFallback(transcript, audioPath, duration, vad, log);
-    const untranscribedVoiceDiagnostics = detectUntranscribedVoiceRemovals(transcript, vad, aggressiveness, log);
-    log(`${vad.provider}: detected ${vad.speechRanges.length} main-speaker speech ranges, ${vadGaps.length} no-speech gaps, ${refinedWordGaps.length} refined word gaps.`);
-    if (untranscribedVoiceDiagnostics.length > 0) {
-      log(
-        `Voice/transcript mismatch diagnostics only: ${untranscribedVoiceDiagnostics.length} ranges were detected but not auto-removed.`
-      );
+    const sileroVad = precomputedSileroVad ?? (vad.provider === "silero-vad" ? vad : undefined);
+    const pauseVad = sileroVad ?? vad;
+    const vadGaps = speechGapsFromVad(pauseVad, duration, minSpeechGap);
+    const refinedWordGaps = await detectWordGapRemovalsWithFallback(transcript, audioPath, duration, pauseVad, log);
+    const nonOverlappingVadGaps = dropVadGapsCoveredByRefinedGaps(vadGaps, refinedWordGaps);
+    const untranscribedVoiceRemovals = detectUntranscribedVoiceRemovals(transcript, vad, cleanupMode, log);
+    log(
+      `${vad.provider}: detected ${vad.speechRanges.length} main-speaker speech ranges; ${pauseVad.provider}: detected ${vadGaps.length} no-speech gaps, ${refinedWordGaps.length} refined word gaps (${nonOverlappingVadGaps.length} standalone after refinement).`
+    );
+    if (untranscribedVoiceRemovals.length > 0 && cleanupMode === "pauses_only") {
+      log(`Voice/transcript mismatch diagnostics only: ${untranscribedVoiceRemovals.length} ranges were detected but not auto-removed.`);
+    } else if (untranscribedVoiceRemovals.length > 0) {
+      log(`Voice/transcript mismatch safety pass: ${untranscribedVoiceRemovals.length} ranges added to EDL.`);
     }
     return [
-      ...vadGaps.map((gap) => ({
+      ...nonOverlappingVadGaps.map((gap) => ({
         sourceStart: gap.start,
         sourceEnd: gap.end,
         reason: "vad_pause",
       })),
       ...refinedWordGaps,
+      ...(cleanupMode === "pauses_only" ? [] : untranscribedVoiceRemovals),
     ];
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(`Silero VAD failed, falling back to transcript-gap pause detection: ${message}`);
   }
 
-  const gapRemovals = await detectConfirmedGapRemovals(transcriptGaps, audioPath, minSpeechGap);
+  const conservativeFallbackMinGap = Math.max(minSpeechGap, CONSERVATIVE_TRANSCRIPT_GAP_FALLBACK_SECONDS);
+  const gapRemovals = await detectConfirmedGapRemovals(transcriptGaps, audioPath, conservativeFallbackMinGap);
   const noisyGaps = describeAudibleGaps(transcriptGaps);
   if (noisyGaps.length > 0) {
     log(`Audio post-check: ${noisyGaps.length} transcript pauses contain background/audible sound and are treated as noisy pauses, not speech: ${noisyGaps.join("; ")}`);
   }
   return gapRemovals;
+}
+
+function dropVadGapsCoveredByRefinedGaps(
+  vadGaps: { start: number; end: number }[],
+  refinedWordGaps: EditRange[]
+): { start: number; end: number }[] {
+  return vadGaps.filter(
+    (gap) =>
+      !refinedWordGaps.some(
+        (refined) => refined.sourceStart < gap.end && refined.sourceEnd > gap.start
+      )
+  );
 }
 
 async function detectWordGapRemovalsWithFallback(
@@ -471,13 +546,12 @@ async function detectWordGapRemovalsWithFallback(
 export function planCutsHeuristic(
   transcript: TranscriptJson,
   duration: number,
-  aggressiveness: Aggressiveness,
+  cleanupMode: CleanupMode,
   extraRemovals: EditRange[] = []
 ): EditDecisionList {
   const removed: EditRange[] = [...extraRemovals];
 
-  // Medium and high: also remove filler words
-  if (aggressiveness === "medium" || aggressiveness === "high") {
+  if (cleanupMode === "pauses_and_fillers" || cleanupMode === "semantic_cleanup") {
     for (const segment of transcript.segments) {
       const words = segment.words ?? [];
       for (const [index, word] of words.entries()) {
@@ -489,8 +563,7 @@ export function planCutsHeuristic(
     }
   }
 
-  // High: also remove profanity
-  if (aggressiveness === "high") {
+  if (cleanupMode === "semantic_cleanup") {
     for (const segment of transcript.segments) {
       for (const word of segment.words ?? []) {
         if (isProfanity(word.word)) {

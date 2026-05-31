@@ -1,5 +1,5 @@
 import { getAiConfigForTask } from "@/lib/config";
-import type { Aggressiveness, KeepSegment, RejectedTake, ScriptSelectionPlan, TranscriptJson } from "@/lib/types";
+import type { CleanupMode, KeepSegment, RejectedTake, ScriptSelectionPlan, TranscriptJson } from "@/lib/types";
 import { callChatCompletion } from "@/server/ai/openRouterClient";
 import { recordAiUsage } from "@/server/ai/usage";
 import {
@@ -8,10 +8,11 @@ import {
   buildScriptSelectionSystemPrompt,
   buildScriptSelectionUserPrompt,
 } from "@/server/ai/scriptSelectionPrompts";
+import { MIN_KEPT_FRAGMENT_SECONDS } from "@/server/ai/cutTimingPolicy";
 
 const SNAP_TOLERANCE = 0.5;
 const MIN_KEEP_CONFIDENCE = 0.45;
-const MIN_KEEP_DURATION = 0.5;
+const MIN_KEEP_DURATION = MIN_KEPT_FRAGMENT_SECONDS;
 const DUPLICATE_KEEP_OVERLAP = 0.45;
 
 interface WordTiming {
@@ -29,7 +30,7 @@ interface RawRejectedTake {
 
 export async function selectScriptWithAi(
   transcript: TranscriptJson,
-  aggressiveness: Aggressiveness,
+  cleanupMode: CleanupMode,
   duration: number,
   log?: (message: string) => void,
   projectId?: string
@@ -48,7 +49,7 @@ export async function selectScriptWithAi(
   info(`AI script selector: Pass 1 keep-plan using ${pass1Config.provider}/${pass1Config.model}...`);
   const pass1 = await callChatCompletion(
     pass1Config,
-    buildScriptSelectionSystemPrompt(transcript.language, aggressiveness),
+    buildScriptSelectionSystemPrompt(transcript.language, cleanupMode),
     buildScriptSelectionUserPrompt(transcript)
   );
   await recordAiUsage({ projectId, source: "script_selector", phase: "pass_1_keep_plan", result: pass1 });
