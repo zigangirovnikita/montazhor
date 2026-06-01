@@ -4,6 +4,29 @@
 
 This is an AI autopilot for short-form talking-head videos.
 
+## Deployment Environment
+
+Production and active development now run on the remote server, not on the local Mac.
+
+Rules:
+
+* Treat the server as the primary runtime and source of truth for deployment validation.
+* Do not assume local Mac-only paths, caches, Python envs, or binaries are representative of production.
+* When verifying real processing, startup, rendering, model loading, or deploy behavior, prefer checking the server environment.
+* Keep deployment configs aligned with the native server layout under `/opt/montazhor`.
+
+Current server target:
+
+* host: `45.147.177.53`
+* ssh user: `root`
+* local SSH env source: `.env.server-access`
+
+Secrets rule:
+
+* Do not store server passwords, API keys, or private credentials in `AGENTS.md`, tracked docs, or committed `.env` files.
+* Keep secrets only in untracked local env files, a password manager, or the live server environment.
+* If SSH access is needed for the production server, read host/user/password from the local untracked `.env.server-access` file.
+
 The product is not a traditional video editor and not a CapCut clone.
 
 Core user flow:
@@ -33,12 +56,17 @@ The user should not need to manually edit a timeline.
 - The main route is: upload → choose what to remove (`pauses_only`, `pauses_and_fillers`, or `semantic_cleanup`) → processing → draft review through one video player + transcript text → optional precise tuning → style presets → final preview → export.
 - Draft review must use one player with a `До / После` switch, not two simultaneous videos on mobile.
 - Transcript review is the primary editing surface. Show kept words normally and removed ranges as red/strikethrough text.
+- Draft transcript review may use a horizontally scrollable word ticker under the player as the main text review surface on mobile, as long as it remains text-first and preview-first rather than timeline-first.
 - Show even very short technical pause removals (`vad_pause`, `pause`, gap ranges) as separate red/strikethrough fragments in transcript review, so the user can understand every edit.
+- Show review-only candidate fragments for suspicious but not-yet-removed pauses, voice-like gaps, and filler words as selectable text controls. Candidate fragments must be actionable through explicit confirmation, not decorative labels.
 - Do not mark a whole word as removed only because a short technical pause overlaps part of that word's timestamp. A word should be shown as removed only when the removed range covers a meaningful share of the word or the removal is semantic/textual.
 - Tapping a word or removed fragment must only select it and show available actions. It must not immediately mutate the EDL or start re-rendering.
 - User edits must be confirmed explicitly through an action such as `Удалить и перемонтировать`, `Вернуть`, or another clear apply button.
+- Multiple transcript edits on the draft review screen should accumulate locally and be applied in one explicit batch action; do not trigger a clean-video re-render after every single word tap.
 - Multi-word selection should be supported before applying a delete/remount action.
 - Any EDL-changing text action must re-render `clean.mp4` and invalidate old review/final artifacts before the user continues.
+- When the user manually scrubs the review word ticker, the word under the visual center marker becomes the temporary source of truth for preview position while playback is paused.
+- Pressing play after manual word-ticker scrubbing must start playback from the beginning of the centered word, not from an older player time.
 - Keep low-level style controls behind `Настроить стиль`; the default style screen should be preset and toggle based.
 
 ## MVP Scope
@@ -174,7 +202,7 @@ interface ContentPlanner {
 
 MVP implementations:
 
-* `LocalWhisperTranscriptionProvider` (local Whisper/WhisperX-based stack)
+* `LocalWhisperTranscriptionProvider` (local `stable-ts` / `faster-whisper` based stack, with DTW alignment)
 * Speaker/activity detection split across `server/ai/voiceActivity.ts`:
   * coarse main-speaker diarization/speech ranges from WhisperX/pyannote when available
   * `SileroVoiceActivity` via `scripts/detect_silero_vad.py` as fine pause layer and fallback
@@ -205,8 +233,9 @@ Minimum kept fragment duration: `0.5s`. This threshold is used consistently in b
 Timing policy note: shared cut thresholds must live in one central policy module and be reused everywhere they affect EDL generation or render boundaries. In particular, the project uses one shared source of truth for:
 
 * minimum kept fragment duration: `0.5s`
-* removable refined word-gap threshold: `0.4s`
-* inward pause handles around safe removals: `0.2s`
+* removable refined word-gap threshold: `0.3s`
+* inward pause handles around safe removals: `0.2s` (increased for stable-ts DTW boundary safety)
+* minimum `untranscribed_voice` duration in `pauses_and_fillers` and `semantic_cleanup`: `0.3s`
 * conservative transcript-gap fallback threshold without VAD: `1.0s`
 
 Do not reintroduce duplicated hardcoded timing constants in separate files.
@@ -215,8 +244,8 @@ Current source-of-truth order for cutting:
 
 1. Coarse main-speaker speech ranges come from transcript diarization / `pyannote` when available via `server/ai/voiceActivity.ts`. They are the primary source of truth for whose speech belongs to the final monologue.
 2. `Silero VAD` is the fine speech/no-speech layer for local pause boundaries and the fallback when diarization is unavailable.
-3. `Whisper/WhisperX` is the source of truth for what words were said, not for final pause boundaries.
-4. `MFA` (`server/ai/mfaAlignment.ts`) is an optional selective fallback only for suspicious word timing repair on chosen segments. It does not replace WhisperX transcription, diarization, or the semantic script selector.
+3. `stable-ts` (faster-whisper) is the source of truth for what words were said and provides DTW word boundaries.
+4. `MFA` (`server/ai/mfaAlignment.ts`) is an optional selective fallback only for suspicious word timing repair on chosen segments. It does not replace stable-ts transcription, diarization, or the semantic script selector.
 5. `AI script selector` (`server/ai/scriptSelector.ts`, prompts in `server/ai/scriptSelectionPrompts.ts`) is the main semantic source of truth only for `semantic_cleanup`. It must decide which exact spoken words stay in the final video, not which words to delete.
 6. `planCuts.ts` always handles technical cleanup by deterministic rules: pause removal, hesitation cleanup, and `untranscribed_voice` cleanup according to the selected cleanup mode.
 7. Heuristics in `planCuts.ts`, `fillerWords.ts`, and `profanity.ts` are fallback/safety layers when AI is unavailable or misses obvious removals.
@@ -227,9 +256,9 @@ Important: do not go back to cutting pauses purely by FFmpeg volume/RMS or raw W
 
 Whisper word timestamps must be treated as untrusted until normalized. After transcription and before AI script selection/cut planning, validate word timings for impossible or suspicious values: negative times, zero or near-zero duration, `end <= start`, overlaps, non-monotonic order, and durations that are implausibly short for the word length/syllable count. When a word timestamp is suspicious, do not cut directly by that raw Whisper boundary. Prefer Silero VAD speech segments, neighboring valid word timings, and conservative timing repair/redistribution inside the nearest VAD speech segment. Whisper remains authoritative for the spoken text, not for unsafe raw timing boundaries.
 
-When selective MFA fallback is enabled, use it only on suspicious segments, not on the full video by default. Suspicious segments are detected from timing/pathology signals such as large internal word gaps, large segment edge drift, implausible durations, overlaps, or low-confidence words. MFA may refine word timings for those segments only when its aligned token sequence still matches the original spoken words after normalization. If MFA output changes tokens, drops tokens, or otherwise fails merge validation, discard the MFA result and keep WhisperX timings.
+When selective MFA fallback is enabled, use it only on suspicious segments, not on the full video by default. Suspicious segments are detected from timing/pathology signals such as large internal word gaps, large segment edge drift, implausible durations, overlaps, or low-confidence words. MFA may refine word timings for those segments only when its aligned token sequence still matches the original spoken words after normalization. If MFA output changes tokens, drops tokens, or otherwise fails merge validation, discard the MFA result and keep stable-ts timings.
 
-For final pause cleanup, use cut-boundary refinement before converting word-to-word gaps into removals. The system should refine only the boundary words around future edit points using the extracted 16 kHz mono WAV, VAD speech ranges, and local audio energy. If a refined pause between adjacent words is longer than `0.4s`, remove the middle while keeping `0.2s` after the previous word and `0.2s` before the next word. This refinement is a local cleanup layer for edit boundaries, not a replacement for Whisper text, AI script selection, or VAD/diarization source-of-truth.
+For final pause cleanup, use cut-boundary refinement before converting word-to-word gaps into removals. The system should refine only the boundary words around future edit points using the extracted 16 kHz mono WAV, VAD speech ranges, and local audio energy. If a refined pause between adjacent words is longer than `0.3s`, remove the middle while keeping `0.2s` after the previous word and `0.2s` before the next word. This refinement is a local cleanup layer for edit boundaries, not a replacement for Whisper text, AI script selection, or VAD/diarization source-of-truth.
 
 When both coarse VAD/diarization gaps and refined word-gap pauses exist for the same location, the refined word-gap pause is the precise source of truth. Do not keep a second overlapping broad `vad_pause` for that same gap. Coarse VAD gaps should remain only for standalone no-speech regions that are not already explained by reliable neighboring words.
 
@@ -245,7 +274,7 @@ Obvious elongated hesitation sounds are a deterministic safety layer in `pauses_
 
 This hesitation layer should also catch elongated variants that Whisper often writes phonetically, for example `мэээ`, `бэээ`, `нуууу`, `эммм`, and similar stretched vocalized fillers, when removal is safe by timing and does not break meaning.
 
-If Whisper does not transcribe a hesitation sound at all, but VAD detects a voice-like range between two reliable words and that range does not contain transcript words, remove it in `pauses_and_fillers` and `semantic_cleanup`. This rule exists specifically to catch real-world `эээ/мэээ/нууу` cases that Whisper skips.
+If Whisper does not transcribe a hesitation sound at all (faster-whisper/stable-ts actively suppress non-lexical sounds), but VAD detects a voice-like range between two reliable words and that range does not contain transcript words, remove it in `pauses_and_fillers` and `semantic_cleanup` once it reaches the central `untranscribed_voice` minimum duration. This rule exists specifically to catch real-world `эээ/мэээ/нууу` cases that Whisper skips. Do not suppress internal voice-like gaps merely because they sit inside one continuous main-speaker speech range; continuity protection is for avoiding unsafe cuts through supported speech, not for keeping unsupported filler sounds between reliable words.
 
 If Silero VAD fails, the system may fall back to transcript-gap pause detection, but that path must stay conservative and must log the fallback reason clearly.
 
@@ -258,7 +287,7 @@ Transcript-gap fallback rule:
 Voice/transcript mismatch rule:
 
 * `untranscribed_voice` ranges detected from VAD without reliable transcript words are diagnostic-only in `pauses_only`.
-* In `pauses_and_fillers` and `semantic_cleanup`, such ranges may enter the final EDL when they are long enough and clearly unsupported by reliable word timings.
+* In `pauses_and_fillers` and `semantic_cleanup`, such ranges may enter the final EDL when they are at least `0.3s` and clearly unsupported by reliable word timings.
 * Keep the reason visible in logs/EDL; do not silently merge it away into an uninformative generic label if that would hide why the range was removed.
 
 Primary AI flow:
