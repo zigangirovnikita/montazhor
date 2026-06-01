@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { rename } from "node:fs/promises";
 import path from "node:path";
 import { standardMp4OutputArgs } from "@/server/video/encoding";
@@ -14,7 +15,13 @@ function renderArgs(dir: string, outputPath: string, useDocker: boolean) {
 
 export async function renderHyperframesVideo(dir: string, outputPath: string) {
   const env = hyperframesEnv();
-  const localBin = path.join(process.cwd(), "node_modules", ".bin", "hyperframes");
+  let localBin = path.join(process.cwd(), "node_modules", ".bin", "hyperframes");
+  if (!fs.existsSync(localBin)) {
+    const parentBin = path.join(process.cwd(), "../../node_modules", ".bin", "hyperframes");
+    if (fs.existsSync(parentBin)) {
+      localBin = parentBin;
+    }
+  }
   const mode = hyperframesRenderMode();
 
   if (mode === "docker") {
