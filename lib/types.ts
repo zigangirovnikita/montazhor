@@ -15,8 +15,41 @@ export type Platform = "instagram_reels" | "tiktok" | "youtube_shorts";
 export type EditMode = "cut_subtitles" | "cut_subtitles_infographics";
 export type CleanupMode = "pauses_only" | "pauses_and_fillers" | "semantic_cleanup";
 export type PresentationMode = "subtitles_only" | "subtitles_infographics" | "subtitles_infographics_media";
-export type StylePreset = "clean_expert" | "dynamic_viral" | "premium_calm";
+export type StylePreset =
+  | "clean_expert"
+  | "dynamic_viral"
+  | "premium_calm"
+  | "course_glass"
+  | "expert_clean"
+  | "viral_kinetic";
 export type LanguageSetting = "auto" | "ru" | "en";
+export type VisualDensity = "low" | "medium" | "high";
+export type MotionIntensity = "calm" | "medium" | "active";
+export type VisualMomentType =
+  | "number"
+  | "list"
+  | "warning"
+  | "quote"
+  | "comparison"
+  | "definition"
+  | "cta"
+  | "keyword"
+  | "chart";
+export type VisualTemplateId =
+  | "big_number"
+  | "bullet_cards"
+  | "keyword_slam"
+  | "checklist"
+  | "metric_chart"
+  | "cta_plate";
+export type VisualMotionId =
+  | "glass_slide"
+  | "word_slam"
+  | "depth_zoom"
+  | "chart_grow"
+  | "soft_pop"
+  | "calm_fade";
+export type VisualLayout = "left" | "right" | "center" | "lower_third" | "full_frame";
 
 export function resolveCleanupMode(cleanupMode?: string | null): CleanupMode {
   if (cleanupMode === "pauses_only" || cleanupMode === "pauses_and_fillers" || cleanupMode === "semantic_cleanup") {
@@ -117,6 +150,79 @@ export interface ContentPlan {
   description: string;
   hashtags: string[];
   motionInserts: MotionInsert[];
+}
+
+export interface SemanticMoment {
+  id: string;
+  start: number;
+  end: number;
+  type: VisualMomentType;
+  sourceText: string;
+  importance: 1 | 2 | 3;
+  reason: string;
+}
+
+export interface VisualBeat {
+  id: string;
+  start: number;
+  duration: number;
+  templateId: VisualTemplateId;
+  motionId: VisualMotionId;
+  layout: VisualLayout;
+  payload: Record<string, unknown>;
+  sourceMomentId?: string;
+}
+
+export interface VisualStyleProfile {
+  id: StylePreset;
+  label: string;
+  density: VisualDensity;
+  motionIntensity: MotionIntensity;
+  typography: {
+    heading: string;
+    body: string;
+    number: string;
+  };
+  colors: {
+    background: string;
+    surface: string;
+    surfaceStrong: string;
+    text: string;
+    muted: string;
+    accent: string;
+    accent2: string;
+    warning: string;
+    border: string;
+  };
+  allowedTemplates: VisualTemplateId[];
+  allowedMotions: VisualMotionId[];
+}
+
+export interface VisualTemplateDefinition {
+  id: VisualTemplateId;
+  label: string;
+  momentTypes: VisualMomentType[];
+  minDuration: number;
+  maxDuration: number;
+  allowedLayouts: VisualLayout[];
+  requiredPayload: string[];
+}
+
+export interface VisualOverlayPlan {
+  styleProfileId: StylePreset;
+  density: VisualDensity;
+  beats: VisualBeat[];
+  fallbackSubtitleMode: "off" | "minimal" | "active_word";
+  planner: "heuristic" | "ai";
+}
+
+export interface VisualPlanInput {
+  transcript: TranscriptJson;
+  edl: EditDecisionList;
+  subtitles: SubtitleDraft[];
+  contentPlan: ContentPlan;
+  stylePreset: StylePreset;
+  duration: number;
 }
 
 export interface DraftProposal {

@@ -59,11 +59,13 @@ export async function applyDraftEdit(projectId: string, input: DraftEditInput) {
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.subtitlesOverlayMp4);
+  await safeUnlink(paths.semanticOverlayMp4);
+  await safeUnlink(paths.visualPlan);
 
   await prisma.renderAsset.deleteMany({
     where: {
       projectId,
-      type: { in: ["clean_preview", "intermediate", "review", "final", "subtitle", "split", "infographic"] }
+      type: { in: ["clean_preview", "intermediate", "review", "final", "subtitle", "split", "infographic", "semantic_overlay"] }
     }
   });
 
@@ -269,13 +271,15 @@ async function invalidateRenderedReviewArtifacts(projectId: string, includeClean
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.subtitlesAss);
   await safeUnlink(paths.subtitlesOverlayMp4);
+  await safeUnlink(paths.semanticOverlayMp4);
+  await safeUnlink(paths.visualPlan);
 
   await prisma.renderAsset.deleteMany({
     where: {
       projectId,
       type: { in: includeClean
-        ? ["clean_preview", "intermediate", "review", "final", "subtitle", "split", "infographic"]
-        : ["intermediate", "review", "final", "subtitle", "split", "infographic"] }
+        ? ["clean_preview", "intermediate", "review", "final", "subtitle", "split", "infographic", "semantic_overlay"]
+        : ["intermediate", "review", "final", "subtitle", "split", "infographic", "semantic_overlay"] }
     }
   });
 }

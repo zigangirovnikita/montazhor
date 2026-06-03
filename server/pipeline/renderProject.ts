@@ -1,10 +1,12 @@
 import { copyFile, readFile, unlink, writeFile } from "node:fs/promises";
 import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
-import { pathsForProject } from "@/lib/storage";
+import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { ContentPlan, MotionInsert, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
+import { buildVisualOverlayPlan } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
+import { renderSemanticOverlay } from "@/server/hyperframes/semanticOverlay";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
 import {
@@ -99,7 +101,9 @@ async function buildStyledReview(projectId: string) {
   await safeUnlink(paths.subtitledVideo);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
+  await safeUnlink(paths.semanticOverlayMp4);
   await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
+  const cleanMetadata = await probeVideo(paths.cleanVideo);
   await prisma.renderAsset.upsert({
     where: { id: `${projectId}-clean` },
     update: { path: paths.cleanVideo },
@@ -113,7 +117,6 @@ async function buildStyledReview(projectId: string) {
 
   if (needsInfographic) {
     try {
-      const cleanMetadata = await probeVideo(paths.cleanVideo);
       await renderInfographicPanel(paths.project, contentPlan, profile, cleanMetadata.duration, paths.infographicVideo);
       await composeSplitLayout(paths.cleanVideo, paths.infographicVideo, profile, cleanMetadata.duration, paths.splitVideo);
       await prisma.renderAsset.create({ data: { projectId, type: "infographic", path: paths.infographicVideo } });
@@ -131,6 +134,34 @@ async function buildStyledReview(projectId: string) {
   const subtitles = buildSubtitlesForEdl(transcript, edl);
   await writeFile(paths.subtitlesAss, assFromSubtitles(subtitles, stylePreset, profile, captionRegion), "utf8");
   await logProject(projectId, "info", `Generated ${subtitles.length} subtitle chunks (ASS).`);
+
+  const useSemanticOverlay = presentationMode !== "subtitles_only";
+  if (useSemanticOverlay) {
+    const visualPlan = buildVisualOverlayPlan({
+      transcript,
+      edl,
+      subtitles,
+      contentPlan,
+      stylePreset,
+      duration: cleanMetadata.duration
+    });
+    await writeJsonFile(paths.visualPlan, visualPlan);
+    await logProject(projectId, "info", `Visual plan generated with ${visualPlan.beats.length} semantic beat(s).`);
+
+    if (visualPlan.beats.length > 0) {
+      try {
+        await renderSemanticOverlay(paths.project, visualPlan, profile, cleanMetadata.duration, paths.semanticOverlayMp4);
+        await overlaySubtitlesLayer(videoForSubtitles, paths.semanticOverlayMp4, profile, paths.subtitledVideo);
+        await prisma.renderAsset.create({ data: { projectId, type: "semantic_overlay", path: paths.semanticOverlayMp4 } });
+        await logProject(projectId, "info", "Semantic motion layer rendered via HyperFrames overlay.");
+        await logProject(projectId, "info", "Additional motion inserts are still skipped in the active MVP mode.");
+        return { profile, stylePreset, presentationMode };
+      } catch (semanticError) {
+        const msg = semanticError instanceof Error ? semanticError.message : String(semanticError);
+        await logProject(projectId, "warn", `Semantic motion layer failed, falling back to subtitles. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
+      }
+    }
+  }
 
   try {
     await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, paths.subtitlesOverlayMp4, captionRegion);
