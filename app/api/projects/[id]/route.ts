@@ -8,8 +8,7 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const AGGRESSIVENESS = new Set(["low", "medium", "high"]);
-const CLEANUP_MODES = new Set(["pauses_only", "semantic_cleanup"]);
+const CLEANUP_MODES = new Set(["pauses_only", "pauses_and_fillers", "semantic_cleanup"]);
 const PRESENTATION_MODES = new Set(["subtitles_only", "subtitles_infographics", "subtitles_infographics_media"]);
 const STYLE_PRESETS = new Set(["clean_expert", "dynamic_viral", "premium_calm"]);
 
@@ -39,21 +38,21 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const paths = pathsForProject(id);
   const cleanPreviewReady = await stat(paths.cleanVideo).then(() => true).catch(() => false);
+  const revision = project.updatedAt.getTime();
 
   return NextResponse.json({
     project,
     draft,
-    downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download` : null,
-    reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review` : null,
-    cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean` : null,
-    originalUrl: `/api/projects/${id}/original`
+    downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download?v=${revision}` : null,
+    reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review?v=${revision}` : null,
+    cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean?v=${revision}` : null,
+    originalUrl: `/api/projects/${id}/original?v=${revision}`
   });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const body = (await request.json().catch(() => ({}))) as {
-    aggressiveness?: unknown;
     cleanupMode?: unknown;
     presentationMode?: unknown;
     stylePreset?: unknown;
@@ -67,27 +66,16 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const data: Record<string, string> = {};
 
-  if (body.cleanupMode !== undefined || body.aggressiveness !== undefined) {
+  if (body.cleanupMode !== undefined) {
     if (project.status !== "uploaded") {
       return NextResponse.json({ error: "Способ чистки можно менять только до старта анализа." }, { status: 409 });
     }
 
     const cleanupMode = String(body.cleanupMode ?? "").trim();
-    const aggressiveness = String(body.aggressiveness ?? "").trim();
-
-    if (cleanupMode) {
-      if (!CLEANUP_MODES.has(cleanupMode)) {
-        return NextResponse.json({ error: "Unknown cleanup mode." }, { status: 400 });
-      }
-      data.cleanupMode = cleanupMode;
-      data.aggressiveness = cleanupMode === "pauses_only" ? "low" : "medium";
-    } else {
-      if (!AGGRESSIVENESS.has(aggressiveness)) {
-        return NextResponse.json({ error: "Unknown cutting mode." }, { status: 400 });
-      }
-      data.aggressiveness = aggressiveness;
-      data.cleanupMode = aggressiveness === "low" ? "pauses_only" : "semantic_cleanup";
+    if (!CLEANUP_MODES.has(cleanupMode)) {
+      return NextResponse.json({ error: "Unknown cleanup mode." }, { status: 400 });
     }
+    data.cleanupMode = cleanupMode;
   }
 
   if (body.presentationMode !== undefined || body.stylePreset !== undefined || body.styleOptionsJson !== undefined) {

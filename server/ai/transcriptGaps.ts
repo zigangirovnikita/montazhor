@@ -7,6 +7,7 @@
  */
 
 import type { EditRange, TranscriptJson } from "@/lib/types";
+import { WORD_GAP_REMOVAL_THRESHOLD } from "@/server/ai/cutTimingPolicy";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 
 export interface TranscriptGap {
@@ -25,7 +26,7 @@ export interface TranscriptGap {
  * Extract gaps (pauses) from the transcript by analyzing timing
  * differences between consecutive words and segments.
  */
-export function detectTranscriptGaps(transcript: TranscriptJson, minGap = 0.4): TranscriptGap[] {
+export function detectTranscriptGaps(transcript: TranscriptJson, minGap = WORD_GAP_REMOVAL_THRESHOLD): TranscriptGap[] {
   // Collect all words with timestamps, falling back to segment-level timing
   const allWords: { start: number; end: number; segmentIndex: number }[] = [];
 
@@ -173,4 +174,3 @@ export function gapsToEditRanges(gaps: TranscriptGap[]): EditRange[] {
     reason: "pause",
   }));
 }
-

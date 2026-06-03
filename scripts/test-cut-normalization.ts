@@ -73,7 +73,53 @@ async function main() {
       assert(gap, "refined word-gap detector should keep removable pause after boundary repair");
       assert(gap.sourceStart > 0.5, "previous word end should move right when speech continues after Whisper end");
       assert(gap.sourceEnd < 1.5, "next word start should move left when speech starts before Whisper start");
-      assert(gap.sourceEnd - gap.sourceStart > 0.4, "refined gap should remain removable only when it is still longer than threshold");
+      assert(gap.sourceEnd - gap.sourceStart > 0.3, "refined gap should remain removable only when it is still longer than threshold");
+
+      const overlapTranscript: TranscriptJson = {
+        language: "ru",
+        segments: [
+          {
+            id: 0,
+            start: 0,
+            end: 2.3,
+            text: "важное второе",
+            words: [
+              { word: "важное", start: 0.2, end: 0.72 },
+              { word: "второе", start: 1.58, end: 2.1 },
+            ],
+          },
+        ],
+      };
+
+      await writeFile(audioPath, makeTestWav(2.3, [
+        { start: 0.2, end: 0.86 },
+        { start: 1.46, end: 2.1 },
+      ]));
+
+      const edl = await planCuts(
+        overlapTranscript,
+        2.3,
+        "pauses_only",
+        () => {},
+        audioPath,
+        {
+          provider: "transcript-diarization",
+          mainSpeakerId: "SPEAKER_00",
+          speechRanges: [{ start: 0.2, end: 2.1 }],
+        },
+        {
+          provider: "silero-vad",
+          speechRanges: [
+            { start: 0.2, end: 0.86 },
+            { start: 1.46, end: 2.1 },
+          ],
+        }
+      );
+      const refinedPause = edl.removedRanges.find((range) => range.reason === "pause");
+      const broadVadPause = edl.removedRanges.find((range) => range.reason === "vad_pause");
+      assert(refinedPause, "fine Silero + boundary refinement should keep the precise word-gap pause");
+      assert(refinedPause.sourceStart > 0.5 && refinedPause.sourceEnd < 1.5, "refined pause should stay tighter than the broad VAD gap");
+      assert.equal(broadVadPause, undefined, "coarse/fine overlap should not leave a second broad VAD cut in the EDL");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -135,10 +181,10 @@ async function main() {
       9
     );
 
-    assertRange(edl.keptRanges[0], 3.2, 5.2);
-    assertRange(edl.keptRanges[1], 5.8, 8.1);
+    assertRange(edl.keptRanges[0], 3.2, 5.1);
+    assertRange(edl.keptRanges[1], 5.9, 8.1);
     assert(edl.removedRanges.some((range) => range.reason === "not_selected" && range.sourceEnd <= 3.2), "earlier failed take should be outside the selected final script");
-    assert(edl.removedRanges.some((range) => range.reason === "mixed" && range.sourceStart <= 5.2 && range.sourceEnd >= 5.8), "pause cleanup should run after final text selection with 0.2s handles");
+    assert(edl.removedRanges.some((range) => range.reason === "mixed" && range.sourceStart <= 5.1 && range.sourceEnd >= 5.9), "pause cleanup should run after final text selection with 0.1s handles");
   }
 
   {
@@ -178,7 +224,7 @@ async function main() {
       [{ sourceStart: 10, sourceEnd: 12, reason: "pause" }],
       14
     );
-    assertRange(range, 10.2, 11.8);
+    assertRange(range, 10.1, 11.9);
   }
 
   {
@@ -187,7 +233,7 @@ async function main() {
       [{ sourceStart: 21.27, sourceEnd: 22.11, reason: "pause" }],
       30
     );
-    assertRange(range, 21.47, 21.91);
+    assertRange(range, 21.37, 22.01);
   }
 
   {
@@ -196,7 +242,7 @@ async function main() {
       [{ sourceStart: 27.07, sourceEnd: 27.51, reason: "pause" }],
       30
     );
-    assertRange(range, 27.27, 27.31);
+    assertRange(range, 27.17, 27.41);
   }
 
   {
@@ -209,6 +255,31 @@ async function main() {
     assert(range.sourceEnd >= 3.42);
     assert(range.sourceStart >= 2.8);
     assert(range.sourceEnd <= 5.0);
+  }
+
+  {
+    const elongatedFillerTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 0,
+          end: 4,
+          text: "я эээ потом",
+          words: [
+            { word: "я", start: 0.2, end: 0.35 },
+            { word: "эээ", start: 1.0, end: 1.25 },
+            { word: "потом", start: 2.1, end: 2.45 },
+          ],
+        },
+      ],
+    };
+    const [range] = normalizeRemovalRanges(
+      elongatedFillerTranscript,
+      [{ sourceStart: 1.0, sourceEnd: 1.25, reason: "filler_word", text: "эээ" }],
+      4
+    );
+    assertRange(range, 0.65, 1.6);
   }
 
   {
@@ -238,12 +309,12 @@ async function main() {
       [{ sourceStart: 10, sourceEnd: 12, reason: "non_silent_gap" }],
       14
     );
-    assertRange(range, 10.2, 11.8);
+    assertRange(range, 10.1, 11.9);
   }
 
   {
     process.env.OPENROUTER_API_KEY = "";
-    const edl = await planCuts(transcript, 14, "medium");
+    const edl = await planCuts(transcript, 14, "pauses_and_fillers");
     const removedFiller = edl.removedRanges.find(
       (range) => range.sourceStart <= 3.0 && range.sourceEnd >= 3.42
     );
@@ -259,7 +330,7 @@ async function main() {
 
   {
     process.env.OPENROUTER_API_KEY = "";
-    const edl = await planCuts(transcript, 14, "high");
+    const edl = await planCuts(transcript, 14, "semantic_cleanup");
     const shortGap = edl.removedRanges.find(
       (range) => range.reason === "pause" && range.sourceStart > 12.4
     );
@@ -267,8 +338,8 @@ async function main() {
       (range) => range.sourceStart <= 13.0 && range.sourceEnd >= 13.4
     );
 
-    assert(shortGap, "high aggressiveness should remove short transcript gaps");
-    assertRange(shortGap, 12.6, 12.8);
+    assert(shortGap, "semantic cleanup should remove short transcript gaps");
+    assertRange(shortGap, 12.5, 12.9);
     assert.equal(removedConnector, undefined, "contextual 'Короче' should be kept before an authored statement");
   }
 
@@ -298,10 +369,10 @@ async function main() {
           { start: 10.0, end: 10.4 },
         ],
       },
-      "high",
+      "semantic_cleanup",
       () => {}
     );
-    assert.equal(removals.length, 1, "high mode should remove voice-like VAD islands without words");
+    assert.equal(removals.length, 1, "semantic cleanup should remove voice-like VAD islands without words");
     assertRange(removals[0], 8.0, 9.0);
   }
 
@@ -312,11 +383,204 @@ async function main() {
         provider: "silero-vad",
         speechRanges: [{ start: 5.0, end: 8.0 }],
       },
-      "high",
+      "semantic_cleanup",
       () => {}
     );
-    assert.equal(removals.length, 2, "high mode should remove wordless gaps inside a VAD speech range");
-    assertRange(removals[1], 6.9, 8.0);
+    assert.equal(removals.length, 1, "semantic cleanup should remove only internal wordless gaps inside a VAD speech range");
+    assertRange(removals[0], 5.4, 6.5);
+  }
+
+  {
+    const overlappingTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 24.355,
+          end: 29.301,
+          text: "Правильно на Манхэттон где снимаю Человек Пока",
+          words: [
+            { word: "Правильно", start: 24.355, end: 24.776 },
+            { word: "Манхэттон", start: 24.896, end: 25.617 },
+            { word: "где", start: 27.487, end: 27.701 },
+            { word: "снимаю", start: 27.701, end: 28.301 },
+            { word: "Человек", start: 28.301, end: 28.901 },
+            { word: "Пока", start: 28.901, end: 29.301 },
+          ],
+        },
+        {
+          id: 1,
+          start: 27.899,
+          end: 29.917,
+          text: "Каждый раз когда",
+          words: [
+            { word: "Каждый", start: 27.899, end: 28.139 },
+            { word: "раз", start: 28.159, end: 28.339 },
+            { word: "когда", start: 28.359, end: 28.759 },
+          ],
+        },
+      ],
+    };
+    const removals = detectUntranscribedVoiceRemovals(
+      overlappingTranscript,
+      {
+        provider: "silero-vad",
+        speechRanges: [{ start: 24.355, end: 29.301 }],
+      },
+      "pauses_and_fillers",
+      () => {}
+    );
+    assert.equal(
+      removals.some((range) => range.sourceStart < 27 && range.sourceEnd > 26),
+      false,
+      "overlapping transcript words nearby should suppress untranscribed voice cuts"
+    );
+  }
+
+  {
+    const bridgedMainSpeakerTranscript: TranscriptJson = {
+      language: "ru",
+      mainSpeakerId: "SPEAKER_00",
+      segments: [
+        {
+          id: 0,
+          start: 0.1,
+          end: 1.35,
+          text: "это важно",
+          words: [
+            { word: "это", start: 0.1, end: 0.35, speaker: "SPEAKER_00" },
+            { word: "важно", start: 1.05, end: 1.35, speaker: "SPEAKER_00" },
+          ],
+        },
+      ],
+    };
+    const removals = detectUntranscribedVoiceRemovals(
+      bridgedMainSpeakerTranscript,
+      {
+        provider: "transcript-diarization",
+        mainSpeakerId: "SPEAKER_00",
+        speechRanges: [{ start: 0.1, end: 1.35 }],
+      },
+      "pauses_and_fillers",
+      () => {}
+    );
+    assert(
+      removals.some((range) => range.reason === "untranscribed_voice" && range.sourceStart <= 0.35 && range.sourceEnd >= 1.05),
+      "internal voice-like gaps between reliable words should be removable in filler mode"
+    );
+  }
+
+  {
+    const edgeSparseMainSpeakerTranscript: TranscriptJson = {
+      language: "ru",
+      mainSpeakerId: "SPEAKER_00",
+      segments: [
+        {
+          id: 0,
+          start: 10,
+          end: 20,
+          text: "Недавно получилось так сделать что",
+          words: [
+            { word: "Недавно", start: 11.843, end: 12.564, speaker: "SPEAKER_00" },
+            { word: "получилось", start: 12.604, end: 13.084, speaker: "SPEAKER_00" },
+            { word: "так", start: 13.124, end: 13.264, speaker: "SPEAKER_00" },
+            { word: "сделать", start: 13.304, end: 13.645, speaker: "SPEAKER_00" },
+            { word: "что", start: 13.665, end: 13.879, speaker: "SPEAKER_00" },
+          ],
+        },
+      ],
+    };
+    const removals = detectUntranscribedVoiceRemovals(
+      edgeSparseMainSpeakerTranscript,
+      {
+        provider: "transcript-diarization",
+        mainSpeakerId: "SPEAKER_00",
+        speechRanges: [{ start: 11.65784375, end: 15.69096875 }],
+      },
+      "pauses_and_fillers",
+      () => {}
+    );
+    assert.equal(
+      removals.some((range) => range.reason === "untranscribed_voice"),
+      false,
+      "trailing tails inside a main-speaker speech range should not be auto-cut as untranscribed voice"
+    );
+  }
+
+  {
+    const backgroundOnlyTranscript: TranscriptJson = {
+      language: "ru",
+      mainSpeakerId: "SPEAKER_00",
+      segments: [
+        {
+          id: 0,
+          start: 1.0,
+          end: 1.55,
+          text: "фон",
+          words: [
+            { word: "фон", start: 1.18, end: 1.42, speaker: "SPEAKER_01" },
+          ],
+        },
+      ],
+    };
+    const removals = detectUntranscribedVoiceRemovals(
+      backgroundOnlyTranscript,
+      {
+        provider: "transcript-diarization",
+        mainSpeakerId: "SPEAKER_00",
+        speechRanges: [{ start: 1.0, end: 1.55 }],
+      },
+      "pauses_and_fillers",
+      () => {}
+    );
+    assert(
+      removals.some((range) => range.reason === "untranscribed_voice" && range.sourceStart <= 1.0 && range.sourceEnd >= 1.55),
+      "background-only transcript words should not protect a range when main-speaker filtering is active"
+    );
+  }
+
+  {
+    process.env.OPENROUTER_API_KEY = "";
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "montazhor-untranscribed-"));
+    const audioPath = path.join(tempDir, "speech.wav");
+    try {
+      await writeFile(audioPath, makeTestWav(2.4, [
+        { start: 0.1, end: 0.3 },
+        { start: 1.0, end: 1.7 },
+      ]));
+      const sparseTranscript: TranscriptJson = {
+        language: "ru",
+        segments: [
+          {
+            id: 0,
+            start: 0,
+            end: 2.4,
+            text: "начало",
+            words: [{ word: "начало", start: 0.1, end: 0.3 }],
+          },
+        ],
+      };
+      const edl = await planCuts(
+        sparseTranscript,
+        2.4,
+        "semantic_cleanup",
+        () => {},
+        audioPath,
+        {
+          provider: "silero-vad",
+          speechRanges: [
+            { start: 0.1, end: 0.3 },
+            { start: 1.0, end: 1.7 },
+          ],
+        }
+      );
+      assert(
+        edl.removedRanges.some((range) => range.reason === "untranscribed_voice" && range.sourceStart <= 1.2 && range.sourceEnd >= 1.5),
+        "semantic cleanup should add untranscribed voice ranges to the final EDL"
+      );
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   }
 
   {
@@ -342,7 +606,7 @@ async function main() {
       [{ sourceStart: 2.6, sourceEnd: 8.0, reason: "vad_pause" }],
       10
     );
-    assertRange(range, 2.8, 7.8);
+    assertRange(range, 2.7, 7.9);
   }
 
   {
@@ -375,6 +639,73 @@ async function main() {
   }
 
   {
+    const overlappingSameSpeakerTranscript: TranscriptJson = {
+      language: "ru",
+      mainSpeakerId: "SPEAKER_00",
+      segments: [
+        {
+          id: 0,
+          start: 0.1,
+          end: 0.62,
+          text: "где",
+          words: [
+            { word: "где", start: 0.1, end: 0.42, speaker: "SPEAKER_00" },
+          ],
+        },
+        {
+          id: 1,
+          start: 0.34,
+          end: 0.9,
+          text: "снимают",
+          words: [
+            { word: "снимают", start: 0.34, end: 0.9, speaker: "SPEAKER_00" },
+          ],
+        },
+      ],
+    };
+    const { transcript: normalized, stats } = normalizeTranscriptTimings(overlappingSameSpeakerTranscript, { duration: 1.2 });
+    const words = normalized.segments.flatMap((segment) => segment.words ?? []);
+
+    assert.equal(stats.reasons.overlap_resolved, 1, "same-speaker overlaps should be resolved deterministically");
+    assert.equal(words.length, 2, "same-speaker overlap resolution should keep both words");
+    assert(words[1].start >= words[0].end, "same-speaker words must not overlap after normalization");
+  }
+
+  {
+    const overlappingDifferentSpeakersTranscript: TranscriptJson = {
+      language: "ru",
+      mainSpeakerId: "SPEAKER_00",
+      segments: [
+        {
+          id: 0,
+          start: 0.1,
+          end: 0.62,
+          text: "главный",
+          words: [
+            { word: "главный", start: 0.1, end: 0.62, speaker: "SPEAKER_00" },
+          ],
+        },
+        {
+          id: 1,
+          start: 0.4,
+          end: 0.74,
+          text: "фон",
+          words: [
+            { word: "фон", start: 0.4, end: 0.74, speaker: "SPEAKER_01" },
+          ],
+        },
+      ],
+    };
+    const { transcript: normalized, stats } = normalizeTranscriptTimings(overlappingDifferentSpeakersTranscript, { duration: 0.9 });
+    const words = normalized.segments.flatMap((segment) => segment.words ?? []);
+
+    assert.equal(stats.reasons.cross_speaker_overlap_suppressed, 1, "main-speaker overlap should suppress competing background words");
+    assert.equal(words.length, 1, "background overlapping word should be removed when it conflicts with the main speaker");
+    assert.equal(words[0].word, "главный");
+    assert.equal(words[0].speaker, "SPEAKER_00");
+  }
+
+  {
     const stretchedWhisperTranscript: TranscriptJson = {
       language: "ru",
       segments: [
@@ -397,7 +728,63 @@ async function main() {
       [{ sourceStart: 1.55, sourceEnd: 2.85, reason: "vad_pause" }],
       5
     );
-    assertRange(range, 1.75, 2.65);
+    assertRange(range, 1.65, 2.75);
+  }
+
+  {
+    const longFillerTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 0,
+          end: 5,
+          text: "я эээ потом",
+          words: [
+            { word: "я", start: 0.1, end: 0.25 },
+            { word: "ээээ", start: 0.6, end: 2.55 },
+            { word: "потом", start: 3.0, end: 3.3 },
+          ],
+        },
+      ],
+    };
+    const { transcript: normalized, stats } = normalizeTranscriptTimings(longFillerTranscript, { duration: 5 });
+    const filler = normalized.segments[0].words?.[1];
+    assert.equal(stats.repairedWords, 0, "long hesitation fillers should not be compressed just because they last around two seconds");
+    assert(filler, "normalized filler word should still exist");
+    assert.equal(filler?.start, 0.6);
+    assert.equal(filler?.end, 2.55);
+  }
+
+  {
+    process.env.OPENROUTER_API_KEY = "";
+    const elongatedHesitationTranscript: TranscriptJson = {
+      language: "ru",
+      segments: [
+        {
+          id: 0,
+          start: 0,
+          end: 7,
+          text: "я мэээ потом бэээ дальше нуууу итог",
+          words: [
+            { word: "я", start: 0.1, end: 0.25 },
+            { word: "мэээ", start: 0.6, end: 1.05 },
+            { word: "потом", start: 1.8, end: 2.2 },
+            { word: "бэээ", start: 2.8, end: 3.3 },
+            { word: "дальше", start: 4.0, end: 4.4 },
+            { word: "нуууу", start: 5.0, end: 5.6 },
+            { word: "итог", start: 6.2, end: 6.5 },
+          ],
+        },
+      ],
+    };
+    const edl = await planCuts(elongatedHesitationTranscript, 7, "pauses_and_fillers");
+    for (const [token, start, end] of [["мэээ", 0.6, 1.05], ["бэээ", 2.8, 3.3], ["нуууу", 5.0, 5.6]] as const) {
+      assert(
+        edl.removedRanges.some((range) => range.sourceStart <= start && range.sourceEnd >= end),
+        `pauses_and_fillers should remove elongated hesitation token ${token}`
+      );
+    }
   }
 
   {
@@ -418,7 +805,7 @@ async function main() {
         },
       ],
     };
-    const edl = await planCuts(profanityTranscript, 1.4, "high");
+    const edl = await planCuts(profanityTranscript, 1.4, "semantic_cleanup");
     const fullSegmentRemoval = edl.removedRanges.find(
       (range) => range.sourceStart <= 0.1 && range.sourceEnd >= 1.1
     );
@@ -426,7 +813,7 @@ async function main() {
       (range) => range.sourceStart <= 0.3 && range.sourceEnd >= 0.6
     );
     assert.equal(fullSegmentRemoval, undefined, "single profanity word must not remove the whole useful phrase");
-    assert(profanityWordRemoval, "high mode should still remove the profanity word");
+    assert(profanityWordRemoval, "semantic cleanup should still remove the profanity word");
   }
 
   console.log("cut normalization tests passed");

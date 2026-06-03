@@ -17,7 +17,7 @@ export interface VoiceActivityMap {
 
 export async function detectVoiceActivity(audioPath: string): Promise<VoiceActivityMap> {
   const python = process.env.WHISPER_PYTHON ?? defaultPython();
-  const provider = process.env.VOICE_ACTIVITY_PROVIDER ?? "pyannote";
+  const provider = process.env.VOICE_ACTIVITY_PROVIDER ?? "silero";
 
   if (provider === "silero") {
     return detectSileroVoiceActivity(python, audioPath);
@@ -71,6 +71,21 @@ export function voiceActivityFromTranscript(transcript: TranscriptJson): VoiceAc
         .filter((range) => range.speaker === mainSpeakerId)
         .map((range) => ({ start: range.start, end: range.end }))
     ),
+  };
+}
+
+export function mergeVoiceActivityMaps(
+  primary: VoiceActivityMap | undefined,
+  secondary: VoiceActivityMap | undefined
+): VoiceActivityMap | undefined {
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+
+  return {
+    provider: primary.provider,
+    speechRanges: primary.speechRanges,
+    mainSpeakerId: primary.mainSpeakerId ?? secondary.mainSpeakerId,
+    speakerRanges: primary.speakerRanges ?? secondary.speakerRanges,
   };
 }
 

@@ -1,10 +1,10 @@
-import type { Aggressiveness, ScriptSelectionPlan, TranscriptJson } from "@/lib/types";
+import type { CleanupMode, ScriptSelectionPlan, TranscriptJson } from "@/lib/types";
 
-export function buildScriptSelectionSystemPrompt(language: string, aggressiveness: Aggressiveness): string {
+export function buildScriptSelectionSystemPrompt(language: string, cleanupMode: CleanupMode): string {
   return `You are the main editor brain for a talking-head autopilot video app.
 
 Target language: ${targetLanguage(language)}
-Mode: ${aggressiveness.toUpperCase()}
+Cleanup mode: ${cleanupMode.toUpperCase()}
 
 Your task is NOT to decide what to delete.
 Your task is to select the exact spoken words that should remain in the final video.
@@ -13,6 +13,7 @@ CORE PRINCIPLE:
 Build one clean final monologue from the speaker's original words.
 Return KEEP SEGMENTS only.
 After this step, code will remove pauses inside the selected final monologue.
+In semantic cleanup mode, assume pauses, hesitation sounds, and speech junk between kept words will be removed automatically after your keep-plan.
 
 CRITICAL DUPLICATE RULE:
 If the same thought, sentence, CTA, hook, explanation, or example appears multiple times, keep the LAST complete version.

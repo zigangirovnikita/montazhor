@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { EditRange, TranscriptJson, TranscriptWord } from "@/lib/types";
 import type { SpeechRange, VoiceActivityMap } from "@/server/ai/voiceActivity";
 import { isReliableWordBoundary } from "@/server/ai/wordBoundaries";
+import { PAUSE_KEEP_HANDLE_SECONDS, WORD_GAP_REMOVAL_THRESHOLD } from "@/server/ai/cutTimingPolicy";
 
 interface TimedTranscriptWord extends TranscriptWord {
   segmentIndex: number;
@@ -18,8 +19,6 @@ interface RmsFrame {
   rms: number;
 }
 
-const WORD_GAP_REMOVAL_THRESHOLD = 0.4;
-const WORD_GAP_KEEP_HANDLE = 0.2;
 const END_LOOKBACK = 0.18;
 const END_LOOKAHEAD = 0.38;
 const START_LOOKBACK = 0.38;
@@ -51,7 +50,7 @@ export async function detectRefinedWordGapRemovals(
     const refinedEnd = refinePreviousWordEnd(audio, previous, next, vad?.speechRanges, duration);
     const refinedStart = refineNextWordStart(audio, previous, next, vad?.speechRanges, duration);
     const refinedGap = refinedStart - refinedEnd;
-    const removableCenter = refinedGap - WORD_GAP_KEEP_HANDLE * 2;
+    const removableCenter = refinedGap - PAUSE_KEEP_HANDLE_SECONDS * 2;
 
     if (refinedGap < WORD_GAP_REMOVAL_THRESHOLD || removableCenter < MIN_REMOVABLE_CENTER) continue;
 

@@ -1,9 +1,14 @@
 import type { EditDecisionList, EditRange } from "@/lib/types";
+import { MIN_KEPT_FRAGMENT_SECONDS } from "@/server/ai/cutTimingPolicy";
 import { scalePadFilter, standardMp4OutputArgs } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
 
-export function complementRanges(duration: number, removedRanges: EditRange[]): EditRange[] {
+export function complementRanges(
+  duration: number,
+  removedRanges: EditRange[],
+  minKeptDuration = MIN_KEPT_FRAGMENT_SECONDS
+): EditRange[] {
   const sorted = [...removedRanges]
     .filter((range) => range.sourceEnd > range.sourceStart)
     .sort((a, b) => a.sourceStart - b.sourceStart);
@@ -21,7 +26,7 @@ export function complementRanges(duration: number, removedRanges: EditRange[]): 
     kept.push({ sourceStart: cursor, sourceEnd: duration, reason: "speech" });
   }
 
-  return kept.filter((range) => range.sourceEnd - range.sourceStart > 0.5);
+  return kept.filter((range) => range.sourceEnd - range.sourceStart >= minKeptDuration);
 }
 
 export function mergeCloseRanges(ranges: EditRange[], gap = 0.18): EditRange[] {
@@ -35,10 +40,17 @@ export function mergeCloseRanges(ranges: EditRange[], gap = 0.18): EditRange[] {
       continue;
     }
     previous.sourceEnd = Math.max(previous.sourceEnd, range.sourceEnd);
-    previous.reason = previous.reason === range.reason ? previous.reason : "mixed";
+    previous.reason = mergeReasons(previous.reason, range.reason);
+    previous.text = previous.text ?? range.text;
   }
 
   return merged;
+}
+
+function mergeReasons(left: string, right: string): string {
+  if (left === right) return left;
+  if (left === "untranscribed_voice" || right === "untranscribed_voice") return "untranscribed_voice";
+  return "mixed";
 }
 
 /**
@@ -59,7 +71,7 @@ export async function renderCleanCut(
   profile: VideoProfile
 ) {
   if (edl.keptRanges.length === 0) {
-    throw new Error("No speech ranges remained after cut detection. Try lower aggressiveness.");
+    throw new Error("No speech ranges remained after cut detection. Change the cleanup mode or review the transcript boundaries.");
   }
 
   // For a single range, use simple -ss/-to (fastest path, avoids filtergraph overhead)

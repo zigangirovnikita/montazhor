@@ -1,4 +1,6 @@
 import type { TranscriptJson, TranscriptSegment, TranscriptWord } from "@/lib/types";
+import { isFillerWord } from "@/server/ai/fillerWords";
+import { resolveTranscriptWordConflicts } from "@/server/ai/transcriptWordConflicts";
 
 interface SpeechRange {
   start: number;
@@ -23,6 +25,7 @@ interface TimedWord extends TranscriptWord {
 
 const MIN_WORD_DURATION = 0.08;
 const MAX_WORD_DURATION = 2.4;
+const MAX_FILLER_DURATION = 4;
 const FAST_CHARS_PER_SECOND = 34;
 const SLOW_CHARS_PER_SECOND = 5;
 const MIN_SYLLABLE_SECONDS = 0.11;
@@ -41,7 +44,16 @@ export function normalizeTranscriptTimings(
   };
 
   const segments = transcript.segments.map((segment) => normalizeSegment(segment, options, stats));
-  return { transcript: { ...transcript, segments }, stats };
+  const normalizedTranscript = { ...transcript, segments };
+  const conflictResolution = resolveTranscriptWordConflicts(normalizedTranscript);
+
+  stats.repairedWords += conflictResolution.stats.repairedWords;
+  stats.repairedSegments += conflictResolution.stats.repairedSegments;
+  for (const [reason, count] of Object.entries(conflictResolution.stats.reasons)) {
+    stats.reasons[reason] = (stats.reasons[reason] ?? 0) + count;
+  }
+
+  return { transcript: conflictResolution.transcript, stats };
 }
 
 export function formatTranscriptTimingStats(stats: TranscriptTimingNormalizationStats): string {
@@ -82,7 +94,7 @@ function normalizeSegment(
   }
 
   stats.repairedSegments += 1;
-  const repaired = repairWords(words, container, options.duration);
+  const repaired = repairWords(words, container, options.duration, options.speechRanges);
   stats.repairedWords += repaired.filter((word, index) => word.start !== segment.words?.[index]?.start || word.end !== segment.words[index]?.end).length;
 
   return {
@@ -118,7 +130,12 @@ function wordTimingIssues(word: TranscriptWord, previousEnd: number, container: 
   return Array.from(new Set(issues));
 }
 
-function repairWords(words: TimedWord[], container: SpeechRange, duration: number | undefined): TranscriptWord[] {
+function repairWords(
+  words: TimedWord[],
+  container: SpeechRange,
+  duration: number | undefined,
+  speechRanges: SpeechRange[] | undefined
+): TranscriptWord[] {
   const repaired: TranscriptWord[] = [];
 
   for (let index = 0; index < words.length; index += 1) {
@@ -129,19 +146,33 @@ function repairWords(words: TimedWord[], container: SpeechRange, duration: numbe
     const right = Math.max(left, nextValidStart ?? container.end);
 
     if (word.issues.length === 0 && word.start >= left && word.end <= right) {
-      repaired.push({ word: word.word, start: word.start, end: word.end });
+      repaired.push({
+        word: word.word,
+        start: word.start,
+        end: word.end,
+        speaker: word.speaker,
+        confidence: word.confidence,
+      });
       continue;
     }
 
-    const estimatedDuration = Math.min(plausibleTargetDuration(word.word), Math.max(MIN_WORD_DURATION, right - left));
-    const preferredStart = Number.isFinite(word.start) ? clampTime(word.start, left, Math.max(left, right - estimatedDuration)) : left;
-    const start = Math.max(left, preferredStart);
-    const end = Math.min(right, Math.max(start + MIN_WORD_DURATION, start + estimatedDuration));
+    const wordContainer = repairContainerForWord(word, left, right, speechRanges);
+    const estimatedDuration = Math.min(
+      plausibleTargetDuration(word.word),
+      Math.max(MIN_WORD_DURATION, wordContainer.end - wordContainer.start)
+    );
+    const preferredStart = Number.isFinite(word.start)
+      ? clampTime(word.start, wordContainer.start, Math.max(wordContainer.start, wordContainer.end - estimatedDuration))
+      : wordContainer.start;
+    const start = Math.max(wordContainer.start, preferredStart);
+    const end = Math.min(wordContainer.end, Math.max(start + MIN_WORD_DURATION, start + estimatedDuration));
 
     repaired.push({
       word: word.word,
       start: roundTime(clampTime(start, 0, duration)),
       end: roundTime(clampTime(Math.max(end, start + MIN_WORD_DURATION), 0, duration)),
+      speaker: word.speaker,
+      confidence: word.confidence,
     });
   }
 
@@ -151,6 +182,30 @@ function repairWords(words: TimedWord[], container: SpeechRange, duration: numbe
     const start = previous.end;
     return { ...word, start: roundTime(start), end: roundTime(Math.max(start + MIN_WORD_DURATION, word.end)) };
   });
+}
+
+function repairContainerForWord(
+  word: TimedWord,
+  left: number,
+  right: number,
+  speechRanges: SpeechRange[] | undefined
+): SpeechRange {
+  if (!speechRanges?.length || right - left < MIN_WORD_DURATION) return { start: left, end: right };
+
+  const wordMidpoint = Number.isFinite(word.start) && Number.isFinite(word.end)
+    ? (word.start + word.end) / 2
+    : left;
+
+  const candidate = speechRanges
+    .map((range) => ({
+      start: Math.max(left, range.start),
+      end: Math.min(right, range.end),
+      distance: Math.abs(((range.start + range.end) / 2) - wordMidpoint),
+    }))
+    .filter((range) => range.end - range.start >= MIN_WORD_DURATION)
+    .sort((a, b) => a.distance - b.distance)[0];
+
+  return candidate ? { start: candidate.start, end: candidate.end } : { start: left, end: right };
 }
 
 function findNextValidStart(
@@ -202,12 +257,22 @@ function plausibleMinDuration(word: string): number {
 }
 
 function plausibleTargetDuration(word: string): number {
+  if (isFillerWord(word)) {
+    const syllables = countSyllables(word);
+    return roundTime(Math.min(2.2, Math.max(0.22, syllables * 0.32)));
+  }
+
   const length = normalizedLength(word);
   const syllables = countSyllables(word);
   return roundTime(Math.min(1.4, Math.max(0.16, length / 14, syllables * 0.2)));
 }
 
 function plausibleMaxDuration(word: string): number {
+  if (isFillerWord(word)) {
+    const syllables = countSyllables(word);
+    return roundTime(Math.min(MAX_FILLER_DURATION, Math.max(1.6, syllables * 0.8)));
+  }
+
   const length = normalizedLength(word);
   const syllables = countSyllables(word);
   return roundTime(Math.min(MAX_WORD_DURATION, Math.max(0.75, length / SLOW_CHARS_PER_SECOND, syllables * MAX_SYLLABLE_SECONDS)));

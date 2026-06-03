@@ -53,8 +53,7 @@ export async function POST(request: Request) {
         stylePreset: String(formData.get("stylePreset") ?? "clean_expert"),
         language: String(formData.get("language") ?? "auto"),
         durationTarget: String(formData.get("durationTarget") ?? "auto"),
-        aggressiveness: String(formData.get("aggressiveness") ?? "medium"),
-        cleanupMode: "semantic_cleanup",
+        cleanupMode: "pauses_and_fillers",
         presentationMode: "subtitles_only",
         styleOptionsJson: JSON.stringify({
           subtitleFont: "manrope",

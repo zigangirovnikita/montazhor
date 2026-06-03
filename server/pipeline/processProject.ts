@@ -2,11 +2,13 @@ import { readFile, unlink } from "node:fs/promises";
 import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
 import { ensureProjectStorage, pathsForProject, writeJsonFile } from "@/lib/storage";
-import type { Aggressiveness, LanguageSetting, Platform, StylePreset } from "@/lib/types";
+import { resolveCleanupMode } from "@/lib/types";
+import type { LanguageSetting, Platform, StylePreset } from "@/lib/types";
 import { LocalWhisperTranscriptionProvider } from "@/server/ai/transcription";
 import { HeuristicContentPlanner } from "@/server/ai/contentPlanner";
+import { selectivelyRealignTranscriptWithMfa } from "@/server/ai/mfaAlignment";
 import { logProjectAiUsageSummary } from "@/server/ai/usage";
-import { detectVoiceActivity, voiceActivityFromTranscript } from "@/server/ai/voiceActivity";
+import { detectVoiceActivity, mergeVoiceActivityMaps, voiceActivityFromTranscript } from "@/server/ai/voiceActivity";
 import { formatTranscriptTimingStats, normalizeTranscriptTimings } from "@/server/ai/transcriptTiming";
 import { assertFfmpegAvailable } from "@/server/video/ffmpeg";
 import { extractWhisperAudio } from "@/server/video/audio";
@@ -24,6 +26,8 @@ export async function processProjectAnalyze(projectId: string) {
   await assertFfmpegAvailable();
 
   // Clean up stale records from previous analysis runs
+  await prisma.transcript.deleteMany({ where: { projectId } });
+  await prisma.editDecision.deleteMany({ where: { projectId } });
   await prisma.renderAsset.deleteMany({ where: { projectId } });
   await safeUnlink(paths.cleanVideo);
   await safeUnlink(paths.reviewVideo);
@@ -52,12 +56,19 @@ export async function processProjectAnalyze(projectId: string) {
     audioPath: paths.audio,
     language: project.language as LanguageSetting
   });
-  const transcriptVad = voiceActivityFromTranscript(rawTranscript);
+  const mfaRefinedTranscript = await selectivelyRealignTranscriptWithMfa(
+    rawTranscript,
+    paths.audio,
+    metadata.duration,
+    (message) => logProject(projectId, "info", message)
+  );
+  const transcriptVad = voiceActivityFromTranscript(mfaRefinedTranscript);
   if (transcriptVad?.mainSpeakerId) {
     await logProject(projectId, "info", `Diarization: main speaker ${transcriptVad.mainSpeakerId}, ${transcriptVad.speechRanges.length} speech ranges from WhisperX/pyannote.`);
   }
-  const vad = transcriptVad ?? await detectVadForTimingNormalization(paths.audio, projectId);
-  const { transcript, stats: timingStats } = normalizeTranscriptTimings(rawTranscript, {
+  const sileroVad = await detectVadForTimingNormalization(paths.audio, projectId);
+  const vad = mergeVoiceActivityMaps(transcriptVad, sileroVad);
+  const { transcript, stats: timingStats } = normalizeTranscriptTimings(mfaRefinedTranscript, {
     duration: metadata.duration,
     speechRanges: vad?.speechRanges,
   });
@@ -74,13 +85,16 @@ export async function processProjectAnalyze(projectId: string) {
   await logProject(projectId, "info", "Transcript generated.");
 
   await updateProjectStatus(projectId, "planning");
+  const cleanupMode = resolveCleanupMode(project.cleanupMode);
+  await logProject(projectId, "info", `Cleanup mode: ${cleanupMode}.`);
   const edl = await planCuts(
     transcript,
     metadata.duration,
-    project.aggressiveness as Aggressiveness,
+    cleanupMode,
     (msg) => logProject(projectId, "info", msg),
     paths.audio,
     vad,
+    sileroVad,
     projectId
   );
   await writeJsonFile(paths.edl, edl);

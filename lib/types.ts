@@ -13,11 +13,17 @@ export type ProjectStatus =
 
 export type Platform = "instagram_reels" | "tiktok" | "youtube_shorts";
 export type EditMode = "cut_subtitles" | "cut_subtitles_infographics";
-export type CleanupMode = "pauses_only" | "semantic_cleanup";
+export type CleanupMode = "pauses_only" | "pauses_and_fillers" | "semantic_cleanup";
 export type PresentationMode = "subtitles_only" | "subtitles_infographics" | "subtitles_infographics_media";
 export type StylePreset = "clean_expert" | "dynamic_viral" | "premium_calm";
 export type LanguageSetting = "auto" | "ru" | "en";
-export type Aggressiveness = "low" | "medium" | "high";
+
+export function resolveCleanupMode(cleanupMode?: string | null): CleanupMode {
+  if (cleanupMode === "pauses_only" || cleanupMode === "pauses_and_fillers" || cleanupMode === "semantic_cleanup") {
+    return cleanupMode;
+  }
+  return "semantic_cleanup";
+}
 
 export interface TranscriptWord {
   word: string;

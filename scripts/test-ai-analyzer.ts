@@ -8,19 +8,19 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { isAiConfigured } from "../lib/config";
-import type { Aggressiveness, TranscriptJson } from "../lib/types";
+import type { CleanupMode, TranscriptJson } from "../lib/types";
 import { planCuts } from "../server/pipeline/steps/planCuts";
 
 async function main() {
   const projectId = process.argv[2] ?? "cmp399j0c0000c9pslwgto7wu";
-  const aggressiveness = (process.argv[3] ?? "medium") as Aggressiveness;
+  const cleanupMode = (process.argv[3] ?? "pauses_and_fillers") as CleanupMode;
   const transcriptPath = path.join(process.cwd(), "storage/projects", projectId, "transcript.json");
   const metadataPath = path.join(process.cwd(), "storage/projects", projectId, "metadata.json");
   const audioPath = path.join(process.cwd(), "storage/projects", projectId, "audio.wav");
 
   console.log("=== Montazhor Cut Planning Test ===\n");
   console.log(`Project:        ${projectId}`);
-  console.log(`Aggressiveness: ${aggressiveness}`);
+  console.log(`Cleanup mode:   ${cleanupMode}`);
   console.log(`AI configured:  ${isAiConfigured()}\n`);
 
   const transcript = JSON.parse(await readFile(transcriptPath, "utf8")) as TranscriptJson;
@@ -38,7 +38,7 @@ async function main() {
   const edl = await planCuts(
     transcript,
     metadata.duration,
-    aggressiveness,
+    cleanupMode,
     (msg) => console.log(`  [LOG] ${msg}`),
     hasAudio ? audioPath : undefined
   );
