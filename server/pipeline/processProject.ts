@@ -86,6 +86,7 @@ export async function processProjectAnalyze(projectId: string) {
 
   await updateProjectStatus(projectId, "planning");
   const cleanupMode = resolveCleanupMode(project.cleanupMode);
+  await logProject(projectId, "info", `Cleanup mode: ${cleanupMode}.`);
   const edl = await planCuts(
     transcript,
     metadata.duration,
@@ -135,13 +136,14 @@ async function detectVadForTimingNormalization(audioPath: string, projectId: str
 
 export async function readDraftProposal(projectId: string) {
   const paths = pathsForProject(projectId);
-  const [transcript, edl, subtitles, contentPlan] = await Promise.all([
+  const [transcript, edl, subtitles, contentPlan, visualPlan] = await Promise.all([
     readJson(paths.transcript),
     readJson(paths.edl),
     readJson(paths.subtitlesDraft),
-    readJson(paths.contentPlan)
+    readJson(paths.contentPlan),
+    readJson(paths.visualPlan).catch(() => null)
   ]);
-  return { projectId, transcript, edl, subtitles, contentPlan };
+  return { projectId, transcript, edl, subtitles, contentPlan, visualPlan };
 }
 
 async function readJson(filePath: string) {

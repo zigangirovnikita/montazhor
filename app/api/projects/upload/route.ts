@@ -54,13 +54,18 @@ export async function POST(request: Request) {
         language: String(formData.get("language") ?? "auto"),
         durationTarget: String(formData.get("durationTarget") ?? "auto"),
         cleanupMode: "pauses_and_fillers",
-        presentationMode: "subtitles_only",
+        editMode: "cut_subtitles_infographics",
+        presentationMode: "subtitles_infographics",
         styleOptionsJson: JSON.stringify({
           subtitleFont: "manrope",
           subtitleStyle: "active_word",
           subtitleBackdrop: "glass",
           infographicTone: "glass",
-          infographicAccent: "mint"
+          infographicAccent: "mint",
+          visualDensity: "medium",
+          motionIntensity: "medium",
+          presetPack: "educational",
+          disabledTemplates: []
         })
       }
     });

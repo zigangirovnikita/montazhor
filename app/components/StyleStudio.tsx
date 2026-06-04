@@ -1,13 +1,24 @@
 "use client";
 
-import type { PresentationMode, StylePreset } from "@/lib/types";
+import type { MotionIntensity, PresentationMode, StylePreset, VisualDensity, VisualPresetPack, VisualTemplateId } from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
+import { StyleStudioCatalog } from "@/app/components/StyleStudioCatalog";
+import { StylePresetGallery } from "@/app/components/StylePresetGallery";
 import type { ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
 
-const presetCards: Array<{ id: StylePreset; title: string; note: string; sample: string }> = [
-  { id: "clean_expert", title: "Экспертный", note: "Чистые субтитры, минимум шума.", sample: "Главная мысль" },
-  { id: "dynamic_viral", title: "Динамичный", note: "Акценты и плотный ритм.", sample: "ВАЖНО" },
-  { id: "premium_calm", title: "Премиальный", note: "Спокойные плашки и мягкий тон.", sample: "Вывод" }
+const presetCards: Array<{ id: StylePreset; title: string; note: string; sample: string; pack: VisualPresetPack; density: VisualDensity; motion: MotionIntensity }> = [
+  { id: "clean_expert", title: "Экспертный", note: "Чистые фразы, учебные акценты.", sample: "Главная мысль", pack: "educational", density: "medium", motion: "medium" },
+  { id: "dynamic_viral", title: "Динамичный", note: "Плотный ритм, slams и цифры.", sample: "ВАЖНО", pack: "viral", density: "high", motion: "active" },
+  { id: "premium_calm", title: "Премиальный", note: "Мягкие карточки и спокойные входы.", sample: "Вывод", pack: "premium", density: "low", motion: "calm" }
+];
+
+const templateControls: Array<{ id: VisualTemplateId; label: string }> = [
+  { id: "big_number", label: "Большие цифры" },
+  { id: "keyword_slam", label: "Крупные слова" },
+  { id: "checklist", label: "Чеклисты" },
+  { id: "bullet_cards", label: "Карточки" },
+  { id: "metric_chart", label: "Мини-графики" },
+  { id: "cta_plate", label: "Финальная плашка" }
 ];
 
 export function StyleStudio({
@@ -45,7 +56,16 @@ export function StyleStudio({
             className={`preset-card ${styleState.stylePreset === card.id ? "active" : ""}`}
             key={card.id}
             type="button"
-            onClick={() => onStyleChange({ ...styleState, stylePreset: card.id })}
+            onClick={() => onStyleChange({
+              ...styleState,
+              stylePreset: card.id,
+              styleOptions: {
+                ...options,
+                presetPack: card.pack,
+                visualDensity: card.density,
+                motionIntensity: card.motion
+              }
+            })}
           >
             <span className={`subtitle-sample sample-${card.id}`}>{card.sample}</span>
             <strong>{card.title}</strong>
@@ -103,6 +123,15 @@ export function StyleStudio({
           onStyleChange={onStyleChange}
         />
       ) : null}
+
+      <StyleStudioCatalog
+        presetPack={options.presetPack ?? "balanced"}
+        visualDensity={options.visualDensity ?? "medium"}
+        motionIntensity={options.motionIntensity ?? "medium"}
+        disabledTemplates={options.disabledTemplates ?? []}
+      />
+
+      <StylePresetGallery presetPack={options.presetPack ?? "balanced"} />
 
       <div className="sticky-actions">
         <button className="cta-button" type="button" disabled={pending} onClick={onRenderPreview}>
@@ -179,6 +208,40 @@ function AdvancedStyle({
   return (
     <section className="advanced-style">
       <ChoiceGroup
+        title="Плотность"
+        value={options.visualDensity ?? "medium"}
+        items={[["low", "Редко"], ["medium", "Средне"], ["high", "Плотно"]]}
+        onSelect={(visualDensity) => onStyleChange({
+          ...styleState,
+          styleOptions: { ...options, visualDensity: visualDensity as VisualDensity }
+        })}
+      />
+      <ChoiceGroup
+        title="Характер motion"
+        value={options.motionIntensity ?? "medium"}
+        items={[["calm", "Спокойно"], ["medium", "Живо"], ["active", "Активно"]]}
+        onSelect={(motionIntensity) => onStyleChange({
+          ...styleState,
+          styleOptions: { ...options, motionIntensity: motionIntensity as MotionIntensity }
+        })}
+      />
+      <ChoiceGroup
+        title="Набор пресетов"
+        value={options.presetPack ?? "balanced"}
+        items={[["balanced", "Баланс"], ["educational", "Обучение"], ["premium", "Премиум"], ["viral", "Viral"], ["minimal", "Минимум"]]}
+        onSelect={(presetPack) => onStyleChange({
+          ...styleState,
+          styleOptions: { ...options, presetPack: presetPack as VisualPresetPack }
+        })}
+      />
+      <TemplateToggles
+        disabledTemplates={options.disabledTemplates ?? []}
+        onChange={(disabledTemplates) => onStyleChange({
+          ...styleState,
+          styleOptions: { ...options, disabledTemplates }
+        })}
+      />
+      <ChoiceGroup
         title="Шрифт"
         value={options.subtitleFont}
         items={[
@@ -212,6 +275,35 @@ function AdvancedStyle({
         })}
       />
     </section>
+  );
+}
+
+function TemplateToggles({
+  disabledTemplates,
+  onChange
+}: {
+  disabledTemplates: VisualTemplateId[];
+  onChange: (next: VisualTemplateId[]) => void;
+}) {
+  return (
+    <div className="choice-group">
+      <h3>Типы вставок</h3>
+      <div>
+        {templateControls.map((item) => {
+          const enabled = !disabledTemplates.includes(item.id);
+          return (
+            <button
+              className={enabled ? "active" : ""}
+              key={item.id}
+              type="button"
+              onClick={() => onChange(enabled ? [...disabledTemplates, item.id] : disabledTemplates.filter((id) => id !== item.id))}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -265,7 +357,11 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
     subtitleStyle: "active_word",
     subtitleBackdrop: "glass",
     infographicTone: "glass",
-    infographicAccent: "mint"
+    infographicAccent: "mint",
+    visualDensity: "medium",
+    motionIntensity: "medium",
+    presetPack: "educational",
+    disabledTemplates: []
   };
 
   if (!raw) return fallback;
@@ -276,7 +372,11 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
       subtitleStyle: parsed.subtitleStyle ?? fallback.subtitleStyle,
       subtitleBackdrop: parsed.subtitleBackdrop ?? fallback.subtitleBackdrop,
       infographicTone: parsed.infographicTone ?? fallback.infographicTone,
-      infographicAccent: parsed.infographicAccent ?? fallback.infographicAccent
+      infographicAccent: parsed.infographicAccent ?? fallback.infographicAccent,
+      visualDensity: parsed.visualDensity ?? fallback.visualDensity,
+      motionIntensity: parsed.motionIntensity ?? fallback.motionIntensity,
+      presetPack: parsed.presetPack ?? fallback.presetPack,
+      disabledTemplates: parsed.disabledTemplates ?? fallback.disabledTemplates
     };
   } catch {
     return fallback;

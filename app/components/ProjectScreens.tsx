@@ -36,7 +36,7 @@ export function CleanupModeScreen({
         <ModeCard title="Убрать лишнее по смыслу" text="AI собирает финальный монолог по смыслу, а затем автоматически чистятся паузы и речевой мусор." onClick={() => onStart("semantic_cleanup")} disabled={busy} />
       </div>
       <div className="checklist-panel">
-        {["паузы режутся по точным границам слов", "внутри мысли остается по 0.2с после слова и до следующего", "естественные связки вроде «ну/вот/короче» сохраняются, если несут смысл", "спорные смысловые куски можно потом проверить в тексте", "субтитры и черновик собираются сразу"].map((item) => (
+        {["паузы режутся по точным границам слов", "внутри мысли остается по 0.1с после слова и до следующего", "естественные связки вроде «ну/вот/короче» сохраняются, если несут смысл", "спорные смысловые куски можно потом проверить в тексте", "субтитры и черновик собираются сразу"].map((item) => (
           <label key={item}><input type="checkbox" defaultChecked /> {item}</label>
         ))}
       </div>
@@ -93,6 +93,7 @@ export function FinalPreview({
       <div className="compare-player">
         <video src={payload.reviewUrl ?? payload.cleanPreviewUrl ?? payload.originalUrl} controls playsInline />
       </div>
+      <VisualPlanReview payload={payload} />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
         <button className="mode-button secondary-action" type="button" onClick={onElements}>Корректировка</button>
@@ -101,6 +102,33 @@ export function FinalPreview({
       </div>
     </div>
   );
+}
+
+function VisualPlanReview({ payload }: { payload: ProjectPayload }) {
+  const beats = payload.draft?.visualPlan?.beats ?? [];
+  if (beats.length === 0) return null;
+  return (
+    <section className="visual-review-panel">
+      <header className="section-lead">
+        <h3>Что выбрал planner</h3>
+      </header>
+      <div className="visual-review-list">
+        {beats.slice(0, 10).map((beat) => (
+          <article className="visual-review-chip" key={beat.id}>
+            <strong>{beat.presetId ?? beat.templateId}</strong>
+            <span>{formatBeatText(beat.payload)}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatBeatText(payload: Record<string, unknown>) {
+  const direct = [payload.text, payload.label, payload.title, payload.subtext].find((value) => typeof value === "string" && value.trim());
+  if (direct) return String(direct);
+  if (Array.isArray(payload.items)) return payload.items.map(String).join(" · ");
+  return "Без текста";
 }
 
 export function ExportScreen({ busy, onBack, onExport }: { busy: boolean; onBack: () => void; onExport: () => void }) {

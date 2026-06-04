@@ -31,7 +31,7 @@ The product is not a traditional video editor and not a CapCut clone.
 
 Core user flow:
 
-Raw talking-head video → automatic cleanup → subtitles → motion inserts → final vertical Reels/Shorts/TikTok video.
+Raw talking-head video → automatic cleanup → continuous semantic visual text layer → final vertical Reels/Shorts/TikTok video.
 
 The user should not need to manually edit a timeline.
 
@@ -83,7 +83,7 @@ Build the smallest working end-to-end prototype:
 8. Render a clean cut with FFmpeg.
 9. Convert output to vertical `1080x1920`.
 10. Generate readable burned-in subtitles.
-11. Generate 1–3 simple HyperFrames motion inserts.
+11. Generate a continuous HyperFrames semantic visual text layer with contextual preset inserts.
 12. Compose final MP4.
 13. Show preview, download button, transcript, EDL, and logs.
 
@@ -102,7 +102,7 @@ Use this stack unless instructed otherwise:
 - FFmpeg
 - Local Whisper provider
 - Silero VAD for local voice activity detection
-- HyperFrames for motion inserts
+- HyperFrames for continuous semantic visual overlays
 - ASS subtitles burned with FFmpeg
 - `pnpm`
 
@@ -386,7 +386,8 @@ AI validation notes:
 * Use max 2 lines.
 * Avoid covering the speaker’s face when possible.
 * Support Russian and English.
-* Primary subtitle path: HyperFrames overlay (green-screen composited via FFmpeg). Fallback: FFmpeg ASS burn.
+* Primary subtitle path: Native HTML video rendering inside HyperFrames with continuous semantic visual planning (kinetic typography and PIP metrics). Fallback: FFmpeg ASS burn.
+* The target UX is no longer "plain subtitles plus occasional cards". The spoken text should become the main visual layer: most spoken phrases are represented as animated contextual text, while numbers, warnings, lists, definitions, contrasts, and CTAs are upgraded into preset-based visual inserts.
 
 Style presets:
 
@@ -396,23 +397,43 @@ Style presets:
 
 ## HyperFrames
 
-Use HyperFrames for simple motion inserts.
+Use HyperFrames for the continuous semantic visual layer. Do not treat HyperFrames as occasional decorative cards only.
 
 MVP templates:
 
 * hook title card;
 * key point card;
-* CTA end card.
+* CTA end card;
+* kinetic_text (continuous typography);
+* PIP metric cards (numbers, charts, checklists).
+
+Continuous Semantic Overlay:
+* The visual planner (`visualPlanner.ts`) runs continuously over the final transcript after the clean cut.
+* The deterministic planner must cover the spoken text first. AI may upgrade already-covered moments, but it must not return a sparse plan that leaves ordinary speech with no visual text.
+* The default planner path may use AI to choose from the local visual registry, but it must not invent arbitrary visual systems from scratch. AI should select preset IDs/templates, choose moments, and adapt text/payloads within validated schema constraints.
+* Regular text is mapped to `kinetic_text`; numbers, warnings, lists, definitions, comparisons, and CTAs should be upgraded into validated preset instances when useful.
+* The local visual preset registry is the source of truth for reusable overlay compositions. Current key modules:
+  * `server/hyperframes/visualRegistry.ts` — template/style/preset registry.
+  * `server/ai/visualPlanner.ts` — continuous semantic planner and AI merge path.
+  * `server/hyperframes/visualLayoutPreflight.ts` — pre-render layout/payload safety pass.
+  * `server/hyperframes/templates/SemanticOverlay.ts` — deterministic HyperFrames overlay template.
+  * `lib/visualStyleOptions.ts` — saved user-facing visual options parser.
+* Before rendering, run a preflight pass that clamps payload text, splits too-long kinetic phrases, validates template/preset choices, applies disabled-template options, and falls back to `kinetic_phrase_safe` when a preset is unsafe.
+* Style controls are preset-driven. Current persisted options include `visualDensity`, `motionIntensity`, `presetPack`, and `disabledTemplates` inside `styleOptionsJson`.
+* Production semantic overlays should render HyperFrames as a graphic-only layer and then composite it over `clean.mp4` with FFmpeg while preserving clean audio. Do not render the source/clean video inside the HyperFrames HTML composition unless an alpha-capable render path is introduced and validated.
+* The renderer should attempt alpha overlay only when the produced video really contains an alpha channel. If HyperFrames WebM renders without alpha, detect that with `ffprobe` and fall back to chroma-key compositing.
+* If chroma-key compositing is used for the graphic-only layer, avoid blur filters, semi-transparent text, transparent color mixes, and key-color shadows/glows because they create colored spill around text. Prefer opaque elements and hard strokes; switch to true alpha output when HyperFrames rendering supports it reliably on the server.
 
 Rules:
 
-* HyperFrames is optional.
-* If HyperFrames fails, log the error and continue without inserts.
-* Do not overuse inserts.
-* For a 30–60 second video, 1–3 inserts are enough.
+* HyperFrames is optional only in the sense that final export must still succeed if the visual layer fails. Product quality target is HyperFrames-first.
+* If HyperFrames fails, retry with safe kinetic-only overlay before falling back to FFmpeg/ASS subtitles.
+* Do not overuse large insert cards. The continuous text layer can be dense, but heavy cards/charts should remain contextual.
+* For a 30–60 second video, use continuous kinetic text throughout and reserve strong cards/charts for the most relevant moments.
 * Do not use a local-Chromium-first render strategy. HyperFrames rendering mode must be chosen explicitly up front, not by first trying a flaky path and only then falling back.
 * Default local development render mode is Docker-backed HyperFrames rendering.
 * Production/container render mode may intentionally use direct local HyperFrames/Chrome rendering only when that environment is already provisioned for it and Docker-in-Docker or host-socket rendering would be less reliable because of filesystem/path mapping.
+* On the current Beget server, Docker may be unavailable even when `HYPERFRAMES_RENDER_MODE=docker`. The renderer must fall back from Docker to local HyperFrames/Chrome when Docker is missing.
 * When using direct local HyperFrames rendering, force software browser rendering (`PRODUCER_BROWSER_GPU_MODE=software`) and keep render concurrency conservative.
 
 ### Local HyperFrames Library
@@ -604,6 +625,7 @@ Current references:
 
 - `docs/draft-editing-plan.md` — future draft editing and voice/text correction plan.
 - `docs/hyperframes-motion-library.md` — motion library plan for fonts, subtitle styles, infographic elements, transitions, and reusable HyperFrames assets.
+- `docs/process-work-log.md` — brief working log of important fixes, decisions, results, and follow-ups. Read it before non-trivial changes and append a short entry after meaningful implementation/deploy work.
 - `docs/render-flow-plan.md` — target product flow for cleanup mode, presentation mode, style selection, preview review, corrections, and final export.
 
 ## Documentation Updates

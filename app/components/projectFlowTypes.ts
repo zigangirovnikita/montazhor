@@ -1,4 +1,4 @@
-import type { PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
+import type { PresentationMode, StylePreset, TranscriptJson, VisualOverlayPlan } from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 
 export interface ProjectPayload {
@@ -21,6 +21,7 @@ export interface ProjectPayload {
     };
     subtitles?: Array<{ id: string; start: number; end: number; text: string }>;
     contentPlan?: { hook: string; description: string; hashtags: string[] };
+    visualPlan?: VisualOverlayPlan | null;
   } | null;
   originalUrl: string;
   cleanPreviewUrl: string | null;
@@ -28,12 +29,21 @@ export interface ProjectPayload {
   downloadUrl: string | null;
 }
 
-export type DraftEditAction = "restore_removed_range" | "delete_range" | "delete_word" | "reset_draft";
+export type DraftEditAction = "restore_removed_range" | "delete_range" | "delete_word" | "edit_word_text" | "apply_review_edits" | "reset_draft";
+
+export interface DraftEditOperation {
+  action: Exclude<DraftEditAction, "apply_review_edits" | "reset_draft">;
+  sourceStart: number;
+  sourceEnd: number;
+  text?: string;
+}
 
 export interface DraftEditRequest {
   action: DraftEditAction;
   sourceStart?: number;
   sourceEnd?: number;
+  text?: string;
+  edits?: DraftEditOperation[];
 }
 
 export interface StyleState {

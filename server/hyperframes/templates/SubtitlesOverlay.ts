@@ -1,11 +1,12 @@
 import type { SubtitleDraft } from "@/lib/types";
-import { hyperframesLocalFontsCss } from "@/server/hyperframes/assets";
+import { hyperframesLocalFontsCss, hyperframesLocalGsapScript } from "@/server/hyperframes/assets";
 import type { VideoProfile, VideoRegion } from "@/server/video/profile";
 
 export function subtitlesOverlayTemplate(
   subtitles: SubtitleDraft[],
   preset: string,
   profile: VideoProfile,
+  mode: "alpha" | "chroma" = "chroma",
   captionRegion?: VideoRegion
 ) {
   const config = styleConfigForPreset(preset, profile, captionRegion);
@@ -26,6 +27,8 @@ export function subtitlesOverlayTemplate(
       }))
     }))
   );
+
+  const backgroundCss = mode === "alpha" ? "transparent" : "#00ff00";
 
   return `<!doctype html>
 <html>
@@ -65,14 +68,14 @@ export function subtitlesOverlayTemplate(
           width: ${profile.width}px;
           height: ${profile.height}px;
           overflow: hidden;
-          background: #00ff00;
+          background: ${backgroundCss};
         }
         #subtitles-overlay {
           position: relative;
           width: ${profile.width}px;
           height: ${profile.height}px;
           overflow: hidden;
-          background: #00ff00;
+          background: ${backgroundCss};
         }
         .scene {
           position: absolute;
@@ -157,7 +160,7 @@ export function subtitlesOverlayTemplate(
           opacity: 0.85;
         }
       </style>
-      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      ${hyperframesLocalGsapScript()}
       <script>
         (() => {
           window.__timelines = window.__timelines || {};

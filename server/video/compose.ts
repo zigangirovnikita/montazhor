@@ -4,16 +4,11 @@ import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
 
 /**
- * Compose the final MP4 from the subtitled video.
- * Applies loudness normalization (EBU R128).
- *
- * Motion inserts are not yet composited — once HyperFrames overlay
- * is production-ready, this function will overlay rendered cards.
+ * Final loudness normalization pass (EBU R128).
+ * Visual overlay compositing happens upstream in semanticOverlay.ts.
  */
 export async function composeFinalVideo(
   inputPath: string,
-  _inserts: MotionInsert[],
-  _profile: VideoProfile,
   outputPath: string
 ) {
   await runCommand(ffmpegPath(), [

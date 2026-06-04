@@ -186,11 +186,9 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
           onCompareModeChange={setCompareMode}
           onDraftEdit={applyDraftEdit}
           onOpenPrecision={() => setView("precision")}
+          onContinue={() => setView("style")}
         />
         {error ? <p className="error floating-error">{error}</p> : null}
-        <div className="sticky-actions">
-          <button className="cta-button" type="button" onClick={() => setView("style")}>Монтаж принят</button>
-        </div>
       </ProjectShell>
     );
   }
@@ -206,11 +204,9 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
             onCompareModeChange={setCompareMode}
             onDraftEdit={applyDraftEdit}
             onOpenPrecision={() => setView("precision")}
+            onContinue={() => setView("style")}
           />
           {error ? <p className="error floating-error">{error}</p> : null}
-          <div className="sticky-actions">
-            <button className="cta-button" type="button" onClick={() => setView("style")}>Вернуться к оформлению</button>
-          </div>
         </ProjectShell>
       );
     }

@@ -10,7 +10,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 const CLEANUP_MODES = new Set(["pauses_only", "pauses_and_fillers", "semantic_cleanup"]);
 const PRESENTATION_MODES = new Set(["subtitles_only", "subtitles_infographics", "subtitles_infographics_media"]);
-const STYLE_PRESETS = new Set(["clean_expert", "dynamic_viral", "premium_calm"]);
+const STYLE_PRESETS = new Set(["clean_expert", "dynamic_viral", "premium_calm", "course_glass", "expert_clean", "viral_kinetic"]);
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -38,14 +38,15 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const paths = pathsForProject(id);
   const cleanPreviewReady = await stat(paths.cleanVideo).then(() => true).catch(() => false);
+  const revision = project.updatedAt.getTime();
 
   return NextResponse.json({
     project,
     draft,
-    downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download` : null,
-    reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review` : null,
-    cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean` : null,
-    originalUrl: `/api/projects/${id}/original`
+    downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download?v=${revision}` : null,
+    reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review?v=${revision}` : null,
+    cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean?v=${revision}` : null,
+    originalUrl: `/api/projects/${id}/original?v=${revision}`
   });
 }
 

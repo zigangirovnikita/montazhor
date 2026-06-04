@@ -65,6 +65,10 @@ The Node pipeline uses `ffmpeg-static` and `ffprobe-static` as fallbacks. HyperF
 
 Open `http://localhost:5001`.
 
+## Server deploy
+
+For Linux server deployment and migration steps, see `docs/server-deploy.md`.
+
 ## Pipeline
 
 - `POST /api/projects/upload`: stores original video under `/storage/uploads/{projectId}`.

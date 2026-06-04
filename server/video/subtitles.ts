@@ -164,12 +164,13 @@ export async function renderSubtitlesLayerViaHyperFrames(
   preset: StylePreset,
   profile: VideoProfile,
   outputMp4Path: string,
-  captionRegion?: VideoRegion
+  captionRegion?: VideoRegion,
+  mode: "alpha" | "chroma" = "chroma"
 ) {
   const dir = path.join(projectDir, "motion", "subtitles-overlay");
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "index.html"), subtitlesOverlayTemplate(subtitles, preset, profile, captionRegion), "utf8");
-  await renderHyperframesVideo(dir, outputMp4Path);
+  await writeFile(path.join(dir, "index.html"), subtitlesOverlayTemplate(subtitles, preset, profile, mode, captionRegion), "utf8");
+  await renderHyperframesVideo(dir, outputMp4Path, mode === "alpha" ? { format: "mov", normalize: false } : undefined);
 }
 
 export async function overlaySubtitlesLayer(
@@ -178,6 +179,12 @@ export async function overlaySubtitlesLayer(
   _profile: VideoProfile,
   outputPath: string
 ) {
+  const hasAlpha = overlayVideoPath.endsWith(".mov");
+
+  const filter = hasAlpha 
+    ? "[1:v]format=auto[overlay];[0:v][overlay]overlay=x=0:y=0[outv]"
+    : "[1:v]colorkey=0x00ff00:0.1:0.2[ckout];[0:v][ckout]overlay=x=0:y=0[outv]";
+
   await runCommand(ffmpegPath(), [
     "-y",
     "-i",
@@ -185,7 +192,7 @@ export async function overlaySubtitlesLayer(
     "-i",
     overlayVideoPath,
     "-filter_complex",
-    "[1:v]colorkey=0x00ff00:0.1:0.2[ckout];[0:v][ckout]overlay=x=0:y=0[outv]",
+    filter,
     "-map",
     "[outv]",
     "-map",

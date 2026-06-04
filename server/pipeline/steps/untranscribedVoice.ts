@@ -103,8 +103,7 @@ export function detectUntranscribedVoiceRemovals(
       const gap = { start: cursor, end: word.start };
       if (
         isInternalGap(range, rangeWords, gap.start, gap.end) &&
-        !shouldSuppressRemoval(gap, words) &&
-        !bridgedByMainSpeakerContinuity(gap, reliableWords, transcript.mainSpeakerId)
+        !shouldSuppressRemoval(gap, words)
       ) {
         pushIfLongEnough(removals, cursor, word.start, minDuration);
       } else if (word.start - cursor >= minDuration) {

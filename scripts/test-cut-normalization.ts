@@ -73,7 +73,7 @@ async function main() {
       assert(gap, "refined word-gap detector should keep removable pause after boundary repair");
       assert(gap.sourceStart > 0.5, "previous word end should move right when speech continues after Whisper end");
       assert(gap.sourceEnd < 1.5, "next word start should move left when speech starts before Whisper start");
-      assert(gap.sourceEnd - gap.sourceStart > 0.4, "refined gap should remain removable only when it is still longer than threshold");
+      assert(gap.sourceEnd - gap.sourceStart > 0.3, "refined gap should remain removable only when it is still longer than threshold");
 
       const overlapTranscript: TranscriptJson = {
         language: "ru",
@@ -181,10 +181,10 @@ async function main() {
       9
     );
 
-    assertRange(edl.keptRanges[0], 3.2, 5.2);
-    assertRange(edl.keptRanges[1], 5.8, 8.1);
+    assertRange(edl.keptRanges[0], 3.2, 5.1);
+    assertRange(edl.keptRanges[1], 5.9, 8.1);
     assert(edl.removedRanges.some((range) => range.reason === "not_selected" && range.sourceEnd <= 3.2), "earlier failed take should be outside the selected final script");
-    assert(edl.removedRanges.some((range) => range.reason === "mixed" && range.sourceStart <= 5.2 && range.sourceEnd >= 5.8), "pause cleanup should run after final text selection with 0.2s handles");
+    assert(edl.removedRanges.some((range) => range.reason === "mixed" && range.sourceStart <= 5.1 && range.sourceEnd >= 5.9), "pause cleanup should run after final text selection with 0.1s handles");
   }
 
   {
@@ -224,7 +224,7 @@ async function main() {
       [{ sourceStart: 10, sourceEnd: 12, reason: "pause" }],
       14
     );
-    assertRange(range, 10.2, 11.8);
+    assertRange(range, 10.1, 11.9);
   }
 
   {
@@ -233,7 +233,7 @@ async function main() {
       [{ sourceStart: 21.27, sourceEnd: 22.11, reason: "pause" }],
       30
     );
-    assertRange(range, 21.47, 21.91);
+    assertRange(range, 21.37, 22.01);
   }
 
   {
@@ -242,7 +242,7 @@ async function main() {
       [{ sourceStart: 27.07, sourceEnd: 27.51, reason: "pause" }],
       30
     );
-    assertRange(range, 27.27, 27.31);
+    assertRange(range, 27.17, 27.41);
   }
 
   {
@@ -309,7 +309,7 @@ async function main() {
       [{ sourceStart: 10, sourceEnd: 12, reason: "non_silent_gap" }],
       14
     );
-    assertRange(range, 10.2, 11.8);
+    assertRange(range, 10.1, 11.9);
   }
 
   {
@@ -339,7 +339,7 @@ async function main() {
     );
 
     assert(shortGap, "semantic cleanup should remove short transcript gaps");
-    assertRange(shortGap, 12.6, 12.8);
+    assertRange(shortGap, 12.5, 12.9);
     assert.equal(removedConnector, undefined, "contextual 'Короче' should be kept before an authored statement");
   }
 
@@ -464,10 +464,9 @@ async function main() {
       "pauses_and_fillers",
       () => {}
     );
-    assert.equal(
-      removals.some((range) => range.reason === "untranscribed_voice"),
-      false,
-      "bridged gaps inside continuous main-speaker speech should not be cut as untranscribed voice"
+    assert(
+      removals.some((range) => range.reason === "untranscribed_voice" && range.sourceStart <= 0.35 && range.sourceEnd >= 1.05),
+      "internal voice-like gaps between reliable words should be removable in filler mode"
     );
   }
 
@@ -607,7 +606,7 @@ async function main() {
       [{ sourceStart: 2.6, sourceEnd: 8.0, reason: "vad_pause" }],
       10
     );
-    assertRange(range, 2.8, 7.8);
+    assertRange(range, 2.7, 7.9);
   }
 
   {
@@ -729,7 +728,7 @@ async function main() {
       [{ sourceStart: 1.55, sourceEnd: 2.85, reason: "vad_pause" }],
       5
     );
-    assertRange(range, 1.75, 2.65);
+    assertRange(range, 1.65, 2.75);
   }
 
   {

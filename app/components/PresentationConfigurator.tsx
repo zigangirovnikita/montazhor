@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { PresentationMode, StylePreset } from "@/lib/types";
+import type { MotionIntensity, PresentationMode, StylePreset, VisualDensity, VisualPresetPack, VisualTemplateId } from "@/lib/types";
 
 export type StyleDraftOptions = {
   subtitleFont: "manrope" | "onest" | "unbounded" | "montserrat" | "golos";
@@ -9,6 +9,10 @@ export type StyleDraftOptions = {
   subtitleBackdrop: "none" | "glass" | "solid";
   infographicTone: "glass" | "dark" | "bright";
   infographicAccent: "mint" | "orange" | "cream";
+  visualDensity?: VisualDensity;
+  motionIntensity?: MotionIntensity;
+  presetPack?: VisualPresetPack;
+  disabledTemplates?: VisualTemplateId[];
 };
 
 type OverlayProps = {

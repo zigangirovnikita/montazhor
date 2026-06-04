@@ -1,5 +1,8 @@
+import path from "node:path";
+import { resolveAppDir } from "@/lib/runtimePaths";
+
 function hyperframesHomeDir() {
-  return `${process.cwd()}/storage/hyperframes-home`;
+  return path.join(resolveAppDir(), "storage", "hyperframes-home");
 }
 
 export function hyperframesRenderMode(): "docker" | "local" | "auto" {
@@ -13,9 +16,11 @@ export function hyperframesRenderDiagnostics(): string {
 }
 
 export function hyperframesEnv() {
-  const binDir = `${process.cwd()}/bin`;
+  const appDir = resolveAppDir();
+  const binDir = path.join(appDir, "bin");
   const homeDir = hyperframesHomeDir();
   return {
+    APP_DIR: appDir,
     HOME: homeDir,
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
     XDG_CACHE_HOME: `${homeDir}/.cache`,
@@ -23,6 +28,7 @@ export function hyperframesEnv() {
     PUPPETEER_DISABLE_HEADLESS_WARNING: "true",
     PRODUCER_BROWSER_GPU_MODE: "software",
     PRODUCER_MAX_CONCURRENT_RENDERS: "1",
+    PRODUCER_PUPPETEER_PROTOCOL_TIMEOUT_MS: "900000",
     HYPERFRAMES_NO_UPDATE_CHECK: "1",
     HYPERFRAMES_NO_TELEMETRY: "1",
   };

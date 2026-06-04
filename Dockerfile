@@ -48,6 +48,7 @@ RUN pnpm install --frozen-lockfile
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 RUN npx puppeteer browsers install chrome
+RUN npx hyperframes browser ensure
 
 COPY prisma ./prisma
 RUN pnpm prisma:generate
@@ -64,4 +65,3 @@ ENV NODE_ENV="production"
 EXPOSE 5001
 
 ENTRYPOINT ["/entrypoint.sh"]
-

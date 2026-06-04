@@ -1,23 +1,31 @@
 import fs from "node:fs";
 import { rename } from "node:fs/promises";
 import path from "node:path";
+import { resolveAppDir } from "@/lib/runtimePaths";
 import { standardMp4OutputArgs } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import { hyperframesEnv, hyperframesRenderMode } from "@/server/hyperframes/diagnostics";
 
 type HyperframesRenderMode = "docker" | "local" | "auto";
+type HyperframesRenderOptions = {
+  format?: "mp4" | "webm" | "mov";
+  normalize?: boolean;
+};
+let browserEnsurePromise: Promise<void> | null = null;
 
-function renderArgs(dir: string, outputPath: string, useDocker: boolean) {
+function renderArgs(dir: string, outputPath: string, useDocker: boolean, options: HyperframesRenderOptions) {
   const args = ["render", dir, "--output", outputPath, "--quality", "draft", "--workers", "1"];
+  if (options.format) args.push("--format", options.format);
   if (useDocker) args.push("--docker");
   return args;
 }
 
-export async function renderHyperframesVideo(dir: string, outputPath: string) {
+export async function renderHyperframesVideo(dir: string, outputPath: string, options: HyperframesRenderOptions = {}) {
+  const appDir = resolveAppDir();
   const env = hyperframesEnv();
-  let localBin = path.join(process.cwd(), "node_modules", ".bin", "hyperframes");
+  let localBin = path.join(appDir, "node_modules", ".bin", "hyperframes");
   if (!fs.existsSync(localBin)) {
-    const parentBin = path.join(process.cwd(), "../../node_modules", ".bin", "hyperframes");
+    const parentBin = path.join(appDir, "../../node_modules", ".bin", "hyperframes");
     if (fs.existsSync(parentBin)) {
       localBin = parentBin;
     }
@@ -25,18 +33,23 @@ export async function renderHyperframesVideo(dir: string, outputPath: string) {
   const mode = hyperframesRenderMode();
 
   if (mode === "docker") {
-    return renderWithMode(localBin, dir, outputPath, true, env, mode);
+    try {
+      return await renderWithMode(localBin, dir, outputPath, true, env, mode, appDir, options);
+    } catch (dockerError) {
+      if (!isDockerUnavailable(dockerError)) throw dockerError;
+      return renderWithMode(localBin, dir, outputPath, false, env, "local", appDir, options);
+    }
   }
 
   if (mode === "local") {
-    return renderWithMode(localBin, dir, outputPath, false, env, mode);
+    return renderWithMode(localBin, dir, outputPath, false, env, mode, appDir, options);
   }
 
   try {
-    return await renderWithMode(localBin, dir, outputPath, true, env, "docker");
+    return await renderWithMode(localBin, dir, outputPath, true, env, "docker", appDir, options);
   } catch (dockerError) {
     try {
-      return await renderWithMode(localBin, dir, outputPath, false, env, "local");
+      return await renderWithMode(localBin, dir, outputPath, false, env, "local", appDir, options);
     } catch (localError) {
       throw new Error(formatAutoRenderFailure(dockerError, localError));
     }
@@ -49,13 +62,25 @@ async function renderWithMode(
   outputPath: string,
   useDocker: boolean,
   env: Record<string, string | undefined>,
-  mode: HyperframesRenderMode
+  mode: HyperframesRenderMode,
+  appDir: string,
+  options: HyperframesRenderOptions
 ) {
   try {
-    await runCommand(command, renderArgs(dir, outputPath, useDocker), { env });
-    await normalizeRenderedVideo(outputPath);
+    if (!useDocker) {
+      await ensureHyperframesBrowser(command, env, appDir);
+    }
+    await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env });
+    if (options.normalize !== false) await normalizeRenderedVideo(outputPath);
     return { mode };
   } catch (error) {
+    if (!useDocker && shouldRetryAfterBrowserBootstrap(error)) {
+      browserEnsurePromise = null;
+      await ensureHyperframesBrowser(command, env, appDir);
+      await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env });
+      if (options.normalize !== false) await normalizeRenderedVideo(outputPath);
+      return { mode };
+    }
     throw new Error(`HyperFrames ${mode} render failed: ${messageFor(error)}`);
   }
 }
@@ -66,6 +91,33 @@ function messageFor(error: unknown) {
 
 function formatAutoRenderFailure(dockerError: unknown, localError: unknown) {
   return `HyperFrames auto render failed.\nDocker: ${messageFor(dockerError)}\nLocal: ${messageFor(localError)}`;
+}
+
+function isDockerUnavailable(error: unknown) {
+  const message = messageFor(error);
+  return message.includes("Docker not available") || message.includes("spawnSync docker ENOENT") || message.includes("docker ENOENT");
+}
+
+async function ensureHyperframesBrowser(command: string, env: Record<string, string | undefined>, appDir: string) {
+  if (!browserEnsurePromise) {
+    browserEnsurePromise = runCommand(command, ["browser", "ensure"], { cwd: appDir, env }).then(() => undefined);
+  }
+  try {
+    await browserEnsurePromise;
+  } catch (error) {
+    browserEnsurePromise = null;
+    throw new Error(`HyperFrames browser bootstrap failed: ${messageFor(error)}`);
+  }
+}
+
+function shouldRetryAfterBrowserBootstrap(error: unknown) {
+  const message = messageFor(error);
+  return (
+    message.includes("Chrome not found") ||
+    message.includes("chrome-headless-shell") ||
+    message.includes("Permission denied") ||
+    message.includes("EACCES")
+  );
 }
 
 async function normalizeRenderedVideo(outputPath: string) {

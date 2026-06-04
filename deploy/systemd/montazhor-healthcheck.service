@@ -1,0 +1,13 @@
+[Unit]
+Description=Montazhor runtime health check
+After=network-online.target montazhor.service nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=/opt/montazhor
+Environment=APP_USER=montazhor
+Environment=APP_SERVICE=montazhor
+Environment=NGINX_SERVICE=nginx
+Environment=APP_PORT=5001
+ExecStart=/usr/bin/env bash /opt/montazhor/scripts/ensure_runtime_healthy.sh

@@ -1,18 +1,22 @@
 import { copyFile, readFile, unlink, writeFile } from "node:fs/promises";
 import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
-import { pathsForProject } from "@/lib/storage";
+import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { ContentPlan, MotionInsert, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
+import { parseVisualPlanOptions } from "@/lib/visualStyleOptions";
+import { buildVisualOverlayPlanWithAi } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
+import { loadOptionalFaceSafeRegions } from "@/server/hyperframes/faceSafeRegions";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
+import { renderSemanticOverlay } from "@/server/hyperframes/semanticOverlay";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
 import {
   assFromSubtitles,
   buildSubtitlesForEdl,
   burnSubtitles,
-  overlaySubtitlesLayer,
-  renderSubtitlesLayerViaHyperFrames
+  renderSubtitlesLayerViaHyperFrames,
+  overlaySubtitlesLayer
 } from "@/server/video/subtitles";
 import { composeFinalVideo } from "@/server/video/compose";
 import { probeVideo } from "@/server/video/metadata";
@@ -31,7 +35,7 @@ export async function renderStyledPreview(projectId: string) {
   await updateProjectStatus(projectId, "rendering_preview");
   await logProject(projectId, "info", "Composing review preview MP4...");
   await safeUnlink(paths.reviewVideo);
-  await composeFinalVideo(paths.subtitledVideo, motionInserts, profile, paths.reviewVideo);
+  await composeFinalVideo(paths.subtitledVideo, paths.finalVideo);
   const reviewMetadata = await probeVideo(paths.reviewVideo);
 
   await prisma.renderAsset.create({ data: { projectId, type: "review", path: paths.reviewVideo } });
@@ -92,13 +96,23 @@ async function buildStyledReview(projectId: string) {
   const sourceMetadata = await probeVideo(project.originalPath);
   const profile = resolveVideoProfile(sourceMetadata);
   const stylePreset = project.stylePreset as StylePreset;
+  const visualStyleOptions = parseVisualPlanOptions(project.styleOptionsJson);
+  const faceSafeRegions = await loadOptionalFaceSafeRegions(paths.project, profile);
+  const effectiveVisualOptions = faceSafeRegions.length
+    ? { ...visualStyleOptions, faceSafeRegions }
+    : visualStyleOptions;
+  if (faceSafeRegions.length) {
+    await logProject(projectId, "info", `Loaded ${faceSafeRegions.length} face-safe regions for visual overlay layout.`);
+  }
   const presentationMode = (project.presentationMode ?? fallbackPresentationMode(project.editMode)) as PresentationMode;
+  let effectivePresentationMode = presentationMode;
 
   await updateProjectStatus(projectId, "rendering_clean_video");
   await safeUnlink(paths.cleanVideo);
   await safeUnlink(paths.subtitledVideo);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
+  await safeUnlink(paths.semanticOverlayMp4);
   await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
   await prisma.renderAsset.upsert({
     where: { id: `${projectId}-clean` },
@@ -107,13 +121,53 @@ async function buildStyledReview(projectId: string) {
   });
   await logProject(projectId, "info", "Clean cut rendered for styled preview.");
 
+  const cleanMetadata = await probeVideo(paths.cleanVideo);
+  const subtitles = buildSubtitlesForEdl(transcript, edl);
   let videoForSubtitles = paths.cleanVideo;
-  const needsInfographic = presentationMode === "subtitles_infographics";
-  const captionRegion = needsInfographic ? splitLayoutForProfile(profile).author : undefined;
+  let captionRegion = undefined;
 
-  if (needsInfographic) {
+  await updateProjectStatus(projectId, "rendering_preview");
+
+  if (presentationMode === "subtitles_infographics") {
     try {
-      const cleanMetadata = await probeVideo(paths.cleanVideo);
+      const visualPlan = await buildVisualOverlayPlanWithAi(
+        {
+          transcript,
+          edl,
+          subtitles,
+          contentPlan,
+          stylePreset,
+          duration: cleanMetadata.duration,
+          frame: profile,
+          styleOptions: effectiveVisualOptions
+        },
+        projectId,
+        (message) => logProject(projectId, "info", message)
+      );
+      await writeJsonFile(paths.visualPlan, visualPlan);
+
+      if (visualPlan.beats.length > 0) {
+        await renderSemanticOverlay(paths.project, paths.cleanVideo, visualPlan, profile, cleanMetadata.duration, paths.subtitledVideo);
+        await prisma.renderAsset.create({ data: { projectId, type: "semantic_overlay", path: paths.subtitledVideo } });
+        await logProject(projectId, `info`, `Semantic overlay rendered with ${visualPlan.beats.length} beats natively.`);
+        return { profile, stylePreset, presentationMode: effectivePresentationMode };
+      }
+
+      await logProject(projectId, "warn", "Semantic planner produced no strong beats, falling back to subtitles.");
+    } catch (semanticError) {
+      const message = semanticError instanceof Error ? semanticError.message : String(semanticError);
+      await safeUnlink(paths.semanticOverlayMp4);
+      await logProject(
+        projectId,
+        "warn",
+        `Semantic overlay failed, continuing with subtitle fallback. ${hyperframesRenderDiagnostics()} Original error: ${message}`
+      );
+    }
+  }
+
+  if (presentationMode === "subtitles_infographics_media") {
+    captionRegion = splitLayoutForProfile(profile).author;
+    try {
       await renderInfographicPanel(paths.project, contentPlan, profile, cleanMetadata.duration, paths.infographicVideo);
       await composeSplitLayout(paths.cleanVideo, paths.infographicVideo, profile, cleanMetadata.duration, paths.splitVideo);
       await prisma.renderAsset.create({ data: { projectId, type: "infographic", path: paths.infographicVideo } });
@@ -122,21 +176,31 @@ async function buildStyledReview(projectId: string) {
       await logProject(projectId, "info", "Infographic split layout rendered.");
     } catch (infographicError) {
       const message = infographicError instanceof Error ? infographicError.message : String(infographicError);
-      await logProject(projectId, "error", `Infographic rendering failed. Error: ${message}`);
-      throw new Error(userFacingInfographicError(message));
+      effectivePresentationMode = "subtitles_only";
+      captionRegion = undefined;
+      await safeUnlink(paths.infographicVideo);
+      await safeUnlink(paths.splitVideo);
+      await logProject(
+        projectId,
+        "warn",
+        `Infographic rendering failed, continuing with subtitles-only preview. ${hyperframesRenderDiagnostics()} Original error: ${message}`
+      );
     }
   }
 
-  await updateProjectStatus(projectId, "rendering_preview");
-  const subtitles = buildSubtitlesForEdl(transcript, edl);
+  effectivePresentationMode = "subtitles_only";
   await writeFile(paths.subtitlesAss, assFromSubtitles(subtitles, stylePreset, profile, captionRegion), "utf8");
   await logProject(projectId, "info", `Generated ${subtitles.length} subtitle chunks (ASS).`);
 
   try {
-    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, paths.subtitlesOverlayMp4, captionRegion);
-    await overlaySubtitlesLayer(videoForSubtitles, paths.subtitlesOverlayMp4, profile, paths.subtitledVideo);
-    await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: paths.subtitlesOverlayMp4 } });
-    await logProject(projectId, "info", "Subtitles rendered via HyperFrames overlay.");
+    const subtitlesMode = "alpha";
+    const overlayExt = subtitlesMode === "alpha" ? "mov" : "mp4";
+    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
+    
+    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, captionRegion, subtitlesMode);
+    await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, paths.subtitledVideo);
+    await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+    await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitlesMode}).`);
   } catch (hyperframesError) {
     const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
     await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
@@ -144,8 +208,8 @@ async function buildStyledReview(projectId: string) {
     await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS fallback.");
   }
 
-  await logProject(projectId, "info", "Additional motion inserts are still skipped in the active MVP mode.");
-  return { profile, stylePreset, presentationMode };
+  await logProject(projectId, "info", "Preview rendered with subtitle fallback because visual overlay mode was disabled or unavailable.");
+  return { profile, stylePreset, presentationMode: effectivePresentationMode };
 }
 
 function fallbackPresentationMode(editMode: string | null | undefined): PresentationMode {
@@ -158,12 +222,4 @@ async function safeUnlink(filePath: string) {
   } catch {
     // File may not exist — that's fine
   }
-}
-
-function userFacingInfographicError(message: string) {
-  if (message.includes("Failed to launch the browser process") || message.includes("Permission denied")) {
-    return "Не получилось сгенерировать инфографику: HyperFrames не смог запустить Chromium. Черновик сохранен, можно повторить styled preview после исправления запуска браузера.";
-  }
-
-  return "Не получилось сгенерировать инфографику HyperFrames. Черновик сохранен, можно повторить styled preview.";
 }

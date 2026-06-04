@@ -52,3 +52,21 @@ export function motionSvg(name: string) {
   svgCache.set(name, value);
   return value;
 }
+
+let gsapScriptCache: string | null = null;
+
+export function hyperframesLocalGsapScript() {
+  if (gsapScriptCache) return gsapScriptCache;
+  
+  try {
+    // Try to resolve from node_modules (works in dev and standalone)
+    const gsapPath = require.resolve("gsap/dist/gsap.min.js");
+    const scriptContent = readFileSync(gsapPath, "utf8");
+    gsapScriptCache = `<script>\n${scriptContent}\n</script>`;
+  } catch (error) {
+    console.warn("Failed to load local GSAP, falling back to CDN", error);
+    gsapScriptCache = '<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>';
+  }
+  
+  return gsapScriptCache;
+}

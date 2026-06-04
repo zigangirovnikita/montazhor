@@ -1,5 +1,5 @@
 import type { ContentPlan } from "@/lib/types";
-import { hyperframesLocalFontsCss, motionSvg } from "@/server/hyperframes/assets";
+import { hyperframesLocalFontsCss, hyperframesLocalGsapScript, motionSvg } from "@/server/hyperframes/assets";
 import { infographicPanelRuntime } from "@/server/hyperframes/templates/infographicPanelRuntime";
 import { infographicPanelStyles } from "@/server/hyperframes/templates/infographicPanelTheme";
 import type { VideoRegion } from "@/server/video/profile";
@@ -89,7 +89,7 @@ export function infographicPanelTemplate(contentPlan: ContentPlan, region: Video
       <style>
 ${infographicPanelStyles(region)}
       </style>
-      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      ${hyperframesLocalGsapScript()}
       <script>
 ${infographicPanelRuntime(payload, icons, safeDuration)}
       </script>

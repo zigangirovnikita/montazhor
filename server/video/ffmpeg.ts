@@ -1,6 +1,7 @@
 import { accessSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { resolveAppDir } from "@/lib/runtimePaths";
 
 const ffmpegBin = resolveBinary(process.env.FFMPEG_PATH, "ffmpeg");
 const ffprobeBin = resolveBinary(process.env.FFPROBE_PATH, "ffprobe");
@@ -54,7 +55,7 @@ export function assPathForFilter(filePath: string) {
 function resolveBinary(configured: string | undefined, systemName: "ffmpeg" | "ffprobe") {
   if (configured && configured !== systemName) return configured;
   // Check if a local binary exists in ./bin, otherwise rely on PATH
-  const localBin = path.join(process.cwd(), "bin", systemName);
+  const localBin = path.join(resolveAppDir(), "bin", systemName);
   try {
     accessSync(localBin);
     return localBin;

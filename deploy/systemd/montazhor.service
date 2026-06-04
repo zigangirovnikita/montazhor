@@ -1,0 +1,19 @@
+[Unit]
+Description=Montazhor Next.js app
+After=network.target
+
+[Service]
+Type=simple
+User=montazhor
+Group=montazhor
+WorkingDirectory=/opt/montazhor
+Environment=NODE_ENV=production
+Environment=PORT=5001
+EnvironmentFile=/opt/montazhor/.env.production
+ExecStart=/usr/bin/env bash /opt/montazhor/scripts/start_standalone.sh
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

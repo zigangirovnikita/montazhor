@@ -4,7 +4,7 @@
  */
 
 export type AiProvider = "openrouter" | "kie";
-export type AiTask = "script_selector_pass_1" | "script_selector_pass_2";
+export type AiTask = "script_selector_pass_1" | "script_selector_pass_2" | "visual_planner";
 
 export interface AiConfig {
   /** Provider name for logging and provider-specific request details */
@@ -68,6 +68,9 @@ function providerEnvForTask(task: AiTask): string | undefined {
   }
   if (task === "script_selector_pass_2") {
     return process.env.SCRIPT_SELECTOR_PASS2_AI_PROVIDER ?? process.env.SCRIPT_SELECTOR_AI_PROVIDER ?? process.env.AI_PROVIDER;
+  }
+  if (task === "visual_planner") {
+    return process.env.VISUAL_PLANNER_AI_PROVIDER ?? process.env.AI_PROVIDER;
   }
   return process.env.AI_PROVIDER;
 }

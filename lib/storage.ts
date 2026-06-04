@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { resolveAppDir } from "@/lib/runtimePaths";
 
 const ROOT = resolveStorageRoot(process.env.STORAGE_ROOT ?? "storage");
 
@@ -9,7 +10,7 @@ export function storageRoot() {
 
 function resolveStorageRoot(value: string) {
   if (path.isAbsolute(value)) return value;
-  return path.join(/*turbopackIgnore: true*/ process.cwd(), value);
+  return path.join(resolveAppDir(), value);
 }
 
 export function sanitizeFilename(filename: string) {
@@ -44,9 +45,11 @@ export function pathsForProject(projectId: string) {
     transcript: path.join(project, "transcript.json"),
     edl: path.join(project, "edl.json"),
     contentPlan: path.join(project, "content-plan.json"),
+    visualPlan: path.join(project, "visual-plan.json"),
     subtitlesDraft: path.join(project, "subtitles-draft.json"),
     subtitlesAss: path.join(project, "subtitles.ass"),
     subtitlesOverlayMp4: path.join(project, "subtitles-overlay.mp4"),
+    semanticOverlayMp4: path.join(project, "semantic-overlay.mp4"),
     cleanVideo: path.join(project, "clean.mp4"),
     infographicVideo: path.join(project, "infographic.mp4"),
     splitVideo: path.join(project, "split.mp4"),
