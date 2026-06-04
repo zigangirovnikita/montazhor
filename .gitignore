@@ -11,6 +11,7 @@ tmp-codex-transfer
 .gemini
 *.db
 *.db-journal
+*.log
 .venv
 __pycache__
 dist
