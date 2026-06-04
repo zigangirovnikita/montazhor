@@ -2,7 +2,7 @@ import { copyFile, readFile, unlink, writeFile } from "node:fs/promises";
 import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
-import type { ContentPlan, MotionInsert, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
+import type { ContentPlan, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
 import { parseVisualPlanOptions } from "@/lib/visualStyleOptions";
 import { buildVisualOverlayPlanWithAi } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
@@ -29,13 +29,13 @@ export async function renderStyledPreview(projectId: string) {
   const paths = pathsForProject(projectId);
   await logProject(projectId, "info", "Styled preview render started.");
 
-  const { profile, stylePreset, presentationMode } = await buildStyledReview(projectId);
-  const motionInserts: MotionInsert[] = [];
+  const { stylePreset, presentationMode } = await buildStyledReview(projectId);
 
   await updateProjectStatus(projectId, "rendering_preview");
   await logProject(projectId, "info", "Composing review preview MP4...");
   await safeUnlink(paths.reviewVideo);
-  await composeFinalVideo(paths.subtitledVideo, paths.finalVideo);
+  await safeUnlink(paths.finalVideo);
+  await composeFinalVideo(paths.subtitledVideo, paths.reviewVideo);
   const reviewMetadata = await probeVideo(paths.reviewVideo);
 
   await prisma.renderAsset.create({ data: { projectId, type: "review", path: paths.reviewVideo } });

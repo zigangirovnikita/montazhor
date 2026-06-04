@@ -42,7 +42,6 @@ function buildPhrase(
   const lowerText = fullText.toLowerCase();
   
   let role: SemanticRole = "statement";
-  let isEmphasis = false;
   
   // 1. Check for specific roles
   const numberMatch = lowerText.match(/(?:\d+[.,]?\d*|[0-9]+)\s?(?:%|к|k|тыс|млн|x|раз|₽|\$)?/i);
@@ -61,7 +60,6 @@ function buildPhrase(
     role = "connector";
   } else if (subs.some(s => s.highlightedWords.length > 0) || (contentPlan.hook && lowerText.includes(contentPlan.hook.toLowerCase()))) {
     role = "emphasis";
-    isEmphasis = true;
   }
   
   // 2. Identify emphasis words

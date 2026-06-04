@@ -1,7 +1,7 @@
 import type { VisualOverlayPlan, VisualStyleProfile } from "@/lib/types";
 import { hyperframesLocalFontsCss, hyperframesLocalGsapScript } from "@/server/hyperframes/assets";
 import type { VideoProfile } from "@/server/video/profile";
-import { spacingScale, radiusScale, strokePolicies, shadows, safeAreaInsets, motionCurves, motionDurations, linePolicies, typographyScale } from "@/server/hyperframes/designTokens";
+import { spacingScale, radiusScale, strokePolicies, safeAreaInsets, motionCurves, motionDurations, linePolicies, typographyScale } from "@/server/hyperframes/designTokens";
 
 export function semanticOverlayTemplate(
   plan: VisualOverlayPlan,

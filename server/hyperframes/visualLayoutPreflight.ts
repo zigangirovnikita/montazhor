@@ -1,4 +1,4 @@
-import type { VisualBeat, VisualFrameProfile, VisualOverlayPlan, VisualPlanOptions, VisualSafeRegion, VisualStyleProfile, VisualTemplateId } from "@/lib/types";
+import type { VisualBeat, VisualFrameProfile, VisualOverlayPlan, VisualPlanOptions, VisualStyleProfile, VisualTemplateId } from "@/lib/types";
 import { defaultMotionForTemplate, presetById, presetForMoment, templateById } from "@/server/hyperframes/visualRegistry";
 import { layoutEngine } from "@/server/hyperframes/layoutEngine";
 

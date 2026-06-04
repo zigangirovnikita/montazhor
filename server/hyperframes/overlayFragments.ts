@@ -121,7 +121,7 @@ async function renderFragment(
           // but we can't do a full video render for every beat without destroying performance.
           // In a real isolated environment we'd test render, but here we'll just try
           // degrading the failing beat to safe kinetic.
-        } catch (e) {
+        } catch {
           // Found the bad beat
           isolatedPlan.beats[i] = toSafeKineticPlan({ ...plan, beats: [beatToTest] }).beats[0]!;
         }
@@ -131,7 +131,7 @@ async function renderFragment(
         await writeFile(path.join(dir, "index.html"), semanticOverlayTemplate(isolatedPlan, style, profile, duration, mode), "utf8");
         await renderHyperframesVideo(dir, outputPath, mode === "alpha" ? { format: "mov", normalize: false } : undefined);
         success = true;
-      } catch (retryError) {
+      } catch {
         success = false;
       }
       

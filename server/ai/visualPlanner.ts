@@ -15,8 +15,6 @@ import { getAiConfigForTask } from "@/lib/config";
 import { callChatCompletion } from "@/server/ai/openRouterClient";
 import { recordAiUsage } from "@/server/ai/usage";
 import {
-  cleanText,
-  containsAny,
   durationForMoment,
   payloadForMoment,
   roundTime,
@@ -27,10 +25,6 @@ import { segmentIntoPhrases } from "@/server/ai/phraseSegmenter";
 import { preflightVisualOverlayPlan } from "@/server/hyperframes/visualLayoutPreflight";
 import { defaultMotionForTemplate, presetForMoment, resolveVisualStyleProfile, visualPresets, visualTemplates } from "@/server/hyperframes/visualRegistry";
 import { validateVisualOverlayPlan } from "@/server/hyperframes/visualPlanValidator";
-
-const warningWords = ["ошибка", "нельзя", "риск", "опасно", "не делай", "mistake", "risk", "wrong", "avoid"];
-const listWords = ["первое", "второе", "третье", "шаг", "способ", "правило", "how", "when", "why", "step", "rule"];
-const ctaWords = ["сохрани", "подпишись", "напиши", "save", "subscribe", "follow", "comment"];
 
 export function buildVisualOverlayPlan(input: VisualPlanInput): VisualOverlayPlan {
   const profile = resolveProfileForInput(input);
