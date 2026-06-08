@@ -1,3 +1,4 @@
+import type React from "react";
 import type { TemplateBlockBase, VisualTemplateData, TemplateEditorTab, StoredTemplate } from "@/lib/templateBuilder";
 
 export type SectionId = "position" | "colors" | "typography" | "surface" | "motion";
@@ -15,11 +16,11 @@ export type UseTemplatePersistProps = {
   current: StoredTemplate | null;
   setCurrent: (t: StoredTemplate) => void;
   draft: VisualTemplateData;
-  setDraft: (t: VisualTemplateData) => void;
-  setTemplates: (updater: any) => void;
-  setSnapshot: (s: string) => void;
+  setDraft: React.Dispatch<React.SetStateAction<VisualTemplateData>>;
+  setTemplates: React.Dispatch<React.SetStateAction<StoredTemplate[]>>;
+  setSnapshot: React.Dispatch<React.SetStateAction<string>>;
   setStatus: (s: Status) => void;
   setOpenSection: (s: SectionId | null) => void;
-  setSectionSnapshot: (s: string | null) => void;
+  setSectionSnapshot: React.Dispatch<React.SetStateAction<string | null>>;
   isDirty: boolean;
 };
