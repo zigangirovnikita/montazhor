@@ -742,7 +742,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
     if (!el) return;
     const ctx = gsap.context(() => {
       gsap.killTweensOf(el);
-      const targets = el.querySelectorAll(".phrase-word, .keyword, .number-value, .bullet-card, .check-item, .bar, .keyword-line, .truth-word, .myth-word, .stat-row, .concept-center, .concept-node, .lesson-title, .lesson-subtext");
+      const targets = el.querySelectorAll(".keyword, .number-value, .bullet-card, .check-item, .bar, .keyword-line, .truth-word, .myth-word, .stat-row, .concept-center, .concept-node, .lesson-title, .lesson-subtext");
       gsap.killTweensOf(targets);
 
       gsap.set(el, { opacity: 0, y: 0, x: 0, scale: 0.58 });
@@ -810,8 +810,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
         } else {
           const words = el.querySelectorAll(".phrase-word");
           if (words.length) {
-            gsap.set(words, { opacity: 1 });
-
+            
             if (preset === "caption_matrix_decode") {
               words.forEach((word, index) => {
                 const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;

@@ -1412,71 +1412,36 @@
 }
 
 /* Subtitle block layout presets */
-.overlay:global(.preset-kinetic_phrase_glass) :global(.phrase-card) {
-  background: rgba(36, 34, 28, 0.76) !important;
-  backdrop-filter: blur(18px) saturate(1.18);
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
-  border-color: rgba(216, 197, 161, 0.42) !important;
-}
 
-.overlay:global(.preset-kinetic_phrase_slam) :global(.phrase-card) {
-  background: #101010 !important;
-  border-color: rgba(255, 229, 77, 0.64) !important;
-}
+
+
 
 .overlay:global(.preset-kinetic_phrase_slam) :global(.phrase-word) {
   color: #ffe54d !important;
 }
 
-.overlay:global(.preset-caption_matrix_decode) :global(.phrase-card) {
-  background: #06140f !important;
-  border-color: rgba(115, 255, 181, 0.34) !important;
-}
+
 
 .overlay:global(.preset-caption_matrix_decode) :global(.phrase-word) {
   color: #73ffb5 !important;
   text-shadow: 0 0 10px rgba(115, 255, 181, 0.44), 0 0 20px rgba(115, 255, 181, 0.44) !important;
 }
 
-.overlay:global(.preset-caption_neon_glow) :global(.phrase-card) {
-  background: #101010 !important;
-  border-color: rgba(0, 255, 240, 0.45) !important;
-}
 
-.overlay:global(.preset-caption_gradient_fill) :global(.phrase-card) {
-  background: #111111 !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-}
 
-.overlay:global(.preset-caption_clip_wipe) :global(.phrase-card) {
-  background: #111111 !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-}
 
-.overlay:global(.preset-caption_highlight) :global(.phrase-card) {
-  background: #111111 !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-}
 
-.overlay:global(.preset-caption_glitch_rgb) :global(.phrase-card) {
-  background: #101010 !important;
-  border-color: rgba(255, 64, 64, 0.45) !important;
-}
 
-.overlay:global(.preset-caption_emoji_pop) :global(.phrase-card) {
-  background: #101010 !important;
-  border-color: rgba(178, 247, 255, 0.45) !important;
-}
 
-.overlay:global(.preset-caption_particle_burst) :global(.phrase-card) {
-  background: #101010 !important;
-  border-color: rgba(255, 215, 0, 0.45) !important;
-}
 
-.overlay:global(.preset-caption_editorial_emphasis) :global(.phrase-card) {
-  background: #111111 !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-}
+
+
+
+
+
+
+
+
 
 .overlay:global(.preset-caption_pill_karaoke) :global(.phrase-card) {
   background: #e7e5e7 !important;
