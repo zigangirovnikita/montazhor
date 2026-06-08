@@ -747,10 +747,10 @@ export function semanticOverlayTemplate(
                 if (preset === "caption_matrix_decode") {
                   const scr0 = scrambleString(word.text, 0);
                   const scr1 = scrambleString(word.text, 1);
-                  return '<span class="' + cls + ' matrix-word" data-offset="' + word.start + '" data-duration="' + (word.duration || 0.3) + '">' +
-                    '<span class="matrix-real" style="display:none">' + esc(word.text) + '</span>' +
-                    '<span class="matrix-scr0" style="display:none">' + esc(scr0) + '</span>' +
-                    '<span class="matrix-scr1" style="display:none">' + esc(scr1) + '</span>' +
+                  return '<span class="' + cls + ' matrix-word" data-offset="' + word.start + '" data-duration="' + (word.duration || 0.3) + '" style="position: relative">' +
+                    '<span class="matrix-real" style="visibility:hidden">' + esc(word.text) + '</span>' +
+                    '<span class="matrix-scr0" style="display:none; position:absolute; left:0">' + esc(scr0) + '</span>' +
+                    '<span class="matrix-scr1" style="display:none; position:absolute; left:0">' + esc(scr1) + '</span>' +
                     '</span>';
                 }
                 
@@ -917,7 +917,7 @@ export function semanticOverlayTemplate(
                     timeline.set(scr0El, { display: "inline" }, wStart);
                     timeline.set(scr1El, { display: "inline" }, wStart + 0.08);
                     timeline.set(scr0El, { display: "none" }, wStart + 0.08);
-                    timeline.set(realEl, { display: "inline" }, wStart + 0.16);
+                    timeline.set(realEl, { visibility: "visible" }, wStart + 0.16);
                     timeline.set(scr1El, { display: "none" }, wStart + 0.16);
                   }
                 });

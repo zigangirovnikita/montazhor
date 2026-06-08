@@ -556,6 +556,7 @@ function splitTextToSpans(text: string, emphasis?: string, preset?: string, acce
     } else if (preset === "caption_matrix_decode") {
       style.color = "#00ff41";
       style.fontFamily = "'Space Grotesk', sans-serif";
+      style.position = "relative";
     } else if (preset === "kinetic_phrase_slam" || preset === "caption_kinetic_slam") {
       style.color = "rgba(255, 255, 255, 0.4)";
       style.fontFamily = "'Anton', sans-serif";
@@ -627,9 +628,9 @@ function splitTextToSpans(text: string, emphasis?: string, preset?: string, acce
           data-duration={0.3}
           style={style}
         >
-          <span className="matrix-real" style={{ display: "none" }}>{word}</span>
-          <span className="matrix-scr0" style={{ display: "none" }}>{scr0}</span>
-          <span className="matrix-scr1" style={{ display: "none" }}>{scr1}</span>
+          <span className="matrix-real" style={{ visibility: "hidden" }}>{word}</span>
+          <span className="matrix-scr0" style={{ display: "none", position: "absolute", left: 0 }}>{scr0}</span>
+          <span className="matrix-scr1" style={{ display: "none", position: "absolute", left: 0 }}>{scr1}</span>
         </span>
       );
     }
@@ -811,7 +812,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
           if (words.length) {
             if (preset === "caption_matrix_decode") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const realEl = word.querySelector(".matrix-real");
                 const scr0El = word.querySelector(".matrix-scr0");
                 const scr1El = word.querySelector(".matrix-scr1");
@@ -819,13 +820,13 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                   tl.set(scr0El, { display: "inline" }, offset);
                   tl.set(scr1El, { display: "inline" }, offset + 0.08 * durationFactor);
                   tl.set(scr0El, { display: "none" }, offset + 0.08 * durationFactor);
-                  tl.set(realEl, { display: "inline" }, offset + 0.16 * durationFactor);
+                  tl.set(realEl, { visibility: "visible" }, offset + 0.16 * durationFactor);
                   tl.set(scr1El, { display: "none" }, offset + 0.16 * durationFactor);
                 }
               });
             } else if (preset === "caption_neon_glow") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#00FFF0";
                 
@@ -843,7 +844,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_gradient_fill") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
                 tl.set(word, { scale: 1.04 }, offset);
@@ -857,7 +858,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "kinetic_phrase_slam" || preset === "caption_kinetic_slam") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#ffffff";
                 
@@ -877,7 +878,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_clip_wipe") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#ffffff";
                 
@@ -890,7 +891,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               tl.to(words, { clipPath: "inset(0 0% 0 100%)", duration: 0.25 * durationFactor, stagger: 0.04 * durationFactor, ease: "power2.in" }, "+=1.2");
             } else if (preset === "caption_highlight") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const bgEl = word.querySelector(".hl-word-bg");
                 
@@ -904,7 +905,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_glitch_rgb") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const travel = index % 2 === 0 ? -12 : 12;
                 const sm = 8;
@@ -925,7 +926,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_emoji_pop") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#B2F7FF";
                 
@@ -940,7 +941,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_particle_burst") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "#FFD700" : "#ffffff";
                 
@@ -949,7 +950,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_editorial_emphasis") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
                 tl.fromTo(word,
@@ -961,7 +962,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_pill_karaoke") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
                 tl.to(word, { color: "#1C1E1D", duration: 0.1 * durationFactor, ease: "none" }, offset);
@@ -969,7 +970,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else if (preset === "caption_weight_shift") {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
                 tl.to(word, { fontWeight: 700, duration: 0.1 * durationFactor, ease: "power2.out" }, offset);
@@ -977,7 +978,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
               });
             } else {
               words.forEach((word, index) => {
-                const offset = index * 0.15 * durationFactor;
+                const offset = enterDuration * 0.6 + index * 0.12 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#ffffff";
                 
