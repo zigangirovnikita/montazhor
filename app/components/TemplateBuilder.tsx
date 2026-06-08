@@ -53,6 +53,8 @@ export function TemplateBuilder() {
   const [snapshot, setSnapshot] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [openSection, setOpenSection] = useState<SectionId | null>(null);
+  const [sectionSnapshot, setSectionSnapshot] = useState<string | null>(null);
   const confirmActionRef = useRef<null | (() => void)>(null);
   const shellRef = useRef<HTMLElement | null>(null);
   const previewColumnRef = useRef<HTMLElement | null>(null);
@@ -282,6 +284,41 @@ export function TemplateBuilder() {
     return "text";
   }, [activeTab, elementPreviewKind]);
 
+  function openEditorSection(section: SectionId) {
+    if (isDirty && sectionSnapshot && JSON.stringify(draft) !== sectionSnapshot) {
+      requestConfirm({
+        title: "Есть несохраненные изменения",
+        message: "Переключить раздел? Несохраненные изменения в этом разделе будут потеряны.",
+        confirmLabel: "Переключить"
+      }, () => {
+        setDraft(JSON.parse(sectionSnapshot));
+        setOpenSection(section);
+        setSectionSnapshot(JSON.stringify(JSON.parse(sectionSnapshot))); 
+      });
+      return;
+    }
+    setOpenSection(section === openSection ? null : section);
+    if (section !== openSection) {
+      setSectionSnapshot(JSON.stringify(draft));
+    } else {
+      setSectionSnapshot(null);
+    }
+  }
+
+  function saveEditorSection() {
+    saveSection();
+    setOpenSection(null);
+    setSectionSnapshot(null);
+  }
+
+  function cancelEditorSection() {
+    if (sectionSnapshot) {
+      setDraft(JSON.parse(sectionSnapshot));
+    }
+    setOpenSection(null);
+    setSectionSnapshot(null);
+  }
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -364,99 +401,52 @@ export function TemplateBuilder() {
                 <button type="button" onClick={() => void duplicateTemplate()}>{current?.isPreset ? "Создать из пресета" : "Дублировать"}</button>
                 <button type="button" onClick={() => void makeDefault()} disabled={current?.isDefault}>Сделать дефолтным</button>
               </div>
-              <button
-                className={styles.save}
-                type="button"
-                onClick={() => void saveSection()}
-                disabled={status === "saving"}
-                style={{ marginTop: "8px", width: "100%" }}
-              >
-                {status === "saving" ? "Сохранение..." : status === "saved" ? "✓ Сохранено" : "Сохранить изменения"}
-              </button>
               <small style={{ display: "block", marginTop: "8px" }}>
                 Новые проекты получат: {optionsSummary.presetPack ?? "balanced"}, движение {optionsSummary.motionIntensity ?? "medium"}.
               </small>
             </div>
 
             {activeTab === "theme" ? (
-              <>
-                {/* 1. Готовые цветовые палитры */}
-                <div className={styles.group}>
-                  <h3>Готовые цветовые палитры</h3>
-                  <div className={styles.choiceGrid} style={{ gridTemplateColumns: "1fr", gap: "8px" }}>
-                    {curatedPalettes.map((palette, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        className={styles.segmented}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          width: "100%",
-                          background: "rgba(255, 255, 255, 0.04)",
-                          border: "1px solid rgba(255, 255, 255, 0.08)",
-                          borderRadius: "12px",
-                          cursor: "pointer",
-                          color: "#fff"
-                        }}
-                        onClick={() => {
-                          updateTheme({
-                            colorText: palette.colorText,
-                            colorPrimary: palette.colorPrimary,
-                            colorBackground: palette.colorBackground
-                          });
-                        }}
-                      >
-                        <span style={{ fontSize: "13px", fontWeight: "bold" }}>{palette.name}</span>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorText, border: "1px solid rgba(255,255,255,0.2)" }} />
-                          <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorPrimary, border: "1px solid rgba(255,255,255,0.2)" }} />
-                          <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorBackground, border: "1px solid rgba(255,255,255,0.2)" }} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+              <div className={styles.group}>
+                <h3>Готовые цветовые палитры</h3>
+                <div className={styles.choiceGrid} style={{ gridTemplateColumns: "1fr", gap: "8px" }}>
+                  {curatedPalettes.map((palette, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={styles.segmented}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        width: "100%",
+                        background: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        color: "#fff"
+                      }}
+                      onClick={() => {
+                        updateTheme({
+                          colorText: palette.colorText,
+                          colorPrimary: palette.colorPrimary,
+                          colorBackground: palette.colorBackground
+                        });
+                      }}
+                    >
+                      <span style={{ fontSize: "13px", fontWeight: "bold" }}>{palette.name}</span>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorText, border: "1px solid rgba(255,255,255,0.2)" }} />
+                        <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorPrimary, border: "1px solid rgba(255,255,255,0.2)" }} />
+                        <span style={{ display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: palette.colorBackground, border: "1px solid rgba(255,255,255,0.2)" }} />
+                      </div>
+                    </button>
+                  ))}
                 </div>
-
-                {/* 2. Ручная настройка цветов */}
-                <div className={styles.group}>
-                  <h3>Ручная настройка цветов</h3>
-                  <TemplateColorPicker label="Основной цвет (шрифты)" value={draft.theme.colorText} onChange={(colorText) => updateTheme({ colorText })} />
-                  <TemplateColorPicker label="Акцентный цвет" value={draft.theme.colorPrimary} onChange={(colorPrimary) => updateTheme({ colorPrimary })} />
-                  <TemplateColorPicker label="Второстепенный цвет" value={draft.theme.colorBackground} onChange={(colorBackground) => updateTheme({ colorBackground })} />
-                </div>
-
-                {/* 3. Шрифт и подложка по умолчанию */}
-                <div className={styles.group}>
-                  <h3>Настройки по умолчанию</h3>
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    <label style={{ display: "grid", gap: "4px" }}>
-                      <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Шрифт по умолчанию</span>
-                      <ChoiceGrid items={templateFonts} value={draft.theme.font} onChange={(font) => updateTheme({ font: font as any })} />
-                    </label>
-                    <label style={{ display: "grid", gap: "4px" }}>
-                      <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Стиль подложки</span>
-                      <ChoiceGrid items={templateSurfaces} value={draft.theme.defaultSurface} onChange={(defaultSurface) => updateTheme({ defaultSurface: defaultSurface as any })} />
-                    </label>
-                    <label style={{ display: "grid", gap: "4px" }}>
-                      <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Тени</span>
-                      <ChoiceGrid items={templateShadows} value={draft.theme.defaultShadow} onChange={(defaultShadow) => updateTheme({ defaultShadow: defaultShadow as any })} />
-                    </label>
-                    <Range
-                      label="Скорость анимации"
-                      value={Math.round(draft.theme.defaultAnimationSpeed * 100)}
-                      min={10}
-                      max={100}
-                      onChange={(value) => updateTheme({ defaultAnimationSpeed: value / 100 })}
-                    />
-                  </div>
-                </div>
-              </>
+              </div>
             ) : (
               <>
-                {/* Headline / Subtitle / Stat / Elements */}
                 <ToggleRow block={effectiveBlock} onChange={(enabled) => updateBlock({ enabled })} />
 
                 {activeTab === "elements" && (
@@ -476,7 +466,6 @@ export function TemplateBuilder() {
                   </div>
                 )}
 
-                {/* Layout Preset */}
                 {blockLayoutPresets[activeTab === "elements" ? elementPreviewKind : activeTab] ? (
                   <div className={styles.group}>
                     <h3>Макет / Пресет раскладки</h3>
@@ -487,91 +476,28 @@ export function TemplateBuilder() {
                     />
                   </div>
                 ) : null}
-
-                {/* Typography & Color */}
-                <div className={styles.group}>
-                  <h3>Шрифт и цвет</h3>
-                  {activeTab !== "elements" && (
-                    <>
-                      <label style={{ display: "grid", gap: "4px", marginBottom: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Семейство шрифта</span>
-                        <ChoiceGrid items={templateFonts} value={String(effectiveBlock.font ?? draft.theme.font)} onChange={(font) => updateBlock({ font })} />
-                      </label>
-                      <Range label="Размер шрифта" value={numberValue(effectiveBlock.fontSize, 58)} min={20} max={96} onChange={(fontSize) => updateBlock({ fontSize })} />
-                      <Range label="Жирность" value={numberValue(effectiveBlock.fontWeight, 900)} min={400} max={950} step={50} onChange={(fontWeight) => updateBlock({ fontWeight })} />
-                    </>
-                  )}
-                  <TemplateColorPicker label="Цвет текста" value={effectiveBlock.colorText ?? draft.theme.colorText} onChange={(colorText) => updateBlock({ colorText })} />
-                  <TemplateColorPicker label="Акцентный цвет" value={effectiveBlock.colorAccent ?? draft.theme.colorPrimary} onChange={(colorAccent) => updateBlock({ colorAccent })} />
-                  <button
-                    className={styles.inlineButton}
-                    type="button"
-                    onClick={() => updateBlock({ colorText: null, colorAccent: null, colorBackground: null })}
-                    style={{ marginTop: "6px" }}
-                  >
-                    Взять цвета из темы
-                  </button>
-                </div>
-
-                {/* Size & Position */}
-                <div className={styles.group}>
-                  <h3>Размер и координаты области</h3>
-                  <label style={{ display: "grid", gap: "4px", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Привязка (якорь)</span>
-                    <ChoiceGrid
-                      items={[
-                        { id: "left", label: "Лево" },
-                        { id: "right", label: "Право" },
-                        { id: "center", label: "Центр" },
-                        { id: "bottom", label: "Низ" }
-                      ]}
-                      value={effectiveBlock.position.anchor}
-                      onChange={(anchor) => updateBlock({ position: positionForAnchor(anchor as TemplateAnchor) })}
-                    />
-                  </label>
-                  <Range label="Координата X %" value={Math.round(effectiveBlock.position.x)} min={0} max={100} onChange={(x) => updateBlock({ position: { ...effectiveBlock.position, x } })} />
-                  <Range label="Координата Y %" value={Math.round(effectiveBlock.position.y)} min={0} max={100} onChange={(y) => updateBlock({ position: { ...effectiveBlock.position, y } })} />
-                </div>
-
-                {/* Surface / Background */}
-                <div className={styles.group}>
-                  <h3>Цвет подложки, рамки и тени</h3>
-                  <label style={{ display: "grid", gap: "4px", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Стиль подложки</span>
-                    <ChoiceGrid items={templateSurfaces} value={effectiveBlock.surface ?? draft.theme.defaultSurface} onChange={(surface) => updateBlock({ surface })} />
-                  </label>
-                  <TemplateColorPicker label="Цвет фона подложки" value={effectiveBlock.colorBackground ?? draft.theme.colorBackground} onChange={(colorBackground) => updateBlock({ colorBackground })} />
-                  <TemplateColorPicker label="Цвет рамки подложки" value={effectiveBlock.borderColor ?? ""} onChange={(borderColor) => updateBlock({ borderColor })} />
-                  <Range label="Прозрачность подложки %" value={Math.round(numberValue(effectiveBlock.surfaceOpacity, 0.82) * 100)} min={0} max={100} onChange={(val) => updateBlock({ surfaceOpacity: val / 100 })} />
-                  <Range label="Скругление углов" value={numberValue(effectiveBlock.borderRadius, 22)} min={4} max={44} onChange={(borderRadius) => updateBlock({ borderRadius })} />
-                  <Range label="Внутренние отступы" value={numberValue(effectiveBlock.padding, 22)} min={10} max={42} onChange={(padding) => updateBlock({ padding })} />
-                  <label style={{ display: "grid", gap: "4px", marginTop: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Тень подложки</span>
-                    <ChoiceGrid items={templateShadows} value={effectiveBlock.shadow ?? draft.theme.defaultShadow} onChange={(shadow) => updateBlock({ shadow })} />
-                  </label>
-                </div>
-
-                {/* Animations */}
-                <div className={styles.group}>
-                  <h3>Анимации появления и исчезновения</h3>
-                  <label style={{ display: "grid", gap: "4px", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Анимация появления</span>
-                    <ChoiceGrid items={templateAnimations} value={String(effectiveBlock.animationIn ?? "slide-up")} onChange={(animationIn) => updateBlock({ animationIn })} />
-                  </label>
-                  <label style={{ display: "grid", gap: "4px", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "bold" }}>Анимация исчезновения</span>
-                    <ChoiceGrid items={templateAnimationsOut} value={String(effectiveBlock.animationOut ?? "slide-up")} onChange={(animationOut) => updateBlock({ animationOut })} />
-                  </label>
-                  <Range
-                    label="Скорость анимации %"
-                    value={Math.round(numberValue(effectiveBlock.animationSpeed, draft.theme.defaultAnimationSpeed) * 100)}
-                    min={10}
-                    max={100}
-                    onChange={(val) => updateBlock({ animationSpeed: val / 100 })}
-                  />
-                </div>
               </>
             )}
+
+            <EditorSection section="position" open={openSection === "position"} onOpen={() => openEditorSection("position")} onSave={saveEditorSection} onCancel={cancelEditorSection} status={status}>
+              <PositionControls position={effectiveBlock.position} onChange={setPosition} />
+            </EditorSection>
+
+            <EditorSection section="colors" open={openSection === "colors"} onOpen={() => openEditorSection("colors")} onSave={saveEditorSection} onCancel={cancelEditorSection} status={status}>
+              <ColorControls tab={activeTab} block={activeTab === "theme" ? null : effectiveBlock} template={draft} updateTheme={updateTheme} updateBlock={updateBlock} />
+            </EditorSection>
+
+            <EditorSection section="typography" open={openSection === "typography"} onOpen={() => openEditorSection("typography")} onSave={saveEditorSection} onCancel={cancelEditorSection} status={status}>
+              <TypographyControls tab={activeTab} block={activeTab === "theme" ? null : effectiveBlock} template={draft} updateTheme={updateTheme} updateBlock={updateBlock} />
+            </EditorSection>
+
+            <EditorSection section="surface" open={openSection === "surface"} onOpen={() => openEditorSection("surface")} onSave={saveEditorSection} onCancel={cancelEditorSection} status={status}>
+              <SurfaceControls tab={activeTab} block={activeTab === "theme" ? null : effectiveBlock} template={draft} updateTheme={updateTheme} updateBlock={updateBlock} />
+            </EditorSection>
+
+            <EditorSection section="motion" open={openSection === "motion"} onOpen={() => openEditorSection("motion")} onSave={saveEditorSection} onCancel={cancelEditorSection} status={status}>
+              <MotionControls tab={activeTab} block={activeTab === "theme" ? null : effectiveBlock} template={draft} updateTheme={updateTheme} updateBlock={updateBlock} />
+            </EditorSection>
           </aside>
         </div>
       </section>
