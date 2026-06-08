@@ -810,6 +810,8 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
         } else {
           const words = el.querySelectorAll(".phrase-word");
           if (words.length) {
+            gsap.set(words, { opacity: 1 });
+
             if (preset === "caption_matrix_decode") {
               words.forEach((word, index) => {
                 const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
@@ -981,6 +983,8 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const offset = enterDuration * 0.6 + index * 0.12 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "var(--color-accent)" : "#ffffff";
+                
+                tl.set(word, { opacity: 0, y: 12 }, 0);
                 
                 tl.to(word, {
                   opacity: 1,
