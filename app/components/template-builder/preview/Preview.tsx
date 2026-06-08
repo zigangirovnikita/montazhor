@@ -452,7 +452,7 @@ export function Preview({
     }, el);
 
     return () => ctx.revert();
-  }, [animationTrigger, block.font, block.surface, block.shadow, block.animationSpeed, block.animationIn, block.animationOut, kind, block.layoutPreset]);
+  }, [animationTrigger, block.font, block.surface, block.shadow, block.animationSpeed, block.animationIn, block.animationOut, kind, block.layoutPreset, block.colorAccent, block.colorText, theme?.colorPrimary]);
 
   return (
     <div className={`${styles.stage} ${styles.aspect_portrait}`} ref={stageRef}>

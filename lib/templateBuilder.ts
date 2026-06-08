@@ -5,7 +5,7 @@ export type TemplateEditorTab = "theme" | "headline" | "subtitle" | "stat" | "el
 export type TemplateAnchor = "left" | "right" | "center" | "bottom";
 export type TemplateSurface = "glass" | "solid" | "outline" | "neon" | "none";
 export type TemplateShadow = "soft" | "deep" | "glow" | "none";
-export type TemplateFont = "grotesk" | "editorial" | "mono" | "Montserrat" | "Onest" | "Unbounded" | "Manrope" | "Golos";
+export type TemplateFont = "Inter" | "Roboto" | "Montserrat" | "Onest" | "Unbounded" | "Manrope" | "Golos";
 export type TemplateAnimation =
   | "slide-right"
   | "slide-left"
@@ -115,6 +115,8 @@ export const templateShadows: Array<{ id: TemplateShadow; label: string }> = [
 ];
 
 export const templateFonts: Array<{ id: TemplateFont; label: string }> = [
+  { id: "Inter", label: "Inter (Grotesk)" },
+  { id: "Roboto", label: "Roboto (Grotesk)" },
   { id: "Montserrat", label: "Montserrat (Grotesk)" },
   { id: "Onest", label: "Onest (Grotesk)" },
   { id: "Unbounded", label: "Unbounded (Editorial)" },
@@ -223,22 +225,22 @@ export function createDefaultTemplate(name = "Мой шаблон"): VisualTempl
       colorPrimary: "#73c8ff",
       colorText: "#ffffff",
       colorBackground: "#0d1f36",
-      font: "grotesk",
+      font: "Inter",
       defaultPosition: { x: 72, y: 22, anchor: "right" },
       defaultSurface: "glass",
       defaultShadow: "soft",
       defaultAnimationSpeed: 0.6
     },
     blocks: {
-      headline: { ...baseBlock, font: "grotesk", fontSize: 58, fontWeight: 900, lineHeight: 1.05, textTransform: "none", maxLines: 2, kicker: { enabled: true, fontSize: 13, opacity: 0.78 }, caption: { enabled: true, fontSize: 14 }, animationIn: "glass_slide", layoutPreset: "lesson_title_block" },
-      subtitle: { ...baseBlock, position: { x: 50, y: 84, anchor: "bottom" }, font: "grotesk", fontSize: 42, fontWeight: 850, lineHeight: 1.08, maxCharsPerLine: 34, maxLines: 2, highlightCurrentWord: true, highlightColor: "#73c8ff", animationIn: "calm_fade", layoutPreset: "kinetic_phrase_clean" },
-      stat: { ...baseBlock, position: { x: 26, y: 32, anchor: "left" }, number: { fontSize: 86, fontWeight: 950, font: "grotesk", animationIn: "depth_zoom" }, label: { enabled: true, fontSize: 18, fontWeight: 700 }, prefix: "", suffix: "%", layoutPreset: "big_number_callout" },
-      list: { ...baseBlock, font: "grotesk", fontSize: 34, fontWeight: 800, lineHeight: 1.16, marker: { type: "check", size: 18 }, itemDelay: 0.35, maxItems: 4, animationIn: "glass_slide", layoutPreset: "checklist_steps" },
-      comparison: { ...baseBlock, layout: "side-by-side", left: { label: "МИФ", strikethrough: true }, right: { label: "ФАКТ" }, fontSize: 32, fontWeight: 850, font: "grotesk", animationIn: "depth_zoom", layoutPreset: "myth_strike_redline" },
-      accent: { ...baseBlock, preset: "important", icon: null, iconPosition: "left", label: { enabled: true, text: "ВАЖНО", fontSize: 13, fontWeight: 900 }, fontSize: 42, fontWeight: 900, font: "grotesk", animationIn: "word_slam", layoutPreset: "keyword_focus" },
+      headline: { ...baseBlock, font: "Inter", fontSize: 58, fontWeight: 900, lineHeight: 1.05, textTransform: "none", maxLines: 2, kicker: { enabled: true, fontSize: 13, opacity: 0.78 }, caption: { enabled: true, fontSize: 14 }, animationIn: "glass_slide", layoutPreset: "lesson_title_block" },
+      subtitle: { ...baseBlock, position: { x: 50, y: 84, anchor: "bottom" }, font: "Inter", fontSize: 42, fontWeight: 850, lineHeight: 1.08, maxCharsPerLine: 34, maxLines: 2, highlightCurrentWord: true, highlightColor: "#73c8ff", animationIn: "calm_fade", layoutPreset: "kinetic_phrase_clean" },
+      stat: { ...baseBlock, position: { x: 26, y: 32, anchor: "left" }, number: { fontSize: 86, fontWeight: 950, font: "Inter", animationIn: "depth_zoom" }, label: { enabled: true, fontSize: 18, fontWeight: 700 }, prefix: "", suffix: "%", layoutPreset: "big_number_callout" },
+      list: { ...baseBlock, font: "Inter", fontSize: 34, fontWeight: 800, lineHeight: 1.16, marker: { type: "check", size: 18 }, itemDelay: 0.35, maxItems: 4, animationIn: "glass_slide", layoutPreset: "checklist_steps" },
+      comparison: { ...baseBlock, layout: "side-by-side", left: { label: "МИФ", strikethrough: true }, right: { label: "ФАКТ" }, fontSize: 32, fontWeight: 850, font: "Inter", animationIn: "depth_zoom", layoutPreset: "myth_strike_redline" },
+      accent: { ...baseBlock, preset: "important", icon: null, iconPosition: "left", label: { enabled: true, text: "ВАЖНО", fontSize: 13, fontWeight: 900 }, fontSize: 42, fontWeight: 900, font: "Inter", animationIn: "word_slam", layoutPreset: "keyword_focus" },
       chart: { ...baseBlock, type: "bar", line: { strokeWidth: 4, drawDuration: 0.9, showDots: true, fillUnder: true, fillOpacity: 0.18 }, bar: { gap: 10, animationIn: "depth_zoom" }, progress: { strokeWidth: 8, showPercent: true }, label: { enabled: true, fontSize: 14 }, title: { enabled: true, fontSize: 18, fontWeight: 800 }, layoutPreset: "metric_chart_compact" },
-      cta: { ...baseBlock, position: { x: 50, y: 50, anchor: "center" }, layout: "centered", headline: { fontSize: 58, fontWeight: 900, font: "grotesk" }, button: { enabled: true, borderRadius: 18, fontSize: 16, fontWeight: 900 }, icon: null, animationIn: "soft_pop", displayDuration: 3, layoutPreset: "cta_finish_clean" },
-      authorTag: { ...baseBlock, position: { x: 50, y: 92, anchor: "bottom" }, avatarEnabled: true, nameEnabled: true, handleEnabled: true, platformIcon: "instagram", fontSize: 16, font: "grotesk", layoutPreset: "default" }
+      cta: { ...baseBlock, position: { x: 50, y: 50, anchor: "center" }, layout: "centered", headline: { fontSize: 58, fontWeight: 900, font: "Inter" }, button: { enabled: true, borderRadius: 18, fontSize: 16, fontWeight: 900 }, icon: null, animationIn: "soft_pop", displayDuration: 3, layoutPreset: "cta_finish_clean" },
+      authorTag: { ...baseBlock, position: { x: 50, y: 92, anchor: "bottom" }, avatarEnabled: true, nameEnabled: true, handleEnabled: true, platformIcon: "instagram", fontSize: 16, font: "Inter", layoutPreset: "default" }
     }
   };
 }
@@ -256,7 +258,7 @@ export function templateToVisualPlanOptions(template: VisualTemplateData): Visua
   if (!template.blocks.chart.enabled) disabledTemplates.push("metric_chart");
   if (!template.blocks.cta.enabled) disabledTemplates.push("cta_plate");
   if (!template.blocks.subtitle.enabled) disabledTemplates.push("kinetic_text");
-  const premiumFonts = ["editorial", "Unbounded", "Manrope"];
+  const premiumFonts = ["Unbounded", "Manrope"];
   return {
     presetPack: premiumFonts.includes(template.theme.font) ? "premium" : "educational",
     motionIntensity: template.theme.defaultAnimationSpeed > 0.76 ? "active" : template.theme.defaultAnimationSpeed < 0.38 ? "calm" : "medium",

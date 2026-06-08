@@ -47,7 +47,7 @@ export function TemplateBuilder() {
   });
 
   const { shellRef, previewColumnRef, stageRef } = usePreviewSync([
-    current?.id, activeTab, templates.length, draft.name
+    current?.id, activeTab, templates.length, elementPreviewKind
   ]);
 
   function startDrag(event: PointerEvent<HTMLButtonElement>) {

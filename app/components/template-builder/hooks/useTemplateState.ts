@@ -70,14 +70,13 @@ export function useTemplateState() {
         message: "Перейти без сохранения?",
         confirmLabel: "Перейти"
       }, () => {
+        setDraft(JSON.parse(snapshot));
         setActiveTab(tab);
-        setSnapshot(JSON.stringify(draft));
         setAnimationTrigger((prev) => prev + 1);
       });
       return;
     }
     setActiveTab(tab);
-    setSnapshot(JSON.stringify(draft));
     setAnimationTrigger((prev) => prev + 1);
   }
 
