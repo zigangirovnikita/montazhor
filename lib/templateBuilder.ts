@@ -115,14 +115,11 @@ export const templateShadows: Array<{ id: TemplateShadow; label: string }> = [
 ];
 
 export const templateFonts: Array<{ id: TemplateFont; label: string }> = [
-  { id: "grotesk", label: "Montserrat / Onest (Grotesk)" },
-  { id: "editorial", label: "Unbounded / Manrope (Editorial)" },
-  { id: "mono", label: "Golos Text (Mono)" },
-  { id: "Montserrat", label: "Montserrat" },
-  { id: "Onest", label: "Onest" },
-  { id: "Unbounded", label: "Unbounded" },
-  { id: "Manrope", label: "Manrope" },
-  { id: "Golos", label: "Golos Text" }
+  { id: "Montserrat", label: "Montserrat (Grotesk)" },
+  { id: "Onest", label: "Onest (Grotesk)" },
+  { id: "Unbounded", label: "Unbounded (Editorial)" },
+  { id: "Manrope", label: "Manrope (Editorial)" },
+  { id: "Golos", label: "Golos Text (Mono)" }
 ];
 
 export const templateAnimations: Array<{ id: TemplateAnimation; label: string }> = [
@@ -247,9 +244,9 @@ export function createDefaultTemplate(name = "Мой шаблон"): VisualTempl
 }
 
 export const builtinTemplatePresets: VisualTemplateData[] = [
-  createPreset("Lesson block", "#73c8ff", "#ffffff", "#0d1f36", "grotesk", "right", "glass"),
-  createPreset("Title slam", "#ffe54d", "#ffffff", "#111111", "grotesk", "bottom", "solid"),
-  createPreset("Cinematic", "#d8c5a1", "#f7f0e5", "#151515", "editorial", "center", "glass")
+  createPreset("Lesson block", "#73c8ff", "#ffffff", "#0d1f36", "Montserrat", "right", "glass"),
+  createPreset("Title slam", "#ffe54d", "#ffffff", "#111111", "Onest", "bottom", "solid"),
+  createPreset("Cinematic", "#d8c5a1", "#f7f0e5", "#151515", "Unbounded", "center", "glass")
 ];
 
 export function templateToVisualPlanOptions(template: VisualTemplateData): VisualPlanOptions {
@@ -259,8 +256,9 @@ export function templateToVisualPlanOptions(template: VisualTemplateData): Visua
   if (!template.blocks.chart.enabled) disabledTemplates.push("metric_chart");
   if (!template.blocks.cta.enabled) disabledTemplates.push("cta_plate");
   if (!template.blocks.subtitle.enabled) disabledTemplates.push("kinetic_text");
+  const premiumFonts = ["editorial", "Unbounded", "Manrope"];
   return {
-    presetPack: template.theme.font === "editorial" ? "premium" : "educational",
+    presetPack: premiumFonts.includes(template.theme.font) ? "premium" : "educational",
     motionIntensity: template.theme.defaultAnimationSpeed > 0.76 ? "active" : template.theme.defaultAnimationSpeed < 0.38 ? "calm" : "medium",
     disabledTemplates: Array.from(new Set(disabledTemplates))
   };
@@ -270,18 +268,21 @@ export function sanitizeTemplateData(value: unknown, fallbackName = "Мой ша
   const fallback = createDefaultTemplate(fallbackName);
   if (!value || typeof value !== "object") return fallback;
   const raw = value as Partial<VisualTemplateData>;
+  const rawBlocks = (raw.blocks || {}) as Record<string, Partial<TemplateBlockBase>>;
+  const mergedBlocks = Object.keys(fallback.blocks).reduce((acc, key) => {
+    const blockId = key as TemplateBlockId;
+    acc[blockId] = { ...fallback.blocks[blockId], ...(rawBlocks[blockId] || {}) };
+    return acc;
+  }, {} as VisualTemplateData["blocks"]);
+
   return {
     ...fallback,
     ...raw,
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 80) : fallbackName,
     theme: { ...fallback.theme, ...(raw.theme ?? {}) },
-    blocks: { ...fallback.blocks, ...(raw.blocks ?? {}) },
+    blocks: mergedBlocks,
     updatedAt: new Date().toISOString()
   };
-}
-
-export function templateDataToJson(data: VisualTemplateData) {
-  return JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
 }
 
 function createPreset(name: string, accent: string, text: string, surface: string, font: TemplateFont, anchor: TemplateAnchor, surfaceMode: TemplateSurface) {
@@ -297,12 +298,19 @@ function createPreset(name: string, accent: string, text: string, surface: strin
     defaultShadow: surfaceMode === "solid" ? "deep" : "soft",
     defaultAnimationSpeed: name === "Title slam" ? 0.88 : name === "Cinematic" ? 0.34 : 0.6
   };
-  for (const block of Object.values(template.blocks)) {
-    block.position = template.theme.defaultPosition;
-    block.surface = surfaceMode;
-    block.shadow = template.theme.defaultShadow;
-    block.animationSpeed = template.theme.defaultAnimationSpeed;
+  
+  const updatedBlocks = { ...template.blocks };
+  for (const [key, block] of Object.entries(updatedBlocks)) {
+    updatedBlocks[key as TemplateBlockId] = {
+      ...block,
+      position: template.theme.defaultPosition,
+      surface: surfaceMode,
+      shadow: template.theme.defaultShadow,
+      animationSpeed: template.theme.defaultAnimationSpeed
+    };
   }
+  template.blocks = updatedBlocks;
+  
   return template;
 }
 

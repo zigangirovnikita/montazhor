@@ -1,10 +1,12 @@
-import { builtinTemplatePresets, type StoredTemplate, type VisualTemplateData } from "@/lib/templateBuilder";
+import { builtinTemplatePresets, sanitizeTemplateData, type StoredTemplate, type VisualTemplateData } from "@/lib/templateBuilder";
+import crypto from "crypto";
 
 export function presetIdForName(name: string) {
-  return `preset:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+  const hash = crypto.createHash("md5").update(name).digest("hex").slice(0, 8);
+  return `preset:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${hash}`;
 }
 
-export function builtinStoredTemplates(): StoredTemplate[] {
+const PRECOMPUTED_PRESETS: StoredTemplate[] = (() => {
   const now = new Date(0).toISOString();
   return builtinTemplatePresets.map((data) => ({
     id: presetIdForName(data.name),
@@ -15,10 +17,14 @@ export function builtinStoredTemplates(): StoredTemplate[] {
     createdAt: data.createdAt ?? now,
     updatedAt: data.updatedAt ?? now
   }));
+})();
+
+export function builtinStoredTemplates(): StoredTemplate[] {
+  return PRECOMPUTED_PRESETS;
 }
 
 export function builtinTemplateById(id: string): StoredTemplate | undefined {
-  return builtinStoredTemplates().find((template) => template.id === id);
+  return PRECOMPUTED_PRESETS.find((template) => template.id === id);
 }
 
 export function clonePresetData(data: VisualTemplateData, name?: string) {
@@ -33,4 +39,24 @@ export function clonePresetData(data: VisualTemplateData, name?: string) {
   };
   delete copy.id;
   return copy;
+}
+
+export function serializeTemplate(row: {
+  id: string;
+  name: string;
+  data: unknown;
+  isPreset: boolean;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    data: sanitizeTemplateData(row.data, row.name),
+    isPreset: row.isPreset,
+    isDefault: row.isDefault,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString()
+  };
 }

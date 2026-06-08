@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { sanitizeTemplateData, templateDataToJson } from "@/lib/templateBuilder";
-import { builtinTemplateById } from "../presetHelpers";
+import { sanitizeTemplateData } from "@/lib/templateBuilder";
+import { builtinTemplateById, serializeTemplate } from "../presetHelpers";
 
 export const runtime = "nodejs";
 
@@ -35,7 +35,7 @@ export async function PUT(request: Request, context: RouteContext) {
     where: { id },
     data: {
       name: data.name,
-      data: templateDataToJson(data) as Prisma.InputJsonValue
+      data: data as unknown as Prisma.InputJsonValue
     }
   });
 
@@ -56,22 +56,3 @@ export async function DELETE(_request: Request, context: RouteContext) {
   return NextResponse.json({ ok: true });
 }
 
-function serializeTemplate(row: {
-  id: string;
-  name: string;
-  data: unknown;
-  isPreset: boolean;
-  isDefault: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: row.id,
-    name: row.name,
-    data: sanitizeTemplateData(row.data, row.name),
-    isPreset: row.isPreset,
-    isDefault: row.isDefault,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString()
-  };
-}

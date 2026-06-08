@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { sanitizeTemplateData, templateDataToJson } from "@/lib/templateBuilder";
-import { builtinTemplateById, clonePresetData } from "../../presetHelpers";
+import { sanitizeTemplateData } from "@/lib/templateBuilder";
+import { builtinTemplateById, clonePresetData, serializeTemplate } from "../../presetHelpers";
 
 export const runtime = "nodejs";
 
@@ -23,28 +23,34 @@ export async function POST(request: Request, context: RouteContext) {
     typeof body.name === "string" ? body.name : `${source.name} copy`
   );
 
-  if (body.makeDefault === true) {
-    await prisma.template.updateMany({ data: { isDefault: false } });
+  const isMakeDefault = body.makeDefault === true;
+  
+  let row;
+  if (isMakeDefault) {
+    const transaction = await prisma.$transaction([
+      prisma.template.updateMany({ data: { isDefault: false } }),
+      prisma.template.create({
+        data: {
+          name: copyData.name,
+          data: copyData as unknown as Prisma.InputJsonValue,
+          isPreset: false,
+          isDefault: true
+        }
+      })
+    ]);
+    row = transaction[1];
+  } else {
+    row = await prisma.template.create({
+      data: {
+        name: copyData.name,
+        data: copyData as unknown as Prisma.InputJsonValue,
+        isPreset: false,
+        isDefault: false
+      }
+    });
   }
 
-  const row = await prisma.template.create({
-    data: {
-      name: copyData.name,
-      data: templateDataToJson(copyData) as Prisma.InputJsonValue,
-      isPreset: false,
-      isDefault: body.makeDefault === true
-    }
-  });
-
   return NextResponse.json({
-    template: {
-      id: row.id,
-      name: row.name,
-      data: sanitizeTemplateData(row.data, row.name),
-      isPreset: row.isPreset,
-      isDefault: row.isDefault,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString()
-    }
+    template: serializeTemplate(row)
   }, { status: 201 });
 }
