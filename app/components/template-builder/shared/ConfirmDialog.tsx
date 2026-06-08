@@ -25,7 +25,7 @@ export function ConfirmDialog({
         <p id="template-confirm-message">{state.message}</p>
         <div className={styles.confirmActions}>
           <button type="button" onClick={onClose}>Отмена</button>
-          <button type="button" onClick={() => { onClose(); onConfirm(); }}>{state.confirmLabel}</button>
+          <button type="button" onClick={onConfirm}>{state.confirmLabel}</button>
         </div>
       </div>
     </div>
