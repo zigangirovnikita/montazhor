@@ -742,7 +742,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
     if (!el) return;
     const ctx = gsap.context(() => {
       gsap.killTweensOf(el);
-      const targets = el.querySelectorAll(".keyword, .number-value, .bullet-card, .check-item, .bar, .keyword-line, .truth-word, .myth-word, .stat-row, .concept-center, .concept-node, .lesson-title, .lesson-subtext");
+      const targets = gsap.utils.toArray(el.querySelectorAll(".keyword, .number-value, .bullet-card, .check-item, .bar, .keyword-line, .truth-word, .myth-word, .stat-row, .concept-center, .concept-node, .lesson-title, .lesson-subtext"));
       if (targets.length > 0) {
         gsap.killTweensOf(targets);
       }
@@ -812,7 +812,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
             tl.fromTo(lSub, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.28 * durationFactor, ease: "power2.out" }, "-=0.2");
           }
         } else {
-          const words = el.querySelectorAll(".phrase-word");
+          const words = gsap.utils.toArray(el.querySelectorAll(".phrase-word")) as HTMLElement[];
           if (words.length) {
             
             if (preset === "caption_matrix_decode") {
@@ -1016,7 +1016,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
         }
       } else if (kind === "number") {
         if (preset === "hud_ratio_panel") {
-          const rows = el.querySelectorAll(".stat-row");
+          const rows = gsap.utils.toArray(el.querySelectorAll(".stat-row"));
           if (rows.length) {
             tl.fromTo(rows,
               { opacity: 0, x: -28 },
@@ -1040,7 +1040,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
           }
         }
       } else if (kind === "chart") {
-        const bars = el.querySelectorAll(".bar");
+        const bars = gsap.utils.toArray(el.querySelectorAll(".bar"));
         if (bars.length) {
           tl.fromTo(bars,
             { scaleY: 0.12, opacity: 0 },
@@ -1050,7 +1050,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
         }
       } else if (kind === "list") {
         if (preset === "bullet_cards_lesson" || preset === "bullet_cards_premium") {
-          const cards = el.querySelectorAll(".bullet-card");
+          const cards = gsap.utils.toArray(el.querySelectorAll(".bullet-card"));
           if (cards.length) {
             tl.fromTo(cards,
               { opacity: 0, y: 20 },
@@ -1059,7 +1059,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
             );
           }
         } else {
-          const items = el.querySelectorAll(".check-item");
+          const items = gsap.utils.toArray(el.querySelectorAll(".check-item"));
           if (items.length) {
             tl.fromTo(items,
               { opacity: 0, y: 14 },
@@ -1081,7 +1081,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
           }
         } else if (preset === "concept_orbit_map") {
           const center = el.querySelector(".concept-center");
-          const nodes = el.querySelectorAll(".concept-node");
+          const nodes = gsap.utils.toArray(el.querySelectorAll(".concept-node"));
           if (center) {
             tl.fromTo(center, { opacity: 0, scale: 0.78 }, { opacity: 1, scale: 1, duration: 0.34 * durationFactor, ease: "back.out(1.35)" }, "-=0.1");
           }
@@ -1102,7 +1102,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
           }
         }
       } else if (kind === "cta") {
-        const items = el.querySelectorAll("strong, small");
+        const items = gsap.utils.toArray(el.querySelectorAll("strong, small"));
         if (items.length) {
           tl.fromTo(items,
             { opacity: 0, scale: 0.92 },
