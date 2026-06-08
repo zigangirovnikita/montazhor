@@ -1137,7 +1137,7 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
         <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
       </button>
       <div ref={overlayRef} className={`${styles.overlay} ${styles.freePosition} ${styles[`kind_${kind}`]} ${styles[`surface_${block.surface ?? theme.defaultSurface}`]} ${styles[`shadow_${block.shadow ?? theme.defaultShadow}`]} ${styles[`font_${block.font ?? theme.font}`]} preset-${block.layoutPreset ?? ""}`} style={overlayStyle}>
-        <OverlayContent kind={kind} accentColor={String(block.colorAccent ?? theme.colorPrimary)} fontSize={fontSize} weight={weight} block={block} theme={theme} />
+        <OverlayContent key={`${kind}-${block.layoutPreset ?? ""}-${animationTrigger}`} kind={kind} accentColor={String(block.colorAccent ?? theme.colorPrimary)} fontSize={fontSize} weight={weight} block={block} theme={theme} />
       </div>
       {dragEnabled ? (
         <button
