@@ -743,10 +743,14 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
     const ctx = gsap.context(() => {
       gsap.killTweensOf(el);
       const targets = el.querySelectorAll(".keyword, .number-value, .bullet-card, .check-item, .bar, .keyword-line, .truth-word, .myth-word, .stat-row, .concept-center, .concept-node, .lesson-title, .lesson-subtext");
-      gsap.killTweensOf(targets);
+      if (targets.length > 0) {
+        gsap.killTweensOf(targets);
+      }
 
       gsap.set(el, { opacity: 0, y: 0, x: 0, scale: 0.58 });
-      gsap.set(targets, { opacity: 0, y: 0, x: 0, scale: 1, rotate: 0, scaleY: 1, "--strike-scale": 0, "--shine-x": "-130%" });
+      if (targets.length > 0) {
+        gsap.set(targets, { opacity: 0, y: 0, x: 0, scale: 1, rotate: 0, scaleY: 1, "--strike-scale": 0, "--shine-x": "-130%" });
+      }
 
       const tl = gsap.timeline();
       const animSpeed = block.animationSpeed ?? theme.defaultAnimationSpeed ?? 0.6;
@@ -819,10 +823,10 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const scr1El = word.querySelector(".matrix-scr1");
                 if (realEl && scr0El && scr1El) {
                   tl.set(scr0El, { display: "inline" }, offset);
-                  tl.set(scr1El, { display: "inline" }, offset + 0.08 * durationFactor);
-                  tl.set(scr0El, { display: "none" }, offset + 0.08 * durationFactor);
-                  tl.set(realEl, { visibility: "visible" }, offset + 0.16 * durationFactor);
-                  tl.set(scr1El, { display: "none" }, offset + 0.16 * durationFactor);
+                  tl.set(scr1El, { display: "inline" }, offset + 0.18 * durationFactor);
+                  tl.set(scr0El, { display: "none" }, offset + 0.18 * durationFactor);
+                  tl.set(realEl, { visibility: "visible" }, offset + 0.36 * durationFactor);
+                  tl.set(scr1El, { display: "none" }, offset + 0.36 * durationFactor);
                 }
               });
             } else if (preset === "caption_neon_glow") {
@@ -896,10 +900,12 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const dur = 0.3 * durationFactor;
                 const bgEl = word.querySelector(".hl-word-bg");
                 
+                tl.set(word, { opacity: 0, y: 8 }, 0);
+                tl.to(word, { opacity: 1, y: 0, filter: "brightness(1.05)", duration: 0.12 * durationFactor, ease: "power2.out" }, offset);
+                tl.to(word, { filter: "brightness(1)", duration: 0.16 * durationFactor, ease: "power2.out" }, offset + 0.12 * durationFactor);
+                
                 if (bgEl) {
                   tl.to(bgEl, { opacity: 1, scaleX: 1, duration: 0.15 * durationFactor, ease: "power2.out" }, offset);
-                  tl.to(word, { filter: "brightness(1.05)", duration: 0.08 * durationFactor, ease: "power2.out" }, offset);
-                  tl.to(word, { filter: "brightness(1)", duration: 0.16 * durationFactor, ease: "power2.out" }, offset + 0.08 * durationFactor);
                   tl.to(bgEl, { opacity: 0, scaleX: 1.02, duration: 0.1 * durationFactor, ease: "power2.in" }, offset + dur);
                   tl.set(bgEl, { scaleX: 0 }, offset + dur + 0.1);
                 }
@@ -911,7 +917,10 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const travel = index % 2 === 0 ? -12 : 12;
                 const sm = 8;
                 
+                tl.set(word, { opacity: 0, scale: 1.15 }, 0);
                 tl.to(word, {
+                  opacity: 1,
+                  scale: 1,
                   x: travel,
                   textShadow: `${sm}px 0 #ff003c, -${sm}px 0 #00e5ff, 0 5px 18px rgba(0,0,0,0.52)`,
                   duration: 0.1 * durationFactor,
@@ -946,7 +955,8 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const dur = 0.3 * durationFactor;
                 const activeColor = word.classList.contains("is-emphasis") ? "#FFD700" : "#ffffff";
                 
-                tl.to(word, { color: activeColor, scale: 1.12, duration: 0.08 * durationFactor }, offset);
+                tl.set(word, { opacity: 0, scale: 0.8 }, 0);
+                tl.to(word, { opacity: 1, color: activeColor, scale: 1.12, duration: 0.1 * durationFactor, ease: "back.out(2)" }, offset);
                 tl.to(word, { color: "rgba(255, 255, 255, 0.45)", scale: 1, duration: 0.12 * durationFactor }, offset + dur);
               });
             } else if (preset === "caption_editorial_emphasis") {
@@ -966,7 +976,8 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
-                tl.to(word, { color: "#1C1E1D", duration: 0.1 * durationFactor, ease: "none" }, offset);
+                tl.set(word, { opacity: 0, y: 8 }, 0);
+                tl.to(word, { opacity: 1, y: 0, color: "#1C1E1D", duration: 0.12 * durationFactor, ease: "power2.out" }, offset);
                 tl.to(word, { color: "#A6A6A6", duration: 0.1 * durationFactor, ease: "none" }, offset + dur);
               });
             } else if (preset === "caption_weight_shift") {
@@ -974,7 +985,8 @@ function Preview({ block, theme, kind, dragEnabled, stageRef, onPointerDown, onP
                 const offset = enterDuration * 0.6 + index * 0.15 * durationFactor;
                 const dur = 0.3 * durationFactor;
                 
-                tl.to(word, { fontWeight: 700, duration: 0.1 * durationFactor, ease: "power2.out" }, offset);
+                tl.set(word, { opacity: 0 }, 0);
+                tl.to(word, { opacity: 1, fontWeight: 700, duration: 0.12 * durationFactor, ease: "power2.out" }, offset);
                 tl.to(word, { fontWeight: 300, duration: 0.15 * durationFactor, ease: "power2.out" }, offset + dur);
               });
             } else {
