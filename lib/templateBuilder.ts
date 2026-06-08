@@ -121,7 +121,7 @@ export const templateFonts: Array<{ id: TemplateFont; label: string }> = [
   { id: "Onest", label: "Onest (Grotesk)" },
   { id: "Unbounded", label: "Unbounded (Editorial)" },
   { id: "Manrope", label: "Manrope (Editorial)" },
-  { id: "Golos", label: "Golos Text (Mono)" }
+  { id: "Golos", label: "Golos Text (Humanist)" }
 ];
 
 export const templateAnimations: Array<{ id: TemplateAnimation; label: string }> = [
@@ -258,9 +258,19 @@ export function templateToVisualPlanOptions(template: VisualTemplateData): Visua
   if (!template.blocks.chart.enabled) disabledTemplates.push("metric_chart");
   if (!template.blocks.cta.enabled) disabledTemplates.push("cta_plate");
   if (!template.blocks.subtitle.enabled) disabledTemplates.push("kinetic_text");
-  const premiumFonts = ["Unbounded", "Manrope"];
+  
+  const fontPresetPack: Record<TemplateFont, "premium" | "educational" | "balanced"> = {
+    "Unbounded": "premium",
+    "Manrope": "premium",
+    "Montserrat": "balanced",
+    "Onest": "balanced",
+    "Golos": "balanced",
+    "Inter": "educational",
+    "Roboto": "educational",
+  };
+  
   return {
-    presetPack: premiumFonts.includes(template.theme.font) ? "premium" : "educational",
+    presetPack: fontPresetPack[template.theme.font] ?? "educational",
     motionIntensity: template.theme.defaultAnimationSpeed > 0.76 ? "active" : template.theme.defaultAnimationSpeed < 0.38 ? "calm" : "medium",
     disabledTemplates: Array.from(new Set(disabledTemplates))
   };
