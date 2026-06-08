@@ -376,7 +376,9 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
       visualDensity: parsed.visualDensity ?? fallback.visualDensity,
       motionIntensity: parsed.motionIntensity ?? fallback.motionIntensity,
       presetPack: parsed.presetPack ?? fallback.presetPack,
-      disabledTemplates: parsed.disabledTemplates ?? fallback.disabledTemplates
+      disabledTemplates: parsed.disabledTemplates ?? fallback.disabledTemplates,
+      visualTemplateId: parsed.visualTemplateId,
+      visualTemplate: parsed.visualTemplate
     };
   } catch {
     return fallback;

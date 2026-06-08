@@ -65,6 +65,42 @@ export const visualTemplates: VisualTemplateDefinition[] = [
     requiredPayload: ["title"]
   },
   {
+    id: "lesson_title",
+    label: "Lesson title",
+    momentTypes: ["keyword", "definition", "quote"],
+    minDuration: 1.4,
+    maxDuration: 4.8,
+    allowedLayouts: ["left", "center", "full_frame"],
+    requiredPayload: ["title"]
+  },
+  {
+    id: "myth_strike",
+    label: "Myth strike",
+    momentTypes: ["warning", "comparison", "keyword"],
+    minDuration: 1.6,
+    maxDuration: 4.8,
+    allowedLayouts: ["left", "center", "full_frame"],
+    requiredPayload: ["falseText", "trueText"]
+  },
+  {
+    id: "stat_panel",
+    label: "HUD stat panel",
+    momentTypes: ["number", "chart", "comparison"],
+    minDuration: 2.0,
+    maxDuration: 6,
+    allowedLayouts: ["left", "right", "full_frame"],
+    requiredPayload: ["items"]
+  },
+  {
+    id: "concept_map",
+    label: "Concept map",
+    momentTypes: ["definition", "comparison", "list"],
+    minDuration: 2.0,
+    maxDuration: 6,
+    allowedLayouts: ["left", "right", "full_frame"],
+    requiredPayload: ["center"]
+  },
+  {
     id: "cta_plate",
     label: "CTA plate",
     momentTypes: ["cta"],
@@ -79,16 +115,39 @@ export const visualPresets: VisualPresetDefinition[] = [
   preset("kinetic_phrase_clean", "Clean kinetic phrase", "balanced", "kinetic_text", ["kinetic_text", "definition"], ["lower_third"], 92, "kinetic_phrase_safe"),
   preset("kinetic_phrase_glass", "Glass phrase", "premium", "kinetic_text", ["kinetic_text", "definition"], ["lower_third", "center"], 88, "kinetic_phrase_safe"),
   preset("kinetic_phrase_slam", "Rhythmic word phrase", "viral", "kinetic_text", ["kinetic_text", "keyword"], ["lower_third", "center"], 76, "kinetic_phrase_safe"),
+  preset("caption_kinetic_slam", "Library kinetic slam", "viral", "kinetic_text", ["kinetic_text", "keyword"], ["center", "lower_third"], 58, "kinetic_phrase_safe"),
+  preset("caption_emoji_pop", "Library emoji pop", "viral", "kinetic_text", ["kinetic_text", "list", "keyword"], ["lower_third", "center"], 62, "kinetic_phrase_safe"),
+  preset("caption_gradient_fill", "Library gradient fill", "premium", "kinetic_text", ["kinetic_text", "definition"], ["lower_third", "center"], 72, "kinetic_phrase_safe"),
+  preset("caption_highlight", "Library highlight", "educational", "kinetic_text", ["kinetic_text", "definition", "quote"], ["lower_third"], 76, "kinetic_phrase_safe"),
+  preset("caption_neon_glow", "Library neon glow", "viral", "kinetic_text", ["kinetic_text", "keyword"], ["center", "lower_third"], 58, "kinetic_phrase_safe"),
+  preset("caption_glitch_rgb", "Library glitch RGB", "viral", "kinetic_text", ["warning", "keyword"], ["center"], 48, "kinetic_phrase_safe"),
+  preset("caption_matrix_decode", "Library matrix decode", "educational", "kinetic_text", ["definition", "keyword"], ["lower_third", "center"], 64, "kinetic_phrase_safe"),
+  preset("caption_editorial_emphasis", "Library editorial emphasis", "premium", "kinetic_text", ["quote", "definition", "keyword"], ["lower_third", "center"], 76, "kinetic_phrase_safe"),
+  preset("caption_particle_burst", "Library particle burst", "viral", "kinetic_text", ["keyword", "warning"], ["center"], 48, "kinetic_phrase_safe"),
+  preset("caption_clip_wipe", "Library clip wipe", "balanced", "kinetic_text", ["kinetic_text", "definition"], ["lower_third"], 76, "kinetic_phrase_safe"),
+  preset("caption_pill_karaoke", "Library pill karaoke", "balanced", "kinetic_text", ["kinetic_text", "definition"], ["lower_third"], 76, "kinetic_phrase_safe"),
+  preset("caption_weight_shift", "Library weight shift", "balanced", "kinetic_text", ["kinetic_text", "definition"], ["lower_third"], 76, "kinetic_phrase_safe"),
+  preset("caption_neon_accent", "Library neon accent", "viral", "kinetic_text", ["kinetic_text", "keyword"], ["lower_third", "center"], 64, "kinetic_phrase_safe"),
+  preset("caption_parallax_layers", "Library parallax layers", "premium", "kinetic_text", ["quote", "definition", "keyword"], ["lower_third", "center"], 76, "kinetic_phrase_safe"),
+  preset("caption_texture", "Library texture mask", "viral", "kinetic_text", ["keyword", "warning"], ["center"], 48, "kinetic_phrase_safe"),
   preset("kinetic_phrase_safe", "Safe kinetic phrase", "minimal", "kinetic_text", ["kinetic_text", "definition", "quote"], ["lower_third"], 64, "kinetic_phrase_safe"),
   preset("keyword_focus", "Keyword focus", "balanced", "keyword_slam", ["keyword", "warning", "comparison"], ["center", "lower_third"], 44, "kinetic_phrase_safe"),
+  preset("keyword_title_slam", "Title slam", "viral", "keyword_slam", ["keyword", "warning", "quote"], ["center", "full_frame"], 34, "keyword_focus"),
   preset("keyword_warning_strip", "Warning strip", "educational", "keyword_slam", ["warning"], ["center", "lower_third"], 38, "keyword_focus"),
   preset("keyword_viral_slam", "Viral slam", "viral", "keyword_slam", ["keyword", "warning"], ["center", "full_frame"], 34, "keyword_focus"),
   preset("quote_emphasis", "Quote emphasis", "premium", "keyword_slam", ["quote", "keyword"], ["center"], 52, "kinetic_phrase_safe"),
   preset("big_number_callout", "Big number callout", "balanced", "big_number", ["number"], ["left", "right", "center"], 62, "kinetic_phrase_safe"),
+  preset("big_number_shimmer", "Shimmer number", "viral", "big_number", ["number"], ["center", "left", "right"], 48, "big_number_callout"),
   preset("big_number_metric", "Metric number", "educational", "big_number", ["number", "chart"], ["left", "lower_third"], 54, "big_number_callout"),
   preset("big_number_viral", "Viral number", "viral", "big_number", ["number"], ["center", "full_frame"], 46, "big_number_callout"),
   preset("metric_chart_compact", "Compact metric chart", "educational", "metric_chart", ["chart", "comparison"], ["left", "right"], 72, "big_number_callout"),
   preset("metric_chart_premium", "Premium metric chart", "premium", "metric_chart", ["chart", "number"], ["left", "right"], 68, "metric_chart_compact"),
+  preset("hud_ratio_panel", "HUD ratio panel", "educational", "stat_panel", ["number", "chart", "comparison"], ["left", "full_frame"], 128, "metric_chart_compact", 4),
+  preset("golden_ratio_panel", "Golden ratio panel", "premium", "stat_panel", ["number", "chart", "comparison"], ["left", "full_frame"], 128, "hud_ratio_panel", 4),
+  preset("lesson_title_block", "Lesson title block", "educational", "lesson_title", ["keyword", "definition"], ["left", "full_frame"], 82, "caption_highlight"),
+  preset("lesson_title_cinematic", "Cinematic lesson title", "premium", "lesson_title", ["keyword", "quote"], ["left", "center"], 74, "lesson_title_block"),
+  preset("myth_strike_redline", "Myth strike redline", "viral", "myth_strike", ["warning", "comparison", "keyword"], ["left", "full_frame"], 92, "keyword_warning_strip"),
+  preset("concept_orbit_map", "Concept orbit map", "educational", "concept_map", ["definition", "comparison", "list"], ["full_frame", "left"], 126, "bullet_cards_lesson", 3),
   preset("checklist_steps", "Step checklist", "educational", "checklist", ["list", "definition"], ["full_frame", "left"], 116, "kinetic_phrase_safe", 3),
   preset("checklist_compact", "Compact checklist", "balanced", "checklist", ["list"], ["lower_third", "left"], 96, "kinetic_phrase_safe", 3),
   preset("checklist_viral", "Punch checklist", "viral", "checklist", ["list"], ["full_frame"], 86, "checklist_compact", 3),
@@ -125,7 +184,7 @@ export const visualStyleProfiles: VisualStyleProfile[] = [
       warning: "#ffb347",
       border: "rgba(115, 200, 255, 0.32)"
     },
-    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "cta_plate", "kinetic_text"],
+    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "lesson_title", "myth_strike", "stat_panel", "concept_map", "cta_plate", "kinetic_text"],
     allowedMotions: ["glass_slide", "depth_zoom", "chart_grow", "soft_pop", "calm_fade"]
   },
   {
@@ -149,7 +208,7 @@ export const visualStyleProfiles: VisualStyleProfile[] = [
       warning: "#b45309",
       border: "rgba(16, 16, 16, 0.14)"
     },
-    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "cta_plate", "kinetic_text"],
+    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "lesson_title", "myth_strike", "stat_panel", "concept_map", "cta_plate", "kinetic_text"],
     allowedMotions: ["calm_fade", "soft_pop", "glass_slide"]
   },
   {
@@ -173,7 +232,7 @@ export const visualStyleProfiles: VisualStyleProfile[] = [
       warning: "#ff4040",
       border: "rgba(255, 64, 64, 0.5)"
     },
-    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "cta_plate", "kinetic_text"],
+    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "lesson_title", "myth_strike", "stat_panel", "concept_map", "cta_plate", "kinetic_text"],
     allowedMotions: ["word_slam", "depth_zoom", "chart_grow", "soft_pop", "glass_slide"]
   },
   {
@@ -197,7 +256,7 @@ export const visualStyleProfiles: VisualStyleProfile[] = [
       warning: "#dfb35f",
       border: "rgba(216, 197, 161, 0.28)"
     },
-    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "cta_plate", "kinetic_text"],
+    allowedTemplates: ["big_number", "bullet_cards", "keyword_slam", "lesson_title", "myth_strike", "stat_panel", "concept_map", "cta_plate", "kinetic_text"],
     allowedMotions: ["calm_fade", "soft_pop", "glass_slide"]
   }
 ];

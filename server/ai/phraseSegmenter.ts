@@ -4,6 +4,8 @@ const warningWords = ["ошибка", "внимание", "стоп", "важн�
 const listWords = ["первое", "второе", "третье", "во-первых", "шаг", "этап", "правило", "причина", "способ"];
 const ctaWords = ["подпишись", "переходи", "ссылка", "читай", "смотри", "сохрани", "забирай"];
 const connectorWords = ["поэтому", "значит", "короче", "в итоге", "однако", "но", "а", "и", "так вот"];
+const comparisonWords = ["до", "после", "было", "стало", "миф", "правда"];
+const definitionWords = ["это значит", "определение", "это", "называется"];
 
 export function segmentIntoPhrases(subtitles: SubtitleDraft[], contentPlan: ContentPlan): VisualPhrase[] {
   const phrases: VisualPhrase[] = [];
@@ -19,7 +21,8 @@ export function segmentIntoPhrases(subtitles: SubtitleDraft[], contentPlan: Cont
     const isLast = i === subtitles.length - 1;
     const isPunctuationEnd = /[.!?]$/.test(sub.text.trim());
     const nextStartsCapital = !isLast && /^[A-ZА-ЯЁ]/.test(subtitles[i+1]!.text.trim());
-    const isTooLong = currentWords.length >= 10 || (currentWords.length > 0 && sub.end - currentWords[0]!.start > 5.5);
+    const currentDuration = currentWords.length > 0 ? sub.end - currentWords[0]!.start : 0;
+    const isTooLong = currentWords.length >= 14 || currentDuration > 7.5;
     
     if (isLast || isPunctuationEnd || nextStartsCapital || isTooLong) {
       phrases.push(buildPhrase(currentGroup, currentWords, phrases.length, isLast, contentPlan));
@@ -45,15 +48,25 @@ function buildPhrase(
   
   // 1. Check for specific roles
   const numberMatch = lowerText.match(/(?:\d+[.,]?\d*|[0-9]+)\s?(?:%|к|k|тыс|млн|x|раз|₽|\$)?/i);
+  const allNumbers = [...lowerText.matchAll(/(?:\d+[.,]?\d*|[0-9]+)\s?(?:%|к|k|тыс|млн|x|раз|₽|\$)?/gi)];
   const containsNumber = !!numberMatch;
+  const numberCount = allNumbers.length;
   const containsList = containsAny(lowerText, listWords);
+  const containsComparison = containsAny(lowerText, comparisonWords);
+  const containsDefinition = containsAny(lowerText, definitionWords);
   
   if (isLast && containsAny(lowerText, ctaWords)) {
     role = "cta";
   } else if (containsAny(lowerText, warningWords)) {
     role = "warning";
+  } else if (numberCount >= 3) {
+    role = "chart";
+  } else if (containsComparison && numberCount >= 2) {
+    role = "comparison";
   } else if (containsList) {
     role = "list_item";
+  } else if (containsDefinition) {
+    role = "definition";
   } else if (containsNumber) {
     role = "number";
   } else if (containsAny(lowerText, connectorWords) && words.length <= 4) {

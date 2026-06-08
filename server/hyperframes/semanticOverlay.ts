@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { VisualOverlayPlan } from "@/lib/types";
+import type { VisualOverlayPlan, VisualPlanOptions, VisualStyleProfile } from "@/lib/types";
 import { renderOverlayFragments } from "@/server/hyperframes/overlayFragments";
 import { resolveVisualStyleProfile } from "@/server/hyperframes/visualRegistry";
 import { standardMp4OutputArgs } from "@/server/video/encoding";
@@ -13,10 +13,14 @@ export async function renderSemanticOverlay(
   plan: VisualOverlayPlan,
   profile: VideoProfile,
   duration: number,
-  outputMp4Path: string
+  outputMp4Path: string,
+  styleOptions?: VisualPlanOptions
 ) {
   const dir = path.join(projectDir, "motion", "semantic-overlay");
-  const style = resolveVisualStyleProfile(plan.styleProfileId);
+  let style = resolveVisualStyleProfile(plan.styleProfileId);
+  if (styleOptions?.visualTemplate) {
+    style = mergeTemplateThemeIntoStyle(style, styleOptions.visualTemplate);
+  }
   await mkdir(dir, { recursive: true });
   try {
     const fragments = await renderOverlayFragments(dir, plan, style, profile, "alpha");
@@ -26,6 +30,49 @@ export async function renderSemanticOverlay(
     const fragments = await renderOverlayFragments(dir, plan, style, profile, "chroma");
     await overlayChromaSemanticFragments(cleanVideoPath, fragments, outputMp4Path);
   }
+}
+
+function fontIdToFontFamily(fontId: string): string {
+  if (fontId === "grotesk" || fontId === "Montserrat") return '"HF Montserrat", Arial, sans-serif';
+  if (fontId === "Onest") return '"HF Onest", Arial, sans-serif';
+  if (fontId === "editorial" || fontId === "Unbounded") return '"HF Unbounded", Arial, sans-serif';
+  if (fontId === "Manrope") return '"HF Manrope", Arial, sans-serif';
+  if (fontId === "mono" || fontId === "Golos") return '"HF Golos Text", Arial, sans-serif';
+  return '"HF Montserrat", Arial, sans-serif';
+}
+
+function mergeTemplateThemeIntoStyle(style: VisualStyleProfile, visualTemplate: any): VisualStyleProfile {
+  if (!visualTemplate || typeof visualTemplate !== "object") return style;
+  const theme = visualTemplate.theme;
+  if (!theme || typeof theme !== "object") return style;
+
+  const typography = { ...style.typography };
+  if (theme.font) {
+    const fontFamily = fontIdToFontFamily(theme.font);
+    typography.heading = fontFamily;
+    typography.body = fontFamily;
+    typography.number = fontFamily;
+  }
+
+  const colors = { ...style.colors };
+  if (theme.colorText) {
+    colors.text = theme.colorText;
+  }
+  if (theme.colorPrimary) {
+    colors.accent = theme.colorPrimary;
+    colors.border = theme.colorPrimary + "33"; // transparent accent border
+  }
+  if (theme.colorBackground) {
+    colors.background = theme.colorBackground;
+    colors.surface = theme.colorBackground + "c6"; // add some alpha for glassmorphism
+    colors.surfaceStrong = theme.colorBackground + "e6";
+  }
+
+  return {
+    ...style,
+    typography,
+    colors
+  };
 }
 
 async function assertAlphaVideo(videoPath: string) {

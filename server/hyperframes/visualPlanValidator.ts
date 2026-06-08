@@ -29,7 +29,7 @@ export function validateVisualOverlayPlan(plan: VisualOverlayPlan, profile: Visu
     if (!hasAllowedPreset(plan, beat)) continue;
     if (!hasRequiredPayload(beat.payload, template.requiredPayload)) continue;
 
-    const duration = clamp(beat.duration, template.minDuration, template.maxDuration);
+    const duration = Math.max(beat.duration, template.minDuration);
     const normalized = { ...beat, duration };
     
     if (plan.planner !== "continuous") {
@@ -61,8 +61,4 @@ function hasRequiredPayload(payload: Record<string, unknown>, required: string[]
     if (Array.isArray(value)) return value.length > 0;
     return value !== undefined && value !== null && String(value).trim() !== "";
   });
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
 }

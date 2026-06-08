@@ -31,7 +31,7 @@ The product is not a traditional video editor and not a CapCut clone.
 
 Core user flow:
 
-Raw talking-head video → automatic cleanup → continuous semantic visual text layer → final vertical Reels/Shorts/TikTok video.
+Raw talking-head video → automatic cleanup → continuous semantic visual text layer → final publish-ready MP4 in the source-oriented Full HD profile.
 
 The user should not need to manually edit a timeline.
 
@@ -81,7 +81,9 @@ Build the smallest working end-to-end prototype:
 6. Detect long pauses and obvious filler words.
 7. Create an edit decision list.
 8. Render a clean cut with FFmpeg.
-9. Convert output to vertical `1080x1920`.
+9. Normalize uploaded video to a Full HD source-oriented profile:
+   * portrait input -> `1080x1920`
+   * landscape input -> `1920x1080`
 10. Generate readable burned-in subtitles.
 11. Generate a continuous HyperFrames semantic visual text layer with contextual preset inserts.
 12. Compose final MP4.
@@ -217,7 +219,9 @@ MVP implementations:
 * Generated project videos must use a consistent export profile unless explicitly overridden:
   MP4 container, H.264 video, AAC audio, `4000 kbps` video bitrate, `30 fps`, `yuv420p`, and `Rec.709 SDR` color tagging.
 * Apply this export profile not only to the final MP4, but also to generated project video artifacts such as clean previews, subtitle overlays, split-layout videos, infographic renders, review previews, and HyperFrames-rendered MP4 assets.
-* Final resolution: `1080x1920`.
+* Preserve the source orientation through upload normalization, clean preview, styled preview, and final export.
+* Portrait projects must stay `1080x1920`.
+* Landscape projects must stay `1920x1080`.
 * Preserve audio/video sync.
 * Use local storage under `/storage`.
 * Do not keep large video files in memory.
@@ -406,21 +410,32 @@ MVP templates:
 * CTA end card;
 * kinetic_text (continuous typography);
 * PIP metric cards (numbers, charts, checklists).
+* lesson_title, myth_strike, stat_panel, and concept_map for full-frame/HUD-style visual explanations inspired by viral course/reels references.
 
 Continuous Semantic Overlay:
 * The visual planner (`visualPlanner.ts`) runs continuously over the final transcript after the clean cut.
-* The deterministic planner must cover the spoken text first. AI may upgrade already-covered moments, but it must not return a sparse plan that leaves ordinary speech with no visual text.
-* The default planner path may use AI to choose from the local visual registry, but it must not invent arbitrary visual systems from scratch. AI should select preset IDs/templates, choose moments, and adapt text/payloads within validated schema constraints.
-* Regular text is mapped to `kinetic_text`; numbers, warnings, lists, definitions, comparisons, and CTAs should be upgraded into validated preset instances when useful.
+* The base unit for visual planning is no longer a subtitle chunk. Use `server/ai/timedVisualSegments.ts` to split cleaned speech into short word-timed visual moments from real `TranscriptWord.start/end` values.
+* The deterministic planner must cover the spoken text first with word-timed visual beats. AI may upgrade already-covered moments, but it must not return a sparse plan that leaves ordinary speech with no visual text.
+* AI should think like a viral reels editor: one hand on the spoken words/timings, the other on the allowed HyperFrames preset registry. It may choose titles, kinetic words, big numbers, HUD panels, checklists, myth/strike frames, concept maps, icons, graph-like panels, and CTA plates when they visually reinforce what the author says.
+* Give AI creative freedom inside the registry, but keep guardrails against real failure modes: no invented facts/numbers/names/offers, no unknown templates/presets/motions, no 300-insert-per-second spam, no visible text that drifts away from the spoken meaning, and no payloads too large to fit.
+* AI should preserve `sourceMomentId`; server-side preflight preserves deterministic start/duration for continuous plans. Do not let preflight shift visual beats into a queue, because that breaks synchronization with the author's words.
+* Regular speech is mapped to `kinetic_text`; numbers, warnings, lists, definitions, comparisons, growth/progress phrases, insights, and CTAs should be upgraded into validated preset instances when useful.
+* Current reusable semantic overlay templates include `kinetic_text`, `big_number`, `metric_chart`, `checklist`, `bullet_cards`, `keyword_slam`, `lesson_title`, `myth_strike`, `stat_panel`, `concept_map`, and `cta_plate`.
+* Current registry presets include local-library-inspired caption/effect styles such as `caption_kinetic_slam`, `caption_emoji_pop`, `caption_gradient_fill`, `caption_highlight`, `caption_neon_glow`, `caption_glitch_rgb`, `caption_matrix_decode`, `caption_editorial_emphasis`, `caption_particle_burst`, `caption_clip_wipe`, plus larger course/HUD presets such as `hud_ratio_panel`, `golden_ratio_panel`, `lesson_title_block`, `lesson_title_cinematic`, `myth_strike_redline`, and `concept_orbit_map`.
+* Visible overlay text must not be shortened with ellipses. If a non-kinetic card cannot fit the full phrase safely, preflight should fall back to full-source `kinetic_text` instead of clipping the wording.
+* Do not split words in the middle. Layout must prefer full-word wrapping, font-size reduction, or beat splitting over `overflow-wrap:anywhere`, hyphenation, or character-level breaking.
+* Kinetic fallback must use the original spoken `sourceText`, not a synthetic string reconstructed from card payload fields such as `eyebrow`, `title`, or `items`.
 * The local visual preset registry is the source of truth for reusable overlay compositions. Current key modules:
   * `server/hyperframes/visualRegistry.ts` — template/style/preset registry.
   * `server/ai/visualPlanner.ts` — continuous semantic planner and AI merge path.
+  * `server/ai/timedVisualSegments.ts` — word-timed visual moment segmentation.
   * `server/hyperframes/visualLayoutPreflight.ts` — pre-render layout/payload safety pass.
   * `server/hyperframes/templates/SemanticOverlay.ts` — deterministic HyperFrames overlay template.
   * `lib/visualStyleOptions.ts` — saved user-facing visual options parser.
-* Before rendering, run a preflight pass that clamps payload text, splits too-long kinetic phrases, validates template/preset choices, applies disabled-template options, and falls back to `kinetic_phrase_safe` when a preset is unsafe.
+* Before rendering, run a preflight pass that normalizes payload text, splits too-long kinetic phrases, validates template/preset choices, applies disabled-template options, and falls back to `kinetic_phrase_safe` when a preset is unsafe. In continuous mode, preflight must preserve the plan's word-derived timing instead of extending or shifting beats for reading-time estimates.
 * Style controls are preset-driven. Current persisted options include `visualDensity`, `motionIntensity`, `presetPack`, and `disabledTemplates` inside `styleOptionsJson`.
 * Production semantic overlays should render HyperFrames as a graphic-only layer and then composite it over `clean.mp4` with FFmpeg while preserving clean audio. Do not render the source/clean video inside the HyperFrames HTML composition unless an alpha-capable render path is introduced and validated.
+* Current semantic overlays are graphic-only. Full reference-style scenes with source video embedded as PIP, branded background, logo, and course-layout composition require an explicit split/PIP composition path; do not fake that by placing source video inside the graphic-only overlay until the alpha/video composition path is validated.
 * The renderer should attempt alpha overlay only when the produced video really contains an alpha channel. If HyperFrames WebM renders without alpha, detect that with `ffprobe` and fall back to chroma-key compositing.
 * If chroma-key compositing is used for the graphic-only layer, avoid blur filters, semi-transparent text, transparent color mixes, and key-color shadows/glows because they create colored spill around text. Prefer opaque elements and hard strokes; switch to true alpha output when HyperFrames rendering supports it reliably on the server.
 
@@ -464,6 +479,42 @@ This local library includes:
 
 When looking for reusable HyperFrames visuals, transitions, or preset compositions, check this local library first before creating effects from scratch.
 
+## Template Builder UX
+
+The visual template builder lives at `/templates/new`.
+
+Product intent:
+
+* It is a mobile-first style/template creation surface for the autopilot, not a manual timeline editor.
+* The user creates a reusable visual system: typography, colors, surfaces, shadows, motion, and preferred HyperFrames preset categories.
+* Persisted user templates from the database are connected to the render pipeline and AI planner constraints.
+
+UX rules:
+
+* Keep the live talking-head preview fixed/sticky at the top of the screen while the user scrolls controls below.
+* Keep the preview compact enough for iPhone use; the sticky preview should stay around the top 30% of the screen so the settings panel remains usable.
+* Measure the real height of the sticky preview dynamically to ensure the top preset-slider is never hidden under action buttons.
+* Template editor sidebar consists of exactly 5 flat, sequential control panels (no nested accordion wrappers):
+  1. **Цветовое решение** — selection of curated optimal color palettes for instant preview, with manual main (text), accent (highlights, strike lines, chart paths), and secondary (background) color overrides.
+  2. **Заголовки** — font, text color, size/boundaries (auto-scaled), border/shadow style, entrance animation, and exit animation settings.
+  3. **Обычный текст** — body text / word-by-word settings including font, text color, size/boundaries, border/shadow, entrance animation, and exit animation settings.
+  4. **Акцентные цифры** — big stats / metric panels including font, text color, size/boundaries, border/shadow, entrance animation, and exit animation settings.
+  5. **Элементы** (checklists, growth charts, warning cards, mind maps, comparisons, CTAs) — unified settings for font, text/accent/background colors, position coords, surface backdrop (style, transparency, borders), entrance animation, and exit animation. Edits to elements propagate shared settings to all element blocks (list, comparison, accent, chart, cta) simultaneously to maintain style cohesion, while allowing the user to select block-specific layout presets and test their look via a dynamic selector.
+* Every block type supports exit transitions (`animationOut`), mapped as `motionOutId` in the generated `VisualBeat` payload and parsed into GSAP exit transitions within the HTML template container.
+* Users can position any non-theme block using draggable handlers directly over the sticky video preview.
+* Template changes must be confirmed via a global "Сохранить изменения" button.
+
+Integration Architecture:
+
+* **Db Persistence**: Custom templates are saved to the `Template` table in the SQLite database and can be marked as default (`isDefault: true`).
+* **Style Mapping**: The default template or active custom template is read during project creation/update. Its theme properties are serialized into `styleOptionsJson` as `visualTemplateId` and `visualTemplate` alongside derived properties:
+  * If the template uses the `editorial` font, `presetPack` is mapped to `premium`.
+  * If `defaultAnimationSpeed` is low (e.g. `< 0.38`), `motionIntensity` is mapped to `calm`.
+  * Any disabled blocks in the template are mapped to `disabledTemplates`.
+* **State Preservation**: Front-end state forms and back-end patch requests must preserve `visualTemplateId` and `visualTemplate` inside `styleOptionsJson` instead of discarding them.
+* **Rendering Path**: The visual planner uses these properties to select matching HyperFrames presets (e.g. premium glass-cards) during video generation, ensuring that the custom styling is reflected in the final output.
+* **Exit Animations**: Mapped from the block's `animationOut` field to the beat's `motionOutId` (defaults to `slide-up`). The generated semantic overlay timeline applies corresponding GSAP exit transitions (`slide-up`, `slide-down`, `fade`, `scale-down`, `none`) before the beat duration ends.
+
 ## Database
 
 Use Prisma + SQLite.
@@ -489,7 +540,7 @@ rendering_final
 done
 error
 
-Recovery: `lib/jobs.ts` exports `resetStuckProjects()` which finds projects stuck in processing states for more than 10 minutes (e.g. after server crash) and resets them to `error`. Call this on server startup or via a health-check endpoint.
+Recovery: `lib/jobs.ts` exports `resetStuckProjects()`. On server startup, recovery should immediately reset stale processing statuses from a previous crashed/restarted process to `error` when there is no active in-memory job for that project. Do not keep projects blocked in `rendering_preview`/`rendering_final` waiting for an old timeout window after restart.
 
 Compatibility note: recovery logic may still recognize legacy intermediate statuses such as `rendering_subtitles`, `rendering_motion`, or `composing_final` if older DB rows contain them.
 
@@ -609,7 +660,7 @@ A task is done when:
 * logs are useful;
 * limitations are documented.
 
-The MVP is done when a user can upload a raw talking-head video and download a final vertical MP4 with clean cuts, subtitles, and at least attempted HyperFrames inserts.
+The MVP is done when a user can upload a raw talking-head video and download a final source-oriented MP4 with clean cuts, subtitles, and at least attempted HyperFrames inserts.
 
 ## Main Rule
 

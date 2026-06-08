@@ -42,6 +42,10 @@ export type VisualTemplateId =
   | "keyword_slam"
   | "checklist"
   | "metric_chart"
+  | "lesson_title"
+  | "myth_strike"
+  | "stat_panel"
+  | "concept_map"
   | "cta_plate"
   | "kinetic_text";
 export type VisualMotionId =
@@ -162,6 +166,7 @@ export interface SemanticMoment {
   end: number;
   type: VisualMomentType;
   sourceText: string;
+  words?: TranscriptWord[];
   importance: 1 | 2 | 3;
   reason: string;
 }
@@ -173,11 +178,23 @@ export interface VisualBeat {
   templateId: VisualTemplateId;
   presetId?: string;
   motionId: VisualMotionId;
+  motionOutId?: string;
   layout: VisualLayout;
   payload: Record<string, unknown>;
   sourceMomentId?: string;
   role?: "speech_text" | "semantic_accent" | "cta";
   variant?: "compact" | "standard" | "hero" | "safe";
+  styleOverrides?: {
+    surface?: string | null;
+    surfaceOpacity?: number;
+    borderRadius?: number;
+    padding?: number;
+    colorText?: string | null;
+    colorBackground?: string | null;
+    colorAccent?: string | null;
+    borderColor?: string | null;
+    shadow?: string | null;
+  };
 }
 
 export interface VisualSafeRegion {
@@ -253,6 +270,8 @@ export interface VisualPlanOptions {
   presetPack?: VisualPresetPack;
   disabledTemplates?: VisualTemplateId[];
   faceSafeRegions?: VisualSafeRegion[];
+  visualTemplateId?: string;
+  visualTemplate?: unknown;
 }
 
 export interface VisualFrameProfile {
@@ -274,7 +293,7 @@ export interface VisualPlanInput {
 
 export type SemanticRole = 
   | "statement" | "emphasis" | "number" | "list_item" 
-  | "warning" | "question" | "cta" | "connector" | "definition";
+  | "warning" | "question" | "cta" | "connector" | "definition" | "comparison" | "chart";
 
 export interface VisualPhrase {
   id: string;

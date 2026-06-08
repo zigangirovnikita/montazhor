@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
@@ -54,6 +55,9 @@ export function UploadCockpit() {
             <button className="cta-button" type="button" onClick={() => setScreen("upload")}>
               Начать монтаж
             </button>
+            <Link className="mode-button" href="/templates/new">
+              Создать шаблон
+            </Link>
             <div className="scenario-grid">
               <ScenarioCard title="Очистить talking-head" text="Главный сценарий MVP" active />
               <ScenarioCard title="Сделать клипы" text="Скоро" />

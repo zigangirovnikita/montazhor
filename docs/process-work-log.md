@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-05 — Template builder preview pinned above scrolling controls
+
+- Problem: `/templates/new` could clip the preview area and the sticky behavior was unstable because the preview lived inside the same constrained grid flow as the rest of the controls.
+- Decision: split the page into a dedicated sticky preview block plus a separate content grid below for categories and controls, and remove preview height clipping from the container.
+- Result: the preview stays visible while the rest of the builder scrolls beneath it on mobile and desktop layouts.
+- Follow-up: verify the live server layout in a real mobile browser after deploy and tune the sticky top offset only if Safari safe-area behavior needs it.
+
 ### 2026-06-04 — HyperFrames visuals were disabled by defaults
 
 - Problem: new uploads could default to `subtitles_only` / `cut_subtitles`, so the system produced mostly plain subtitles instead of visual inserts.
@@ -80,3 +87,17 @@ How to use:
 - Decision: expose saved `visualPlan` data in the project payload for review, add a planner-choice summary block to the review UI, and let preflight relocate layouts away from optional `face-safe-regions.json` regions inside the project directory.
 - Result: review can show which preset landed on which phrase, and the renderer has a concrete path for face/speaker-safe layout when regions are available.
 - Follow-up: add automatic face region generation so the optional hook becomes populated by the pipeline itself.
+
+### 2026-06-06 — Template builder mobile scroll now moves only the panel below the preview
+
+- Problem: `/templates/new` on mobile pinned the preview, but the lower controls stopped scrolling because overflow lived on the wrong inner container and prod still served stale Next assets from a deleted standalone build directory.
+- Decision: move the mobile overflow to the main shell below the fixed preview, remove the extra inner `contentGrid` scroll on mobile, rebuild the app, and restart the live Next.js process from the fresh `.next/standalone` directory so the page serves the new asset hashes.
+- Result: on mobile the preview stays fixed while the sections and controls below it scroll as one block; browser verification showed `shellScrollTop` changing while `previewTop` stayed fixed.
+- Follow-up: clean up the temporary compatibility asset copies that were created earlier for stale hashes once the deployment path is fully stable.
+
+### 2026-06-06 — Template builder color controls now use an iPhone-style bottom sheet picker
+
+- Problem: the old `/templates/new` color fields used native color inputs with no consistent mobile UX, no spectrum mode, and no slider mode; the first sheet implementation also lived inside the scrolled builder container and behaved incorrectly.
+- Decision: add `@uiw/react-color`, move color picking into a dedicated `TemplateColorPicker` component, render the picker as a portal-backed bottom sheet, and expose three tabs: grid, spectrum, and sliders. Keep recent swatches and live preview updates while editing.
+- Result: the builder now opens a mobile-first color sheet with `Сетка / Спектр / Слайдеры`, recent colors, alpha-aware values, and immediate preview updates for text/accent/surface colors.
+- Follow-up: later persist recent colors per user/template instead of browser-local storage only, and localize the remaining `Hue / Saturation / Brightness / Opacity` labels if the builder becomes fully Russian-only.

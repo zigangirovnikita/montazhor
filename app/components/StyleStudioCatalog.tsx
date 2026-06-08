@@ -9,10 +9,10 @@ const packCatalog: Array<{
   sample: string;
   templates: VisualTemplateId[];
 }> = [
-  { id: "balanced", title: "Баланс", note: "Ровный mix текста, цифр и карточек без перегруза.", sample: "Главная мысль", templates: ["kinetic_text", "big_number", "bullet_cards", "cta_plate"] },
-  { id: "educational", title: "Обучение", note: "Чеклисты, определения и аккуратные metric-вставки.", sample: "3 шага", templates: ["kinetic_text", "checklist", "metric_chart", "bullet_cards"] },
-  { id: "premium", title: "Премиум", note: "Спокойные glass/cards и мягкий CTA.", sample: "Вывод", templates: ["kinetic_text", "bullet_cards", "metric_chart", "cta_plate"] },
-  { id: "viral", title: "Viral", note: "Жестче акценты, slam-слова и цифры в лоб.", sample: "ВАЖНО", templates: ["kinetic_text", "keyword_slam", "big_number", "checklist"] },
+  { id: "balanced", title: "Баланс", note: "Ровный mix текста, цифр и карточек без перегруза.", sample: "Главная мысль", templates: ["kinetic_text", "big_number", "bullet_cards", "stat_panel", "cta_plate"] },
+  { id: "educational", title: "Обучение", note: "Чеклисты, определения и аккуратные metric-вставки.", sample: "3 шага", templates: ["kinetic_text", "lesson_title", "checklist", "concept_map", "stat_panel"] },
+  { id: "premium", title: "Премиум", note: "Спокойные glass/cards и мягкий CTA.", sample: "Вывод", templates: ["kinetic_text", "lesson_title", "bullet_cards", "concept_map", "cta_plate"] },
+  { id: "viral", title: "Viral", note: "Жестче акценты, slam-слова и цифры в лоб.", sample: "ВАЖНО", templates: ["kinetic_text", "keyword_slam", "myth_strike", "big_number", "stat_panel"] },
   { id: "minimal", title: "Минимум", note: "Safe kinetic без тяжелых карточек.", sample: "Короткая фраза", templates: ["kinetic_text"] }
 ];
 
@@ -23,6 +23,10 @@ const templateLabels: Record<VisualTemplateId, string> = {
   keyword_slam: "Ключевые слова",
   checklist: "Чеклисты",
   metric_chart: "Мини-графики",
+  lesson_title: "Lesson-кадры",
+  myth_strike: "Миф/зачеркнуть",
+  stat_panel: "HUD-метрики",
+  concept_map: "Схемы",
   cta_plate: "Финал"
 };
 

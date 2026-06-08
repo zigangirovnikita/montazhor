@@ -146,5 +146,12 @@ function buildCards(contentPlan: ContentPlan): PanelCard[] {
 function trimText(value: string, maxLength: number) {
   const trimmed = value.replace(/\s+/g, " ").trim();
   if (trimmed.length <= maxLength) return trimmed;
-  return `${trimmed.slice(0, maxLength - 1).trim()}…`;
+  const words = trimmed.split(/\s+/);
+  const accepted: string[] = [];
+  for (const word of words) {
+    const next = accepted.length ? `${accepted.join(" ")} ${word}` : word;
+    if (next.length > maxLength) break;
+    accepted.push(word);
+  }
+  return accepted.join(" ") || words[0] || trimmed;
 }

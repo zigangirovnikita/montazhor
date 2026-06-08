@@ -1,3 +1,39 @@
+@font-face {
+  font-family: "HF Manrope";
+  src: url("/fonts/manrope-800.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "HF Onest";
+  src: url("/fonts/onest-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "HF Unbounded";
+  src: url("/fonts/unbounded-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "HF Montserrat";
+  src: url("/fonts/montserrat-800.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "HF Golos Text";
+  src: url("/fonts/golos-text-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --paper: #f4f0e8;
   --ink: #14110f;

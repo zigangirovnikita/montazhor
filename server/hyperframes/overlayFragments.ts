@@ -63,17 +63,17 @@ export async function renderOverlayFragments(
   mode: OverlayRenderMode
 ): Promise<RenderedOverlayFragment[]> {
   const fragments = splitOverlayPlanIntoFragments(plan);
-  const rendered: RenderedOverlayFragment[] = [];
+  const rendered: RenderedOverlayFragment[] = new Array(fragments.length);
   const cacheDir = path.join(dir, "fragments-cache");
   await mkdir(cacheDir, { recursive: true });
 
-  for (const fragment of fragments) {
+  await mapWithConcurrency(fragments, 3, async (fragment, index) => {
     const fragmentPlan: VisualOverlayPlan = {
       ...plan,
       beats: fragment.beats.map((beat) => ({ ...beat, start: round(beat.start - fragment.start) }))
     };
     const cacheKey = createHash("sha1")
-      .update(JSON.stringify({ fragmentPlan, styleId: style.id, profile, mode }))
+      .update(JSON.stringify({ fragmentPlan, style, profile, mode }))
       .digest("hex")
       .slice(0, 12);
     const ext = mode === "alpha" ? "mov" : "mp4";
@@ -85,10 +85,26 @@ export async function renderOverlayFragments(
       await renderFragment(fragmentDir, outputPath, fragmentPlan, style, profile, fragment.duration, mode);
     }
 
-    rendered.push({ ...fragment, path: outputPath });
-  }
+    rendered[index] = { ...fragment, path: outputPath };
+  });
 
   return rendered;
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>
+) {
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await worker(items[index]!, index);
+    }
+  }));
 }
 
 async function renderFragment(
@@ -175,6 +191,9 @@ function toSafeKineticPlan(plan: VisualOverlayPlan): VisualOverlayPlan {
 }
 
 function textFromPayload(payload: Record<string, unknown>) {
+  if (typeof payload.sourceText === "string" && payload.sourceText.trim()) {
+    return payload.sourceText.trim();
+  }
   const candidates = [payload.text, payload.label, payload.title, payload.subtext, payload.copy];
   const direct = candidates.find((value) => typeof value === "string" && value.trim());
   if (direct) return String(direct);

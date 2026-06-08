@@ -147,7 +147,7 @@ async function buildStyledReview(projectId: string) {
       await writeJsonFile(paths.visualPlan, visualPlan);
 
       if (visualPlan.beats.length > 0) {
-        await renderSemanticOverlay(paths.project, paths.cleanVideo, visualPlan, profile, cleanMetadata.duration, paths.subtitledVideo);
+        await renderSemanticOverlay(paths.project, paths.cleanVideo, visualPlan, profile, cleanMetadata.duration, paths.subtitledVideo, effectiveVisualOptions);
         await prisma.renderAsset.create({ data: { projectId, type: "semantic_overlay", path: paths.subtitledVideo } });
         await logProject(projectId, `info`, `Semantic overlay rendered with ${visualPlan.beats.length} beats natively.`);
         return { profile, stylePreset, presentationMode: effectivePresentationMode };

@@ -3,7 +3,7 @@ import type { MotionIntensity, VisualDensity, VisualPlanOptions, VisualPresetPac
 const densities = new Set<VisualDensity>(["low", "medium", "high"]);
 const motionIntensities = new Set<MotionIntensity>(["calm", "medium", "active"]);
 const presetPacks = new Set<VisualPresetPack>(["balanced", "premium", "viral", "educational", "minimal"]);
-const templates = new Set<VisualTemplateId>(["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "cta_plate", "kinetic_text"]);
+const templates = new Set<VisualTemplateId>(["big_number", "bullet_cards", "keyword_slam", "checklist", "metric_chart", "lesson_title", "myth_strike", "stat_panel", "concept_map", "cta_plate", "kinetic_text"]);
 
 export function parseVisualPlanOptions(raw: string | null | undefined): VisualPlanOptions {
   if (!raw) return {};
@@ -27,7 +27,9 @@ export function parseVisualPlanOptions(raw: string | null | undefined): VisualPl
         ? parsed.presetPack as VisualPresetPack
         : undefined,
       disabledTemplates,
-      faceSafeRegions
+      faceSafeRegions,
+      visualTemplateId: typeof parsed.visualTemplateId === "string" ? parsed.visualTemplateId : undefined,
+      visualTemplate: parsed.visualTemplate && typeof parsed.visualTemplate === "object" ? parsed.visualTemplate : undefined
     };
   } catch {
     return {};

@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
 import { ensureProjectStorage, extensionForVideo, sanitizeFilename } from "@/lib/storage";
+import { sanitizeTemplateData, templateToVisualPlanOptions } from "@/lib/templateBuilder";
 import { optimizeUploadedVideo } from "@/server/video/ingest";
 
 export const runtime = "nodejs";
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
     }
 
+    const defaultTemplate = await prisma.template.findFirst({ where: { isDefault: true, isPreset: false }, orderBy: { updatedAt: "desc" } });
+    const defaultTemplateData = defaultTemplate ? sanitizeTemplateData(defaultTemplate.data, defaultTemplate.name) : null;
+    const defaultTemplateOptions = defaultTemplateData ? templateToVisualPlanOptions(defaultTemplateData) : {};
+
     const project = await prisma.project.create({
       data: {
         originalFilename,
@@ -65,7 +70,10 @@ export async function POST(request: Request) {
           visualDensity: "medium",
           motionIntensity: "medium",
           presetPack: "educational",
-          disabledTemplates: []
+          disabledTemplates: [],
+          ...defaultTemplateOptions,
+          visualTemplateId: defaultTemplate?.id,
+          visualTemplate: defaultTemplateData ?? undefined
         })
       }
     });

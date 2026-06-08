@@ -13,6 +13,8 @@ export type StyleDraftOptions = {
   motionIntensity?: MotionIntensity;
   presetPack?: VisualPresetPack;
   disabledTemplates?: VisualTemplateId[];
+  visualTemplateId?: string;
+  visualTemplate?: unknown;
 };
 
 type OverlayProps = {
