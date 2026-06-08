@@ -146,6 +146,12 @@ export function TemplateBuilder() {
               </small>
             </div>
 
+            {isDirty && (
+              <button type="button" className={styles.save} onClick={() => void persist.saveSection()}>
+                {status === "saving" ? "Сохраняю..." : "Сохранить изменения"}
+              </button>
+            )}
+
             {activeTab === "theme" ? (
               <div className={styles.group}>
                 <h3>Готовые цветовые палитры</h3>
