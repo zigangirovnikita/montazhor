@@ -3,6 +3,8 @@ import { sanitizeTemplateData } from "@/lib/templateBuilder";
 import type { StoredTemplate, VisualTemplateData } from "@/lib/templateBuilder";
 import { upsertTemplate } from "../utils/upsertTemplate";
 
+import type { UseTemplatePersistProps } from "../types";
+
 export function useTemplatePersist({
   current,
   setCurrent,
@@ -14,21 +16,26 @@ export function useTemplatePersist({
   setOpenSection,
   setSectionSnapshot,
   isDirty
-}: any) {
+}: UseTemplatePersistProps) {
   useEffect(() => {
     void loadTemplates();
   }, []);
 
   async function loadTemplates() {
-    const response = await fetch("/api/templates", { cache: "no-store" });
-    const payload = await response.json();
-    const list = Array.isArray(payload.templates) ? payload.templates as StoredTemplate[] : [];
-    setTemplates(list);
-    const selected = list.find((item) => item.isDefault && !item.isPreset) ?? list.find((item) => !item.isPreset) ?? list[0];
-    if (selected) {
-      setCurrent(selected);
-      setDraft(sanitizeTemplateData(selected.data, selected.name));
-      setSnapshot(JSON.stringify(selected.data));
+    try {
+      const response = await fetch("/api/templates", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to load");
+      const payload = await response.json();
+      const list = Array.isArray(payload.templates) ? payload.templates as StoredTemplate[] : [];
+      setTemplates(list);
+      const selected = list.find((item) => item.isDefault && !item.isPreset) ?? list.find((item) => !item.isPreset) ?? list[0];
+      if (selected) {
+        setCurrent(selected);
+        setDraft(sanitizeTemplateData(selected.data, selected.name));
+        setSnapshot(JSON.stringify(selected.data));
+      }
+    } catch {
+      setStatus("error");
     }
   }
 
@@ -60,8 +67,8 @@ export function useTemplatePersist({
     }
   }
 
-  function saveEditorSection() {
-    void saveSection();
+  async function saveEditorSection() {
+    await saveSection();
     setOpenSection(null);
     setSectionSnapshot(null);
   }
@@ -90,7 +97,10 @@ export function useTemplatePersist({
   async function makeDefault() {
     setStatus("saving");
     let target = current;
-    if (!target) return;
+    if (!target) {
+      setStatus("idle");
+      return;
+    }
     if (target.isPreset) {
       const duplicateResponse = await fetch(`/api/templates/${target.id}/duplicate`, {
         method: "POST",

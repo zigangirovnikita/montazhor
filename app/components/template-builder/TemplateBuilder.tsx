@@ -201,7 +201,7 @@ export function TemplateBuilder() {
                         { id: "cta", label: "CTA" }
                       ]}
                       value={elementPreviewKind}
-                      onChange={(val) => setElementPreviewKind(val as any)}
+                      onChange={(val) => setElementPreviewKind(val as "list" | "comparison" | "accent" | "chart" | "cta")}
                     />
                   </div>
                 )}

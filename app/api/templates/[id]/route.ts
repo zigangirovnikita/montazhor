@@ -52,7 +52,20 @@ export async function DELETE(_request: Request, context: RouteContext) {
   if (!existing) return NextResponse.json({ error: "Template was not found." }, { status: 404 });
   if (existing.isPreset) return NextResponse.json({ error: "Preset templates cannot be deleted." }, { status: 409 });
 
+  if (existing.isDefault) {
+    const fallback = await prisma.template.findFirst({
+      where: { id: { not: id }, isPreset: false },
+      orderBy: { updatedAt: "desc" }
+    });
+    if (fallback) {
+      await prisma.$transaction([
+        prisma.template.delete({ where: { id } }),
+        prisma.template.update({ where: { id: fallback.id }, data: { isDefault: true } })
+      ]);
+      return NextResponse.json({ ok: true });
+    }
+  }
+
   await prisma.template.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
-

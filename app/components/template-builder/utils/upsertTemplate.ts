@@ -6,7 +6,7 @@ export function upsertTemplate(list: StoredTemplate[], item: StoredTemplate) {
   if (idx > -1) {
     next[idx] = item;
   } else {
-    next.unshift(item);
+    next.push(item);
   }
   return next;
 }

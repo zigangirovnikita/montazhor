@@ -271,15 +271,26 @@ export function sanitizeTemplateData(value: unknown, fallbackName = "Мой ша
   const rawBlocks = (raw.blocks || {}) as Record<string, Partial<TemplateBlockBase>>;
   const mergedBlocks = Object.keys(fallback.blocks).reduce((acc, key) => {
     const blockId = key as TemplateBlockId;
-    acc[blockId] = { ...fallback.blocks[blockId], ...(rawBlocks[blockId] || {}) };
+    const fbBlock = fallback.blocks[blockId];
+    const rawBlock = rawBlocks[blockId] || {};
+    acc[blockId] = {
+      ...fbBlock,
+      ...rawBlock,
+      position: { ...(fbBlock.position ?? {}), ...(rawBlock.position ?? {}) }
+    } as any;
     return acc;
   }, {} as VisualTemplateData["blocks"]);
 
+  const rawTheme = (raw.theme || {}) as Partial<VisualTheme>;
   return {
     ...fallback,
     ...raw,
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 80) : fallbackName,
-    theme: { ...fallback.theme, ...(raw.theme ?? {}) },
+    theme: {
+      ...fallback.theme,
+      ...rawTheme,
+      defaultPosition: { ...(fallback.theme.defaultPosition ?? {}), ...(rawTheme.defaultPosition ?? {}) }
+    },
     blocks: mergedBlocks,
     updatedAt: new Date().toISOString()
   };

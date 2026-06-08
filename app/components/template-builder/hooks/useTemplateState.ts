@@ -4,6 +4,22 @@ import type { StoredTemplate, VisualTemplateData, TemplateEditorTab, TemplateBlo
 import type { SectionId, Status } from "../types";
 import type { ConfirmState } from "../shared/ConfirmDialog";
 
+// Helper outside useTemplateState
+export function themeAsBlock(template: VisualTemplateData): TemplateBlockBase & Record<string, unknown> {
+  return {
+    enabled: true,
+    position: template.theme.defaultPosition,
+    surface: template.theme.defaultSurface,
+    surfaceOpacity: 0.82,
+    borderRadius: 24,
+    padding: 24,
+    shadow: template.theme.defaultShadow,
+    animationSpeed: template.theme.defaultAnimationSpeed,
+    colorText: template.theme.colorText,
+    colorBackground: template.theme.colorBackground,
+  };
+}
+
 export function useTemplateState() {
   const [templates, setTemplates] = useState<StoredTemplate[]>([]);
   const [current, setCurrent] = useState<StoredTemplate | null>(null);
@@ -28,21 +44,6 @@ export function useTemplateState() {
       ? draft.blocks[elementPreviewKind]
       : draft.blocks[activeTab];
 
-  // Helper inside useTemplateState instead of TemplateBuilder.tsx
-  function themeAsBlock(template: VisualTemplateData): TemplateBlockBase & Record<string, unknown> {
-    return {
-      enabled: true,
-      position: template.theme.defaultPosition,
-      surface: template.theme.defaultSurface,
-      surfaceOpacity: 0.82,
-      borderRadius: 24,
-      padding: 24,
-      shadow: template.theme.defaultShadow,
-      animationSpeed: template.theme.defaultAnimationSpeed,
-      colorText: template.theme.colorText,
-      colorBackground: template.theme.colorBackground,
-    };
-  }
 
   const effectiveBlock = activeBlock ?? themeAsBlock(draft);
 
