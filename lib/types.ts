@@ -87,6 +87,7 @@ export interface TranscriptJson {
   language: string;
   segments: TranscriptSegment[];
   provider?: string;
+  duration?: number;
   alignmentProvider?: string;
   diarizationProvider?: string;
   mainSpeakerId?: string;

@@ -5,6 +5,7 @@ import { ensureProjectStorage, pathsForProject, writeJsonFile } from "@/lib/stor
 import { resolveCleanupMode } from "@/lib/types";
 import type { LanguageSetting, Platform, StylePreset } from "@/lib/types";
 import { LocalWhisperTranscriptionProvider } from "@/server/ai/transcription";
+import { ElevenLabsTranscriptionProvider } from "@/server/ai/elevenLabsTranscription";
 import { HeuristicContentPlanner } from "@/server/ai/contentPlanner";
 import { selectivelyRealignTranscriptWithMfa } from "@/server/ai/mfaAlignment";
 import { logProjectAiUsageSummary } from "@/server/ai/usage";
@@ -31,6 +32,7 @@ export async function processProjectAnalyze(projectId: string) {
   await prisma.renderAsset.deleteMany({ where: { projectId } });
   await safeUnlink(paths.cleanVideo);
   await safeUnlink(paths.reviewVideo);
+  await safeUnlink(paths.reviewCandidates);
   await prisma.project.update({
     where: { id: projectId },
     data: {
@@ -51,17 +53,23 @@ export async function processProjectAnalyze(projectId: string) {
   await logProject(projectId, "info", "Audio extracted as WAV 16 kHz mono.");
 
   await updateProjectStatus(projectId, "transcribing");
-  const provider = new LocalWhisperTranscriptionProvider();
+  const transcriptionProvider = process.env.TRANSCRIPTION_PROVIDER ?? "whisperx";
+  await logProject(projectId, "info", `Transcription provider: ${transcriptionProvider}.`);
+  const provider = transcriptionProvider === "elevenlabs"
+    ? new ElevenLabsTranscriptionProvider()
+    : new LocalWhisperTranscriptionProvider();
   const rawTranscript = await provider.transcribe({
     audioPath: paths.audio,
     language: project.language as LanguageSetting
   });
-  const mfaRefinedTranscript = await selectivelyRealignTranscriptWithMfa(
-    rawTranscript,
-    paths.audio,
-    metadata.duration,
-    (message) => logProject(projectId, "info", message)
-  );
+  const mfaRefinedTranscript = rawTranscript.provider === "elevenlabs"
+    ? rawTranscript
+    : await selectivelyRealignTranscriptWithMfa(
+      rawTranscript,
+      paths.audio,
+      metadata.duration,
+      (message) => logProject(projectId, "info", message)
+    );
   const transcriptVad = voiceActivityFromTranscript(mfaRefinedTranscript);
   if (transcriptVad?.mainSpeakerId) {
     await logProject(projectId, "info", `Diarization: main speaker ${transcriptVad.mainSpeakerId}, ${transcriptVad.speechRanges.length} speech ranges from WhisperX/pyannote.`);

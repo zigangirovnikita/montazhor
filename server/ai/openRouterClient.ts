@@ -7,7 +7,8 @@ const MAX_ATTEMPTS = 3;
 export async function callChatCompletion(
   config: AiConfig,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  options: { audio?: { data: string; format: string } } = {}
 ): Promise<AiCallResult> {
   let lastError: unknown;
 
@@ -19,7 +20,7 @@ export async function callChatCompletion(
       const body: Record<string, unknown> = {
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userMessageContent(userPrompt, options.audio) },
         ],
         max_tokens: config.maxTokens,
         temperature: config.temperature,
@@ -81,6 +82,23 @@ export async function callChatCompletion(
 }
 
 export const callOpenRouter = callChatCompletion;
+
+function userMessageContent(
+  text: string,
+  audio: { data: string; format: string } | undefined
+): string | Array<Record<string, unknown>> {
+  if (!audio) return text;
+  return [
+    { type: "text", text },
+    {
+      type: "input_audio",
+      inputAudio: {
+        data: audio.data,
+        format: audio.format,
+      },
+    },
+  ];
+}
 
 interface OpenRouterUsage {
   prompt_tokens?: number;

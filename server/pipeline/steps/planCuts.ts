@@ -1,4 +1,5 @@
 import type { CleanupMode, EditDecisionList, EditRange, KeepSegment, TranscriptJson } from "@/lib/types";
+import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import { isFillerWord } from "@/server/ai/fillerWords";
 import { isProfanity } from "@/server/ai/profanity";
 import { complementRanges, mergeCloseRanges } from "@/server/video/cutting";
@@ -8,6 +9,9 @@ import { formatTranscriptTimingStats, normalizeTranscriptTimings } from "@/serve
 import { detectVoiceActivity, speechGapsFromVad } from "@/server/ai/voiceActivity";
 import type { VoiceActivityMap } from "@/server/ai/voiceActivity";
 import { detectRefinedWordGapRemovals } from "@/server/ai/cutBoundaryRefiner";
+import { detectGeminiMelismRemovals } from "@/server/ai/geminiMelismDetector";
+import { reconcileMelismCandidates } from "@/server/pipeline/steps/analyze/reconcileMelisms";
+import type { MelismReviewItem } from "@/server/pipeline/steps/analyze/reconcileMelisms";
 import { detectUntranscribedVoiceRemovals } from "@/server/pipeline/steps/untranscribedVoice";
 import { selectScriptWithAi } from "@/server/ai/scriptSelector";
 import { collectWordBoundaries, isReliableWordBoundary, normalizeToken } from "@/server/ai/wordBoundaries";
@@ -16,16 +20,39 @@ import {
   CONSERVATIVE_TRANSCRIPT_GAP_FALLBACK_SECONDS,
   FILLER_EDGE_GUARD_SECONDS,
   isElongatedHesitationToken,
+  MAX_MELISM_REMOVAL_SECONDS,
   MAX_VAD_EDGE_PROTECTED_WORD_DURATION,
   MIN_KEPT_FRAGMENT_SECONDS,
   PAUSE_KEEP_HANDLE_SECONDS,
   SCRIPT_KEEP_HANDLE_SECONDS,
   SEMANTIC_EDGE_GUARD_SECONDS,
+  UNTRANSCRIBED_VOICE_REQUIRES_GEMINI,
   WORD_GAP_REMOVAL_THRESHOLD
 } from "@/server/ai/cutTimingPolicy";
 
-const GAP_REASONS = new Set(["pause", "silence", "long_pause", "non_silent_gap", "noisy_pause", "vad_pause", "untranscribed_voice"]);
+const GAP_REASONS = new Set([
+  "pause",
+  "silence",
+  "long_pause",
+  "non_silent_gap",
+  "noisy_pause",
+  "vad_pause",
+  "untranscribed_voice",
+  "melism",
+  "elongated_hesitation",
+  "breath",
+  "mouth_sound",
+  "false_start",
+  "uncertain"
+]);
 const NON_SEMANTIC_REASONS = new Set([...GAP_REASONS, "not_selected"]);
+
+interface DeterministicGapAnalysis {
+  removals: EditRange[];
+  gapCandidates: EditRange[];
+  untranscribedVoiceCandidates: EditRange[];
+  vad?: VoiceActivityMap;
+}
 
 
 function clampRange(range: EditRange, duration: number): EditRange {
@@ -263,11 +290,16 @@ function shouldKeepContextualFiller(words: { word: string; start: number; end: n
   const nextWord = words[index + 1];
   if (!nextWord) return false;
 
-  if (normalized !== "короче") return false;
+  const nextNormalized = normalizeToken(nextWord.word);
 
   // "Короче, я женился" is a discourse connector into the next authored thought,
   // not removable clutter. Keep it in the heuristic fallback to match the AI prompt.
-  return nextWord.start - word.end <= 1.0;
+  if (normalized === "короче") return nextWord.start - word.end <= 1.0;
+
+  // "Вот так" is a stable closing phrase; deleting only "вот" breaks the meaning.
+  if (normalized === "вот" && nextNormalized === "так") return nextWord.start - word.end <= 0.5;
+
+  return false;
 }
 
 /**
@@ -295,7 +327,7 @@ export async function planCuts(
     info(formatTranscriptTimingStats(timingStats));
   }
 
-  const deterministicGapRemovals = await detectDeterministicGapRemovals(
+  const deterministicGapAnalysis = await detectDeterministicGapRemovals(
     normalizedTranscript,
     duration,
     cleanupMode,
@@ -304,7 +336,23 @@ export async function planCuts(
     precomputedVad,
     precomputedSileroVad
   );
+  const melismAnalysis = await detectMelismRemovals({
+    transcript: normalizedTranscript,
+    duration,
+    cleanupMode,
+    audioPath,
+    vad: deterministicGapAnalysis.vad ?? precomputedVad,
+    gapCandidates: deterministicGapAnalysis.gapCandidates,
+    untranscribedVoiceCandidates: deterministicGapAnalysis.untranscribedVoiceCandidates,
+    log: info,
+    projectId,
+  });
   const safetyRemovals = detectSafetyRemovals(normalizedTranscript, cleanupMode, info);
+  const technicalRemovals = [
+    ...deterministicGapAnalysis.removals,
+    ...melismAnalysis.autoRemoveRanges,
+    ...safetyRemovals
+  ];
 
   if (cleanupMode === "semantic_cleanup" && isAiConfigured("script_selector_pass_1") && isAiConfigured("script_selector_pass_2")) {
     try {
@@ -315,7 +363,7 @@ export async function planCuts(
       const edl = buildEditDecisionListFromKeepSegments(
         normalizedTranscript,
         scriptPlan.keepSegments,
-        [...deterministicGapRemovals, ...safetyRemovals],
+        technicalRemovals,
         duration
       );
       logFinalEdl(edl, info);
@@ -329,9 +377,74 @@ export async function planCuts(
   }
 
   // Heuristic fallback
-  const edl = planCutsHeuristic(normalizedTranscript, duration, cleanupMode, [...deterministicGapRemovals, ...safetyRemovals]);
+  const edl = planCutsHeuristic(normalizedTranscript, duration, cleanupMode, technicalRemovals);
   logFinalEdl(edl, info);
   return edl;
+}
+
+async function detectMelismRemovals(input: {
+  transcript: TranscriptJson;
+  duration: number;
+  cleanupMode: CleanupMode;
+  audioPath?: string;
+  vad?: VoiceActivityMap;
+  gapCandidates: EditRange[];
+  untranscribedVoiceCandidates: EditRange[];
+  log: (message: string) => void;
+  projectId?: string;
+}): Promise<{ autoRemoveRanges: EditRange[] }> {
+  if (input.cleanupMode === "pauses_only" || !input.audioPath) {
+    return { autoRemoveRanges: [] };
+  }
+
+  try {
+    const detection = await detectGeminiMelismRemovals({
+      audioPath: input.audioPath,
+      transcript: input.transcript,
+      vad: input.vad,
+      gapCandidates: input.gapCandidates,
+      untranscribedVoiceCandidates: input.untranscribedVoiceCandidates,
+      cleanupMode: input.cleanupMode,
+      log: input.log,
+    });
+    const candidates = [
+      ...detection.autoRemoveCandidates,
+      ...detection.reviewCandidates,
+      ...detection.keepCandidates
+    ];
+    const reconciled = reconcileMelismCandidates({
+      candidates,
+      transcript: input.transcript,
+      duration: input.duration,
+      vad: input.vad,
+    });
+
+    input.log(
+      `Melism removals accepted: ${reconciled.autoRemoveRanges.length}; review: ${reconciled.reviewItems.length}; keep: ${reconciled.keepItems.length}; rejected by safety: ${reconciled.rejectedCount}.`
+    );
+    await saveMelismReviewCandidates(input.projectId, reconciled.reviewItems, input.log);
+    return { autoRemoveRanges: reconciled.autoRemoveRanges };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.log(`Gemini melism detector failed, keeping deterministic cleanup only: ${message}`);
+    return { autoRemoveRanges: [] };
+  }
+}
+
+async function saveMelismReviewCandidates(
+  projectId: string | undefined,
+  items: MelismReviewItem[],
+  log: (message: string) => void
+): Promise<void> {
+  if (!projectId || items.length === 0) return;
+  const filePath = pathsForProject(projectId).reviewCandidates;
+  try {
+    await writeJsonFile(filePath, { projectId, items });
+    log(`Review candidates saved to: ${filePath}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Review candidates were not saved: ${message}`);
+  }
 }
 
 function detectSafetyRemovals(
@@ -397,7 +510,7 @@ function detectObviousHesitationRemovals(
       if (shouldKeepContextualFiller(words, index)) continue;
       const normalized = normalizeToken(word.word);
       const duration = word.end - word.start;
-      if (isElongatedHesitationToken(normalized) && duration > 0 && duration <= 1.8) {
+      if (isElongatedHesitationToken(normalized) && duration > 0 && duration <= MAX_MELISM_REMOVAL_SECONDS) {
         removals.push({
           sourceStart: word.start,
           sourceEnd: word.end,
@@ -467,10 +580,13 @@ async function detectDeterministicGapRemovals(
   log: (message: string) => void,
   precomputedVad?: VoiceActivityMap,
   precomputedSileroVad?: VoiceActivityMap
-): Promise<EditRange[]> {
+): Promise<DeterministicGapAnalysis> {
   const minSpeechGap = WORD_GAP_REMOVAL_THRESHOLD;
   const transcriptGaps = detectTranscriptGaps(transcript, minSpeechGap);
-  if (!audioPath) return gapsToEditRanges(transcriptGaps);
+  if (!audioPath) {
+    const removals = gapsToEditRanges(transcriptGaps);
+    return { removals, gapCandidates: removals, untranscribedVoiceCandidates: [] };
+  }
 
   try {
     const vad = precomputedVad ?? await detectVoiceActivity(audioPath);
@@ -485,18 +601,26 @@ async function detectDeterministicGapRemovals(
     );
     if (untranscribedVoiceRemovals.length > 0 && cleanupMode === "pauses_only") {
       log(`Voice/transcript mismatch diagnostics only: ${untranscribedVoiceRemovals.length} ranges were detected but not auto-removed.`);
+    } else if (untranscribedVoiceRemovals.length > 0 && UNTRANSCRIBED_VOICE_REQUIRES_GEMINI) {
+      log(`Voice/transcript mismatch: ${untranscribedVoiceRemovals.length} ranges sent to Gemini for melism classification.`);
     } else if (untranscribedVoiceRemovals.length > 0) {
       log(`Voice/transcript mismatch safety pass: ${untranscribedVoiceRemovals.length} ranges added to EDL.`);
     }
-    return [
+    const removals = [
       ...nonOverlappingVadGaps.map((gap) => ({
         sourceStart: gap.start,
         sourceEnd: gap.end,
         reason: "vad_pause",
       })),
       ...refinedWordGaps,
-      ...(cleanupMode === "pauses_only" ? [] : untranscribedVoiceRemovals),
+      ...(cleanupMode === "pauses_only" || UNTRANSCRIBED_VOICE_REQUIRES_GEMINI ? [] : untranscribedVoiceRemovals),
     ];
+    return {
+      removals,
+      gapCandidates: [...removals, ...gapsToEditRanges(transcriptGaps)],
+      untranscribedVoiceCandidates: untranscribedVoiceRemovals,
+      vad,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(`Silero VAD failed, falling back to transcript-gap pause detection: ${message}`);
@@ -508,7 +632,7 @@ async function detectDeterministicGapRemovals(
   if (noisyGaps.length > 0) {
     log(`Audio post-check: ${noisyGaps.length} transcript pauses contain background/audible sound and are treated as noisy pauses, not speech: ${noisyGaps.join("; ")}`);
   }
-  return gapRemovals;
+  return { removals: gapRemovals, gapCandidates: gapRemovals, untranscribedVoiceCandidates: [] };
 }
 
 function dropVadGapsCoveredByRefinedGaps(

@@ -20,6 +20,22 @@ Current server target:
 * host: `45.147.177.53`
 * ssh user: `root`
 * local SSH env source: `.env.server-access`
+* app path: `/opt/montazhor`
+* systemd service: `montazhor.service`
+* active git branch: `feature/template-builder`
+
+Current production build as of 2026-06-12:
+
+* Runtime is the remote server under `/opt/montazhor`; GitHub remote is `origin` at `https://github.com/zigangirovnikita/montazhor.git`.
+* Production transcription provider is `ElevenLabsTranscriptionProvider`, enabled with `TRANSCRIPTION_PROVIDER="elevenlabs"`.
+* ElevenLabs traffic goes through a server-local Xray HTTP proxy at `ELEVENLABS_PROXY_URL="http://127.0.0.1:10809"` because direct server traffic to ElevenLabs can be region-blocked.
+* `xray` must be active together with `montazhor.service`; verify both with `systemctl is-active xray` and `systemctl is-active montazhor.service`.
+* ElevenLabs uses `scribe_v2` with word timestamps. Keep `ELEVENLABS_TIMESTAMPS_GRANULARITY="word"`.
+* Gemini melism detection is currently disabled in production with `GEMINI_MELISM_DETECTOR_ENABLED="false"`. Keep Gemini code available, but do not assume it runs in the default build.
+* Parakeet has been removed from the architecture. Do not reintroduce Parakeet through OpenRouter for word timestamps unless a provider with real word-level timings is verified first.
+* Voice activity/diarization still uses `VOICE_ACTIVITY_PROVIDER="pyannote"` with Silero/VAD fallback logic in the app.
+* MFA alignment remains optional and environment-controlled. It must not replace ElevenLabs word text or the VAD/diarization source of truth.
+* Current verified melism test audio produced an end-to-end `draft_ready` project with ElevenLabs timestamps, removed `а-а-а`, `э-э-э`, `Иии`, `яяя`, and `нууу`, and preserved the meaningful phrase `короче вот так`.
 
 Secrets rule:
 
@@ -76,7 +92,7 @@ Build the smallest working end-to-end prototype:
 1. Upload `mp4`, `mov`, or `webm`.
 2. Save original video locally.
 3. Extract audio with FFmpeg.
-4. Transcribe with local Whisper/faster-whisper/whisper.cpp.
+4. Transcribe with the active provider. Production currently uses ElevenLabs `scribe_v2` with word timestamps through the local Xray proxy; local Whisper/stable-ts remains a fallback provider.
 5. Generate transcript JSON.
 6. Detect long pauses and obvious filler words.
 7. Create an edit decision list.
@@ -102,8 +118,10 @@ Use this stack unless instructed otherwise:
 - SQLite
 - Local filesystem storage
 - FFmpeg
-- Local Whisper provider
-- Silero VAD for local voice activity detection
+- ElevenLabs Speech-to-Text as the current production transcription provider
+- Local Whisper/stable-ts as fallback transcription provider
+- Xray local HTTP proxy for ElevenLabs server egress
+- Pyannote/Silero VAD for voice activity detection and diarization fallback
 - HyperFrames for continuous semantic visual overlays
 - ASS subtitles burned with FFmpeg
 - `pnpm`
@@ -204,10 +222,12 @@ interface ContentPlanner {
 
 MVP implementations:
 
+* `ElevenLabsTranscriptionProvider` (`server/ai/elevenLabsTranscription.ts`) is the current production STT provider. It must support `ELEVENLABS_PROXY_URL` and use word-level timestamps.
 * `LocalWhisperTranscriptionProvider` (local `stable-ts` / `faster-whisper` based stack, with DTW alignment)
 * Speaker/activity detection split across `server/ai/voiceActivity.ts`:
   * coarse main-speaker diarization/speech ranges from WhisperX/pyannote when available
   * `SileroVoiceActivity` via `scripts/detect_silero_vad.py` as fine pause layer and fallback
+* `GeminiMelismDetector` is optional and currently disabled in production. Its output is a review/assist layer, not the primary STT source.
 * `HyperFramesMotionRenderer`
 * `HeuristicContentPlanner`
 
@@ -248,17 +268,18 @@ Current source-of-truth order for cutting:
 
 1. Coarse main-speaker speech ranges come from transcript diarization / `pyannote` when available via `server/ai/voiceActivity.ts`. They are the primary source of truth for whose speech belongs to the final monologue.
 2. `Silero VAD` is the fine speech/no-speech layer for local pause boundaries and the fallback when diarization is unavailable.
-3. `stable-ts` (faster-whisper) is the source of truth for what words were said and provides DTW word boundaries.
-4. `MFA` (`server/ai/mfaAlignment.ts`) is an optional selective fallback only for suspicious word timing repair on chosen segments. It does not replace stable-ts transcription, diarization, or the semantic script selector.
-5. `AI script selector` (`server/ai/scriptSelector.ts`, prompts in `server/ai/scriptSelectionPrompts.ts`) is the main semantic source of truth only for `semantic_cleanup`. It must decide which exact spoken words stay in the final video, not which words to delete.
-6. `planCuts.ts` always handles technical cleanup by deterministic rules: pause removal, hesitation cleanup, and `untranscribed_voice` cleanup according to the selected cleanup mode.
-7. Heuristics in `planCuts.ts`, `fillerWords.ts`, and `profanity.ts` are fallback/safety layers when AI is unavailable or misses obvious removals.
+3. The active transcription provider is the source of truth for what words were said. Production currently uses ElevenLabs `scribe_v2` word timestamps; local `stable-ts` remains a fallback provider.
+4. Transcript timing normalization still treats provider word timestamps as untrusted until validated. If timings are suspicious, repair conservatively using VAD speech ranges and neighboring reliable words.
+5. `MFA` (`server/ai/mfaAlignment.ts`) is an optional selective fallback only for suspicious word timing repair on chosen segments when enabled. It does not replace ElevenLabs/stable-ts transcription, diarization, or the semantic script selector.
+6. `AI script selector` (`server/ai/scriptSelector.ts`, prompts in `server/ai/scriptSelectionPrompts.ts`) is the main semantic source of truth only for `semantic_cleanup`. It must decide which exact spoken words stay in the final video, not which words to delete.
+7. `planCuts.ts` always handles technical cleanup by deterministic rules: pause removal, hesitation cleanup, and `untranscribed_voice` cleanup according to the selected cleanup mode.
+8. Heuristics in `planCuts.ts`, `fillerWords.ts`, and `profanity.ts` are fallback/safety layers when AI is unavailable or misses obvious removals.
 
 Important: do not go back to cutting pauses purely by FFmpeg volume/RMS or raw Whisper word gaps. Street noise, cars, wind, room noise, and handling noise can be loud but are not the speaker's voice. Volume is only a diagnostic signal. VAD decides speech/no-speech, Whisper supplies text, AI selects the final spoken script.
 
 `silence.ts` (FFmpeg silencedetect) has been removed from the codebase — do not reintroduce it.
 
-Whisper word timestamps must be treated as untrusted until normalized. After transcription and before AI script selection/cut planning, validate word timings for impossible or suspicious values: negative times, zero or near-zero duration, `end <= start`, overlaps, non-monotonic order, and durations that are implausibly short for the word length/syllable count. When a word timestamp is suspicious, do not cut directly by that raw Whisper boundary. Prefer Silero VAD speech segments, neighboring valid word timings, and conservative timing repair/redistribution inside the nearest VAD speech segment. Whisper remains authoritative for the spoken text, not for unsafe raw timing boundaries.
+Transcription provider word timestamps must be treated as untrusted until normalized. After transcription and before AI script selection/cut planning, validate word timings for impossible or suspicious values: negative times, zero or near-zero duration, `end <= start`, overlaps, non-monotonic order, and durations that are implausibly short for the word length/syllable count. When a word timestamp is suspicious, do not cut directly by that raw provider boundary. Prefer VAD speech segments, neighboring valid word timings, and conservative timing repair/redistribution inside the nearest VAD speech segment. The active STT provider remains authoritative for the spoken text, not for unsafe raw timing boundaries.
 
 When selective MFA fallback is enabled, use it only on suspicious segments, not on the full video by default. Suspicious segments are detected from timing/pathology signals such as large internal word gaps, large segment edge drift, implausible durations, overlaps, or low-confidence words. MFA may refine word timings for those segments only when its aligned token sequence still matches the original spoken words after normalization. If MFA output changes tokens, drops tokens, or otherwise fails merge validation, discard the MFA result and keep stable-ts timings.
 
@@ -278,7 +299,7 @@ Obvious elongated hesitation sounds are a deterministic safety layer in `pauses_
 
 This hesitation layer should also catch elongated variants that Whisper often writes phonetically, for example `мэээ`, `бэээ`, `нуууу`, `эммм`, and similar stretched vocalized fillers, when removal is safe by timing and does not break meaning.
 
-If Whisper does not transcribe a hesitation sound at all (faster-whisper/stable-ts actively suppress non-lexical sounds), but VAD detects a voice-like range between two reliable words and that range does not contain transcript words, remove it in `pauses_and_fillers` and `semantic_cleanup` once it reaches the central `untranscribed_voice` minimum duration. This rule exists specifically to catch real-world `эээ/мэээ/нууу` cases that Whisper skips. Do not suppress internal voice-like gaps merely because they sit inside one continuous main-speaker speech range; continuity protection is for avoiding unsafe cuts through supported speech, not for keeping unsupported filler sounds between reliable words.
+If the active STT provider does not transcribe a hesitation sound at all, but VAD detects a voice-like range between two reliable words and that range does not contain transcript words, remove it in `pauses_and_fillers` and `semantic_cleanup` once it reaches the central `untranscribed_voice` minimum duration. This rule exists specifically to catch real-world `эээ/мэээ/нууу` cases that STT providers may skip. Do not suppress internal voice-like gaps merely because they sit inside one continuous main-speaker speech range; continuity protection is for avoiding unsafe cuts through supported speech, not for keeping unsupported filler sounds between reliable words.
 
 If Silero VAD fails, the system may fall back to transcript-gap pause detection, but that path must stay conservative and must log the fallback reason clearly.
 

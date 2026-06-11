@@ -44,6 +44,7 @@ export function pathsForProject(projectId: string) {
     metadata: path.join(project, "metadata.json"),
     transcript: path.join(project, "transcript.json"),
     edl: path.join(project, "edl.json"),
+    reviewCandidates: path.join(project, "review-candidates.json"),
     contentPlan: path.join(project, "content-plan.json"),
     visualPlan: path.join(project, "visual-plan.json"),
     subtitlesDraft: path.join(project, "subtitles-draft.json"),

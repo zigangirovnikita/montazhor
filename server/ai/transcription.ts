@@ -9,9 +9,11 @@ const DEFAULT_INITIAL_PROMPT =
   "Это русская разговорная речь для короткого видео. Сохраняй междометия, паузы, слова-паразиты и вокализации: эээ, эм, ммм, ааа, ну, короче.";
 
 export class LocalWhisperTranscriptionProvider implements TranscriptionProvider {
+  constructor(private readonly providerOverride?: string) {}
+
   async transcribe(input: TranscriptionInput): Promise<TranscriptJson> {
     const python = process.env.WHISPER_PYTHON ?? defaultPython();
-    const provider = process.env.TRANSCRIPTION_PROVIDER ?? "whisperx";
+    const provider = this.providerOverride ?? process.env.TRANSCRIPTION_PROVIDER ?? "whisperx";
     const language = input.language === "auto" ? "ru" : input.language;
     const initialPrompt = process.env.WHISPER_INITIAL_PROMPT ?? DEFAULT_INITIAL_PROMPT;
     const modelCacheDir = path.join(storageRoot(), "models", "huggingface");

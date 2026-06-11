@@ -765,7 +765,7 @@ async function main() {
           id: 0,
           start: 0,
           end: 7,
-          text: "я мэээ потом бэээ дальше нуууу итог",
+          text: "я мэээ потом бэээ дальше нуууу яяя итог",
           words: [
             { word: "я", start: 0.1, end: 0.25 },
             { word: "мэээ", start: 0.6, end: 1.05 },
@@ -773,13 +773,14 @@ async function main() {
             { word: "бэээ", start: 2.8, end: 3.3 },
             { word: "дальше", start: 4.0, end: 4.4 },
             { word: "нуууу", start: 5.0, end: 5.6 },
-            { word: "итог", start: 6.2, end: 6.5 },
+            { word: "яяя", start: 5.9, end: 7.76 },
+            { word: "итог", start: 8.2, end: 8.5 },
           ],
         },
       ],
     };
-    const edl = await planCuts(elongatedHesitationTranscript, 7, "pauses_and_fillers");
-    for (const [token, start, end] of [["мэээ", 0.6, 1.05], ["бэээ", 2.8, 3.3], ["нуууу", 5.0, 5.6]] as const) {
+    const edl = await planCuts(elongatedHesitationTranscript, 9, "pauses_and_fillers");
+    for (const [token, start, end] of [["мэээ", 0.6, 1.05], ["бэээ", 2.8, 3.3], ["нуууу", 5.0, 5.6], ["яяя", 5.9, 7.76]] as const) {
       assert(
         edl.removedRanges.some((range) => range.sourceStart <= start && range.sourceEnd >= end),
         `pauses_and_fillers should remove elongated hesitation token ${token}`
