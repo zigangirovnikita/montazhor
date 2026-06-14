@@ -64,33 +64,102 @@ Return a JSON object conforming strictly to the requested output schema.`;
     }
   });
 
-  const response = await callChatCompletion(config, systemPrompt, userPrompt);
+  let parsedResponse;
+  let useFallback = false;
 
-  await recordAiUsage({ 
-    projectId, 
-    source: "hyperframes", 
-    phase: "visual_director", 
-    result: response 
-  });
+  try {
+    const response = await callChatCompletion(config, systemPrompt, userPrompt);
+    
+    await recordAiUsage({ 
+      projectId, 
+      source: "hyperframes", 
+      phase: "visual_director", 
+      result: response 
+    });
 
-  const parsed = JSON.parse(response.content);
+    const jsonParsed = JSON.parse(response.content);
+    const validated = templateInstancePlanSchema.safeParse(jsonParsed);
+    
+    if (validated.success) {
+      parsedResponse = validated.data;
+    } else {
+      console.warn("Visual Director schema validation failed:", validated.error);
+      useFallback = true;
+    }
+  } catch (err) {
+    console.warn("Visual Director LLM call or JSON parsing failed:", err);
+    useFallback = true;
+  }
 
-  // Map to the internal type
+  if (useFallback || !parsedResponse) {
+    return buildFallbackPlan(beats);
+  }
+
   return {
-    stylePack: parsed.stylePack,
-    captionMode: "off", // enforced default
+    stylePack: parsedResponse.stylePack,
+    captionMode: "off",
     planner: "ai",
-    diagnostics: [`AI selected ${parsed.instances.length} template instances from ${beats.length} beats.`],
-    instances: parsed.instances.map((inst: any) => ({
+    diagnostics: [`AI selected ${parsedResponse.instances.length} template instances from ${beats.length} beats.`],
+    instances: parsedResponse.instances.map((inst: any) => ({
       id: `inst-${Math.random().toString(36).slice(2, 8)}`,
       start: inst.start,
       duration: inst.duration,
       templateId: inst.templateId,
       variantId: inst.variantId || "standard",
-      visualWeight: inst.visualWeight,
+      visualWeight: inst.visualWeight as any,
       slots: inst.slots,
       transitionIn: inst.transitionIn || "fade",
       transitionOut: inst.transitionOut || "cut"
     }))
+  };
+}
+
+function buildFallbackPlan(beats: VisualBeat[]): TemplateInstancePlan {
+  const instances = beats.map((b, i) => {
+    let templateId = "ais.side_callout.v1";
+    let slots: Record<string, any> = { text: b.text.slice(0, 50) };
+    let visualWeight = "callout";
+
+    if (b.intent === "hook") {
+      templateId = "ais.hook_flash.v1";
+      slots = { title: b.text.slice(0, 30) };
+      visualWeight = "full";
+    } else if (b.intent === "stat") {
+      templateId = "ais.stat_meter.v1";
+      slots = { label: b.text.slice(0, 30), value: "100" };
+      visualWeight = "medium";
+    } else if (b.intent === "mistake" || b.intent === "comparison") {
+      templateId = "ais.myth_strike_overlay.v1";
+      slots = { wrong: "Ожидание", right: b.text.slice(0, 30) };
+      visualWeight = "medium";
+    } else if (b.intent === "steps") {
+      templateId = "ais.steps_cards.v1";
+      slots = { steps: [b.text.slice(0, 30)] };
+      visualWeight = "full";
+    } else if (b.intent === "cta") {
+      templateId = "ais.cta_flash.v1";
+      slots = { action: b.text.slice(0, 30) };
+      visualWeight = "full";
+    }
+
+    return {
+      id: `inst-fb-${i}`,
+      start: b.start,
+      duration: b.end - b.start,
+      templateId,
+      variantId: "standard",
+      visualWeight: visualWeight as any,
+      slots,
+      transitionIn: "fade" as const,
+      transitionOut: "cut" as const
+    };
+  });
+
+  return {
+    stylePack: "ais_tech",
+    captionMode: "off",
+    planner: "deterministic",
+    diagnostics: ["Used deterministic fallback due to LLM parsing failure."],
+    instances
   };
 }

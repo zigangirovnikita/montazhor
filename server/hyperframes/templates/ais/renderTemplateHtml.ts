@@ -3,33 +3,86 @@ import type { VideoProfile } from "@/server/video/profile";
 import type { TemplateInstancePlan } from "@/lib/types/visual";
 import { aisTokens } from "./designTokens";
 
+import { renderHookFlash } from "./renderers/hookFlash";
+import { renderSideCallout } from "./renderers/sideCallout";
+import { renderStatMeter } from "./renderers/statMeter";
+import { renderGoldenRatioSidebar } from "./renderers/goldenRatioSidebar";
+import { renderMythStrike } from "./renderers/mythStrike";
+import { renderBeforeAfter } from "./renderers/beforeAfter";
+import { renderStepsCards } from "./renderers/stepsCards";
+import { renderTrustMap } from "./renderers/trustMap";
+import { renderWarningDialogue } from "./renderers/warningDialogue";
+import { renderQuoteFlash } from "./renderers/quoteFlash";
+import { renderCtaFlash } from "./renderers/ctaFlash";
+
 export function renderTemplateInstanceHtml(
   instance: TemplateInstancePlan["instances"][number],
   profile: VideoProfile
 ): string {
   const width = profile.width;
   const height = profile.height;
-
-  // Very simple generic renderer to replace React SSR for these templates
   const slots = instance.slots;
-  const title = slots.title || slots.eyebrow || slots.quote || slots.wrong || slots.action || instance.templateId;
-  const subtitle = slots.text || slots.body || slots.right || slots.message || slots.before || slots.after || JSON.stringify(slots);
 
-  const needsDarkBg = instance.variantId === "fullscreen" || instance.variantId === "side_panel";
-  const bgColor = needsDarkBg ? aisTokens.colors.background : "transparent";
+  let appHtml = "";
 
-  const appHtml = `
-    <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; overflow: hidden; font-family: ${aisTokens.typography.fontFamily}; color: ${aisTokens.colors.textPrimary}; box-sizing: border-box; background-color: ${bgColor};">
-      <div style="padding: ${aisTokens.spacing.xl}; display: flex; flex-direction: column; justify-content: center; height: 100%; width: 100%;">
-        <h1 style="font-size: ${aisTokens.typography.title.fontSize}; font-weight: ${aisTokens.typography.title.fontWeight}; color: ${aisTokens.colors.primary}; text-shadow: ${aisTokens.effects.glowStrong};">
-          ${title}
-        </h1>
-        <p style="font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: ${aisTokens.typography.subtitle.fontWeight}; color: ${aisTokens.colors.textSecondary};">
-          ${subtitle}
-        </p>
+  switch (instance.templateId) {
+    case "ais.hook_flash.v1":
+      appHtml = renderHookFlash(slots, width, height);
+      break;
+    case "ais.side_callout.v1":
+      appHtml = renderSideCallout(slots, width, height);
+      break;
+    case "ais.stat_meter.v1":
+      appHtml = renderStatMeter(slots, width, height);
+      break;
+    case "ais.golden_ratio_sidebar.v1":
+      appHtml = renderGoldenRatioSidebar(slots, width, height);
+      break;
+    case "ais.myth_strike_overlay.v1":
+      appHtml = renderMythStrike(slots, width, height);
+      break;
+    case "ais.before_after.v1":
+      appHtml = renderBeforeAfter(slots, width, height);
+      break;
+    case "ais.steps_cards.v1":
+      appHtml = renderStepsCards(slots, width, height);
+      break;
+    case "ais.trust_map.v1":
+      appHtml = renderTrustMap(slots, width, height);
+      break;
+    case "ais.warning_dialogue.v1":
+      appHtml = renderWarningDialogue(slots, width, height);
+      break;
+    case "ais.quote_flash.v1":
+      appHtml = renderQuoteFlash(slots, width, height);
+      break;
+    case "ais.cta_flash.v1":
+      appHtml = renderCtaFlash(slots, width, height);
+      break;
+    default:
+      // Fallback
+      appHtml = renderSideCallout(slots, width, height);
+      break;
+  }
+
+  // Find the layout to determine compositing mode
+  // The catalog tells us layout, but here we can infer it or check it.
+  // Overlays need a green chroma key background.
+  const isOverlay = 
+    instance.templateId.includes("callout") ||
+    instance.templateId.includes("stat_meter") ||
+    instance.templateId.includes("myth_strike") ||
+    instance.templateId.includes("warning_dialogue") ||
+    instance.templateId.includes("quote_flash");
+
+  // We wrap the appHtml in a green screen if it's an overlay
+  if (isOverlay) {
+    appHtml = `
+      <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; background-color: #00ff00;">
+        ${appHtml}
       </div>
-    </div>
-  `;
+    `;
+  }
 
   return `<!doctype html>
 <html>

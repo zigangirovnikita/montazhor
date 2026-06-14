@@ -29,6 +29,7 @@ export async function renderTemplateFragments(
     const fragmentPath = path.join(motionDir, fragmentName);
     
     // Explicit cache key based on exactly what affects this instance
+    const RENDERERS_VERSION = "v1.1"; // Bump this when changing AIS template styles/HTML
     const cacheKey = [
       cleanFingerprint,
       instance.templateId,
@@ -40,6 +41,7 @@ export async function renderTemplateFragments(
       instance.transitionIn,
       instance.transitionOut,
       VISUAL_DIRECTOR_VERSION,
+      RENDERERS_VERSION,
       hashJson(profile),
       renderProfile
     ].join(":");

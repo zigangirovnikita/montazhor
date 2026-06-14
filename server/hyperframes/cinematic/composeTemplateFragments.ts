@@ -95,8 +95,21 @@ function buildFragmentsComposeFilter(
     const start = instance.start;
     const end = instance.start + instance.duration;
     
-    // Convert green background to transparent (hyperframes standard)
-    chains.push(`[${inputIdx}:v]setpts=PTS-STARTPTS,tpad=start_duration=${start}:color=0x00ff00,colorkey=0x00ff00:0.22:0.04[scene${index}]`);
+    const isOverlay = 
+      instance.templateId.includes("callout") ||
+      instance.templateId.includes("stat_meter") ||
+      instance.templateId.includes("myth_strike") ||
+      instance.templateId.includes("warning_dialogue") ||
+      instance.templateId.includes("quote_flash");
+
+    if (isOverlay) {
+      // Convert green background to transparent (hyperframes standard)
+      chains.push(`[${inputIdx}:v]setpts=PTS-STARTPTS,tpad=start_duration=${start}:color=0x00ff00,colorkey=0x00ff00:0.22:0.04[scene${index}]`);
+    } else {
+      // Fullscreen opaque overlay
+      chains.push(`[${inputIdx}:v]setpts=PTS-STARTPTS,tpad=start_duration=${start}:color=black[scene${index}]`);
+    }
+    
     chains.push(`[v${index}][scene${index}]overlay=x=0:y=0:enable='between(t,${start},${end})':eof_action=pass[v${index + 1}]`);
   });
 

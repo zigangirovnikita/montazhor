@@ -1,5 +1,10 @@
 import type { TemplateInstance, MotionTemplateDefinition } from "@/lib/types/visual";
 
+function normalizeText(text: string): string {
+  // Lowercase and remove punctuation
+  return text.toLowerCase().replace(/[.,!?;:"'«»()\[\]]/g, "").trim();
+}
+
 export function compileTemplateInstance(
   instance: TemplateInstance,
   templateDefinition: MotionTemplateDefinition
@@ -10,7 +15,6 @@ export function compileTemplateInstance(
     let value = instance.slots[slotDef.name];
 
     if (slotDef.required && (value === undefined || value === null || value === "")) {
-      // Missing required slot, reject the instance entirely
       return null;
     }
 
@@ -18,11 +22,13 @@ export function compileTemplateInstance(
       if (slotDef.type === "short_text" || slotDef.type === "label") {
         if (typeof value === "string") {
           let text = value.trim();
-          if (slotDef.maxWords) {
-            const words = text.split(/\s+/);
-            if (words.length > slotDef.maxWords) {
-              text = words.slice(0, slotDef.maxWords).join(" ") + "...";
-            }
+          const words = text.split(/\s+/);
+          if (words.length > 15) {
+            // Reject sourceText-style long sentences completely
+            return null;
+          }
+          if (slotDef.maxWords && words.length > slotDef.maxWords) {
+            text = words.slice(0, slotDef.maxWords).join(" ") + "...";
           }
           compiledSlots[slotDef.name] = text;
         } else {
@@ -36,18 +42,18 @@ export function compileTemplateInstance(
           if (slotDef.maxItems && list.length > slotDef.maxItems) {
             list = list.slice(0, slotDef.maxItems);
           }
-          if (slotDef.maxWords) {
-            list = list.map(item => {
-              const words = item.split(/\s+/);
-              if (words.length > slotDef.maxWords!) {
-                return words.slice(0, slotDef.maxWords).join(" ") + "...";
-              }
-              return item;
-            });
-          }
+          let hasLongSentence = false;
+          list = list.map(item => {
+            const words = item.split(/\s+/);
+            if (words.length > 15) hasLongSentence = true;
+            if (slotDef.maxWords && words.length > slotDef.maxWords) {
+              return words.slice(0, slotDef.maxWords).join(" ") + "...";
+            }
+            return item;
+          });
+          if (hasLongSentence) return null;
           compiledSlots[slotDef.name] = list;
         } else {
-          // Fallback if AI didn't pass array
           compiledSlots[slotDef.name] = [String(value)];
         }
       } else {
@@ -56,16 +62,23 @@ export function compileTemplateInstance(
     }
   }
 
-  // Remove duplicates across slots (naive check)
-  const seenTexts = new Set<string>();
+  // Remove duplicates and overlaps across slots
+  const seenNormalizedTexts: string[] = [];
   for (const [key, val] of Object.entries(compiledSlots)) {
-    if (typeof val === "string") {
-      const lower = val.toLowerCase();
-      if (seenTexts.has(lower) && val.length > 3) {
-        // AI repeated the same text in another slot
-        compiledSlots[key] = ""; // Clear duplicate
-      } else {
-        seenTexts.add(lower);
+    if (typeof val === "string" && val.length > 0) {
+      const norm = normalizeText(val);
+      if (norm.length > 2) {
+        // Check exact or partial overlap with previously seen slots
+        const isDuplicateOrOverlap = seenNormalizedTexts.some(seen => 
+          seen === norm || seen.includes(norm) || norm.includes(seen)
+        );
+
+        if (isDuplicateOrOverlap) {
+          // AI repeated the same text or a substring in another slot
+          compiledSlots[key] = ""; // Clear duplicate
+        } else {
+          seenNormalizedTexts.push(norm);
+        }
       }
     }
   }
