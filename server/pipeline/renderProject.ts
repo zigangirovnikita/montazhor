@@ -5,12 +5,16 @@ import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { ContentPlan, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
 import { parseVisualPlanOptions } from "@/lib/visualStyleOptions";
-import { buildVisualScenePlanWithAi, SCENE_PLANNER_VERSION, SCENE_REGISTRY_VERSION } from "@/server/ai/visualScenePlanner";
 import { buildVisualOverlayPlanWithAi } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
 import { loadOptionalFaceSafeRegions } from "@/server/hyperframes/faceSafeRegions";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
-import { renderSceneFragments } from "@/server/hyperframes/sceneComposer";
+import { renderTemplateFragments } from "@/server/hyperframes/cinematic/renderTemplateFragments";
+import { composeTemplateFragments } from "@/server/hyperframes/cinematic/composeTemplateFragments";
+import { extractVisualBeats } from "@/server/visual/beatExtractor";
+import { buildVisualDirectorPlan, VISUAL_DIRECTOR_VERSION } from "@/server/visual/visualDirector";
+import { compileVisualPlan } from "@/server/visual/visualPlanCompiler";
+import type { TemplateInstancePlan } from "@/lib/types/visual";
 import { type RenderProfile } from "@/server/video/encoding";
 import { renderSemanticOverlay } from "@/server/hyperframes/semanticOverlay";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
@@ -204,67 +208,69 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   await updateProjectStatus(projectId, "rendering_preview");
 
   if (presentationMode === "cinematic_scenes") {
-    // Stage: scene_plan (cached by transcript + EDL + contentPlan + planner/registry versions)
-    // If cache hit, AI is NOT called at all — saves API cost and latency.
+    // Stage: scene_plan (cached by transcript + EDL + contentPlan + director version)
     const scenePlanCacheKey = [
       hashJson(transcript),
       hashJson(edl),
       hashJson(contentPlan),
-      SCENE_PLANNER_VERSION,
-      SCENE_REGISTRY_VERSION,
+      VISUAL_DIRECTOR_VERSION,
     ].join(":");
-    let visualScenePlan: VisualScenePlan;
+
+    let visualScenePlan: TemplateInstancePlan;
     const scenePlanResult = await ensureArtifact(
       projectId,
-      "scene_plan",
+      "director_plan",
       scenePlanCacheKey,
       paths.visualScenePlan,
       async () => {
-        const plan = await buildVisualScenePlanWithAi(
-          {
-            transcript,
-            edl,
-            subtitles,
-            contentPlan,
-            stylePreset,
-            duration: cleanMetadata.duration
-          },
-          projectId,
-          (message) => logProject(projectId, "info", message)
-        );
-        await writeJsonFile(paths.visualScenePlan, plan);
+        const beats = extractVisualBeats(transcript, edl, contentPlan);
+        const rawPlan = await buildVisualDirectorPlan(projectId, beats, cleanMetadata.duration);
+        const compiledPlan = compileVisualPlan(rawPlan);
+        await writeJsonFile(paths.visualScenePlan, compiledPlan);
       },
       { timeoutMs: 2 * 60_000 }
     );
-    // Load the plan from disk (whether freshly written or cached)
-    visualScenePlan = JSON.parse(await readFile(paths.visualScenePlan, "utf8")) as VisualScenePlan;
+    visualScenePlan = JSON.parse(await readFile(paths.visualScenePlan, "utf8")) as TemplateInstancePlan;
+    
     if (!scenePlanResult.cached) {
       await auditProjectEvent(projectId, {
         phase: "render_preview",
         step: "visual_scene_plan",
         kind: "result",
-        summary: `Cinematic scene plan generated with ${visualScenePlan.scenes.length} scenes.`,
+        summary: `Cinematic director plan compiled with ${visualScenePlan.instances.length} template instances.`,
         metadata: { path: paths.visualScenePlan },
         payload: visualScenePlan,
       });
     }
 
-    if (visualScenePlan.scenes.length === 0) {
-      throw new Error("Cinematic scene planner produced no scenes.");
+    if (visualScenePlan.instances.length === 0) {
+      throw new Error("Visual Director produced no valid instances.");
     }
 
     try {
       await logStageEvent(projectId, { stage: "cinematic_scenes", status: "started" });
       const profileSpecificComposed = paths.cinematicComposedVideo.replace(/\.mp4$/, `.${renderProfile}.mp4`);
-      await renderSceneFragments(
+      
+      const { fragmentPaths, fragmentCacheKeys, cleanFingerprint } = await renderTemplateFragments(
         projectId,
-        paths.project,
         paths.cleanVideo,
+        visualScenePlan,
+        profile,
+        renderProfile
+      );
+
+      await composeTemplateFragments(
+        projectId,
+        paths.cleanVideo,
+        fragmentPaths,
+        fragmentCacheKeys,
+        cleanFingerprint,
         visualScenePlan,
         profile,
         profileSpecificComposed,
         renderProfile
       );
+
     } catch (cinematicError) {
       const message = cinematicError instanceof Error ? cinematicError.message : String(cinematicError);
       await logProject(projectId, "error", `Cinematic scene rendering failed. ${hyperframesRenderDiagnostics()} Original error: ${message}`);
@@ -282,12 +288,28 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
     const profileSpecificComposed = paths.cinematicComposedVideo.replace(/\.mp4$/, `.${renderProfile}.mp4`);
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_base", path: profileSpecificComposed } });
     
+    // Obey captionMode from plan
+    if (visualScenePlan.captionMode === "off") {
+      // Direct pass without subtitles
+      await copyFile(profileSpecificComposed, paths.subtitledVideo);
+      await prisma.renderAsset.create({ data: { projectId, type: "cinematic_preview", path: paths.subtitledVideo } });
+      await logProject(projectId, "info", `Cinematic scenes rendered without bottom subtitles (captionMode=off).`);
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "cinematic_scenes",
+        kind: "result",
+        summary: `Cinematic scenes rendered without bottom subtitles.`,
+        metadata: { outputPath: paths.subtitledVideo },
+      });
+      return { profile, stylePreset, presentationMode: effectivePresentationMode };
+    }
+
+    // Optional: minimal or full subtitles
     const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_fast";
     if (subtitleMode === "preview_fast") {
       await writeFile(paths.subtitlesAss, assFromSubtitles(subtitles, stylePreset, profile, undefined), "utf8");
       await burnSubtitles(profileSpecificComposed, paths.subtitlesAss, profile, renderProfile, paths.subtitledVideo);
-      const subtitlesOverlayPath = paths.subtitledVideo; // Mock path since we burn directly
-      await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+      await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: paths.subtitledVideo } });
     } else {
       const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
       const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
@@ -296,12 +318,12 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
       await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
     }
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_preview", path: paths.subtitledVideo } });
-    await logProject(projectId, "info", `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`);
+    await logProject(projectId, "info", `Cinematic scenes rendered with ${visualScenePlan.instances.length} directed scenes and subtitle overlay.`);
     await auditProjectEvent(projectId, {
       phase: "render_preview",
       step: "cinematic_scenes",
       kind: "result",
-      summary: `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`,
+      summary: `Cinematic scenes rendered with ${visualScenePlan.instances.length} directed scenes and subtitle overlay.`,
       metadata: { sceneLayerPath: paths.cinematicSceneVideo, cinematicComposedPath: paths.cinematicComposedVideo, outputPath: paths.subtitledVideo },
     });
     return { profile, stylePreset, presentationMode: effectivePresentationMode };
