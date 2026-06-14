@@ -12,18 +12,20 @@ import {
   ProcessingScreen,
   ProjectShell
 } from "@/app/components/ProjectScreens";
-import { ElementAdjustments, parseStyleOptions, resolvePresentationMode, resolveStylePreset, StyleStudio } from "@/app/components/StyleStudio";
+import { parseStyleOptions, resolvePresentationMode, resolveStylePreset } from "@/app/components/StyleStudio";
+import { TemplatePicker } from "@/app/components/TemplatePicker";
 import type { DraftEditRequest, ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
 import type { CleanupMode } from "@/lib/types";
+import { templateToVisualPlanOptions, type StoredTemplate } from "@/lib/templateBuilder";
 
-type LocalView = "main" | "text" | "precision" | "style" | "advanced_style" | "elements" | "export";
+type LocalView = "main" | "text" | "precision" | "templates" | "export";
 type CompareMode = "after" | "before";
 
-export function ProjectCockpit({ projectId }: { projectId: string }) {
+export function ProjectCockpit({ projectId, initialView = "main" }: { projectId: string; initialView?: LocalView }) {
   const [payload, setPayload] = useState<ProjectPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
-  const [view, setView] = useState<LocalView>("main");
+  const [view, setView] = useState<LocalView>(initialView);
   const [compareMode, setCompareMode] = useState<CompareMode>("after");
   const [error, setError] = useState("");
   const [styleState, setStyleState] = useState<StyleState | null>(null);
@@ -85,15 +87,17 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
     }
   }
 
-  async function renderPreview() {
-    if (!styleState || busy || isProcessing) return;
+  async function renderPreview(template: StoredTemplate) {
+    if (busy || isProcessing) return;
     setBusy(true);
     setError("");
+    const nextStyleState = styleStateForTemplate(template);
+    setStyleState(nextStyleState);
     try {
       await apiPatch(projectId, {
-        presentationMode: styleState.presentationMode,
-        stylePreset: styleState.stylePreset,
-        styleOptionsJson: styleState.styleOptions
+        presentationMode: nextStyleState.presentationMode,
+        stylePreset: nextStyleState.stylePreset,
+        styleOptionsJson: nextStyleState.styleOptions
       });
       await apiPost(`/api/projects/${projectId}/render`);
       setView("main");
@@ -160,17 +164,14 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
       );
     }
 
-    if (view === "style" || view === "advanced_style") {
+    if (view === "templates") {
       return (
         <ProjectShell>
-          <StyleStudio
-            payload={payload}
-            styleState={styleState}
+          <TemplatePicker
+            projectId={projectId}
+            selectedTemplateId={styleState.styleOptions.visualTemplateId}
             pending={busy}
-            advancedOpen={view === "advanced_style"}
-            onStyleChange={setStyleState}
-            onAdvancedToggle={() => setView(view === "advanced_style" ? "style" : "advanced_style")}
-            onRenderPreview={renderPreview}
+            onSelectTemplate={renderPreview}
           />
           {error ? <p className="error floating-error">{error}</p> : null}
         </ProjectShell>
@@ -186,7 +187,7 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
           onCompareModeChange={setCompareMode}
           onDraftEdit={applyDraftEdit}
           onOpenPrecision={() => setView("precision")}
-          onContinue={() => setView("style")}
+          onContinue={() => setView("templates")}
         />
         {error ? <p className="error floating-error">{error}</p> : null}
       </ProjectShell>
@@ -204,7 +205,7 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
             onCompareModeChange={setCompareMode}
             onDraftEdit={applyDraftEdit}
             onOpenPrecision={() => setView("precision")}
-            onContinue={() => setView("style")}
+            onContinue={() => setView("templates")}
           />
           {error ? <p className="error floating-error">{error}</p> : null}
         </ProjectShell>
@@ -220,34 +221,16 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
       );
     }
 
-    if (view === "elements") {
+    if (view === "templates") {
       return (
         <ProjectShell>
-          <ElementAdjustments
-            payload={payload}
-            styleState={styleState}
+          <TemplatePicker
+            projectId={projectId}
+            selectedTemplateId={styleState.styleOptions.visualTemplateId}
             pending={busy}
-            onStyleChange={setStyleState}
-            onRenderPreview={renderPreview}
-            onBack={() => setView("main")}
+            onSelectTemplate={renderPreview}
           />
           {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
-      );
-    }
-
-    if (view === "style" || view === "advanced_style") {
-      return (
-        <ProjectShell>
-          <StyleStudio
-            payload={payload}
-            styleState={styleState}
-            pending={busy}
-            advancedOpen={view === "advanced_style"}
-            onStyleChange={setStyleState}
-            onAdvancedToggle={() => setView(view === "advanced_style" ? "style" : "advanced_style")}
-            onRenderPreview={renderPreview}
-          />
         </ProjectShell>
       );
     }
@@ -258,7 +241,7 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
 
     return (
       <ProjectShell>
-        <FinalPreview payload={payload} onApprove={() => setView("export")} onElements={() => setView("elements")} onStyle={() => setView("style")} onText={() => setView("text")} />
+        <FinalPreview payload={payload} onApprove={() => setView("export")} onStyle={() => setView("templates")} onText={() => setView("text")} />
       </ProjectShell>
     );
   }
@@ -268,6 +251,33 @@ export function ProjectCockpit({ projectId }: { projectId: string }) {
       <DoneScreen payload={payload} />
     </ProjectShell>
   );
+}
+
+function styleStateForTemplate(template: StoredTemplate): StyleState {
+  const templateOptions = templateToVisualPlanOptions(template.data);
+  return {
+    presentationMode: "subtitles_infographics",
+    stylePreset: stylePresetForTemplate(templateOptions.presetPack),
+    styleOptions: {
+      subtitleFont: "manrope",
+      subtitleStyle: "active_word",
+      subtitleBackdrop: "glass",
+      infographicTone: "glass",
+      infographicAccent: "mint",
+      visualDensity: templateOptions.visualDensity ?? "medium",
+      motionIntensity: templateOptions.motionIntensity ?? "medium",
+      presetPack: templateOptions.presetPack ?? "balanced",
+      disabledTemplates: templateOptions.disabledTemplates ?? [],
+      visualTemplateId: template.id,
+      visualTemplate: template.data
+    }
+  };
+}
+
+function stylePresetForTemplate(presetPack: string | undefined) {
+  if (presetPack === "viral") return "dynamic_viral";
+  if (presetPack === "premium") return "premium_calm";
+  return "clean_expert";
 }
 
 function styleStateFromPayload(payload: ProjectPayload): StyleState {

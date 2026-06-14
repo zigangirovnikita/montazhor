@@ -1,6 +1,6 @@
 export const SCRIPT_KEEP_HANDLE_SECONDS = 0.3;
-export const PAUSE_KEEP_HANDLE_SECONDS = 0.2;
-export const WORD_GAP_REMOVAL_THRESHOLD = 0.3;
+export const PAUSE_KEEP_HANDLE_SECONDS = 0.1;
+export const WORD_GAP_REMOVAL_THRESHOLD = PAUSE_KEEP_HANDLE_SECONDS * 2;
 export const MIN_KEPT_FRAGMENT_SECONDS = 0.5;
 export const SEMANTIC_EDGE_GUARD_SECONDS = 0.08;
 export const FILLER_EDGE_GUARD_SECONDS = 0.35;
@@ -19,8 +19,8 @@ export const MELISM_MIN_CONFIDENCE_REVIEW = numberEnv("MELISM_MIN_CONFIDENCE_REV
 export const MIN_MELISM_REMOVAL_SECONDS = numberEnv("MIN_MELISM_REMOVAL_SECONDS", 0.15);
 export const MAX_MELISM_REMOVAL_SECONDS = numberEnv("MAX_MELISM_REMOVAL_SECONDS", 2.0);
 export const MELISM_KEEP_HANDLE_SECONDS = numberEnv("MELISM_KEEP_HANDLE_SECONDS", 0.08);
-export const UNTRANSCRIBED_VOICE_REQUIRES_GEMINI = booleanEnv("UNTRANSCRIBED_VOICE_REQUIRES_GEMINI", true);
-export const GEMINI_MELISM_DETECTOR_ENABLED = booleanEnv("GEMINI_MELISM_DETECTOR_ENABLED", true);
+export const UNTRANSCRIBED_VOICE_REQUIRES_GEMINI = booleanEnv("UNTRANSCRIBED_VOICE_REQUIRES_GEMINI", false);
+export const GEMINI_MELISM_DETECTOR_ENABLED = booleanEnv("GEMINI_MELISM_DETECTOR_ENABLED", false);
 
 export function isElongatedHesitationToken(text: string): boolean {
   const normalized = text.toLowerCase().trim().replace(/[^\p{L}\p{N}]+/gu, "");

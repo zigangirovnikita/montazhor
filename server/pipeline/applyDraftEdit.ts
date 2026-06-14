@@ -1,4 +1,5 @@
 import { readFile, unlink } from "node:fs/promises";
+import { auditProjectEvent } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
@@ -51,6 +52,13 @@ export async function applyDraftEdit(projectId: string, input: DraftEditInput) {
 
   const nextEdl: EditDecisionList = { keptRanges, removedRanges };
   await writeJsonFile(paths.edl, nextEdl);
+  await auditProjectEvent(projectId, {
+    phase: "draft_review",
+    step: "single_edit",
+    kind: input.action,
+    summary: draftEditLogMessage(input.action, editRange),
+    payload: { input, editRange, beforeEdl: currentEdl, afterEdl: nextEdl },
+  });
 
   await safeUnlink(paths.cleanVideo);
   await safeUnlink(paths.reviewVideo);
@@ -134,6 +142,20 @@ async function applyReviewEditBatch(
 
   const nextEdl: EditDecisionList = { keptRanges, removedRanges };
   await writeJsonFile(paths.edl, nextEdl);
+  await auditProjectEvent(projectId, {
+    phase: "draft_review",
+    step: "apply_review_edits",
+    kind: "batch",
+    summary: `Applied ${edits.length} queued changes (${edlEditCount} montage, ${transcriptEditCount} subtitle text).`,
+    payload: {
+      edits,
+      beforeEdl: currentEdl,
+      afterEdl: nextEdl,
+      transcriptChanged,
+      edlChanged,
+      transcript,
+    },
+  });
 
   if (transcriptChanged && transcript) {
     await writeJsonFile(paths.transcript, transcript);
@@ -224,6 +246,13 @@ async function applyTranscriptWordEdit(projectId: string, input: DraftEditInput)
     }
   });
   await logProject(projectId, "info", `Draft text review: corrected subtitle word at ${Number(input.sourceStart).toFixed(2)}-${Number(input.sourceEnd).toFixed(2)}s.`);
+  await auditProjectEvent(projectId, {
+    phase: "draft_review",
+    step: "edit_word_text",
+    kind: "single",
+    summary: `Corrected subtitle word at ${Number(input.sourceStart).toFixed(2)}-${Number(input.sourceEnd).toFixed(2)}s.`,
+    payload: { input, transcript: nextTranscript },
+  });
 }
 
 async function editTranscriptWord(filePath: string, current: TranscriptJson | null, input: DraftEditInput): Promise<TranscriptJson> {

@@ -1,4 +1,5 @@
 import type { CleanupMode, EditDecisionList, EditRange, KeepSegment, TranscriptJson } from "@/lib/types";
+import { auditProjectEvent } from "@/lib/audit";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import { isFillerWord } from "@/server/ai/fillerWords";
 import { isProfanity } from "@/server/ai/profanity";
@@ -8,7 +9,6 @@ import { describeAudibleGaps, detectConfirmedGapRemovals, detectTranscriptGaps, 
 import { formatTranscriptTimingStats, normalizeTranscriptTimings } from "@/server/ai/transcriptTiming";
 import { detectVoiceActivity, speechGapsFromVad } from "@/server/ai/voiceActivity";
 import type { VoiceActivityMap } from "@/server/ai/voiceActivity";
-import { detectRefinedWordGapRemovals } from "@/server/ai/cutBoundaryRefiner";
 import { detectGeminiMelismRemovals } from "@/server/ai/geminiMelismDetector";
 import { reconcileMelismCandidates } from "@/server/pipeline/steps/analyze/reconcileMelisms";
 import type { MelismReviewItem } from "@/server/pipeline/steps/analyze/reconcileMelisms";
@@ -326,6 +326,14 @@ export async function planCuts(
   if (timingStats.repairedWords > 0) {
     info(formatTranscriptTimingStats(timingStats));
   }
+  await auditProjectEvent(projectId, {
+    phase: "cutting",
+    step: "normalize_transcript_for_cuts",
+    kind: "result",
+    summary: formatTranscriptTimingStats(timingStats),
+    metadata: { stats: timingStats },
+    payload: { stats: timingStats, transcript: normalizedTranscript },
+  });
 
   const deterministicGapAnalysis = await detectDeterministicGapRemovals(
     normalizedTranscript,
@@ -336,6 +344,13 @@ export async function planCuts(
     precomputedVad,
     precomputedSileroVad
   );
+  await auditProjectEvent(projectId, {
+    phase: "cutting",
+    step: "deterministic_gap_analysis",
+    kind: "result",
+    summary: `Deterministic cleanup selected ${deterministicGapAnalysis.removals.length} removals, ${deterministicGapAnalysis.gapCandidates.length} candidates, ${deterministicGapAnalysis.untranscribedVoiceCandidates.length} untranscribed-voice candidates.`,
+    payload: deterministicGapAnalysis,
+  });
   const melismAnalysis = await detectMelismRemovals({
     transcript: normalizedTranscript,
     duration,
@@ -348,6 +363,13 @@ export async function planCuts(
     projectId,
   });
   const safetyRemovals = detectSafetyRemovals(normalizedTranscript, cleanupMode, info);
+  await auditProjectEvent(projectId, {
+    phase: "cutting",
+    step: "safety_removals",
+    kind: "result",
+    summary: `Safety passes selected ${safetyRemovals.length} removals.`,
+    payload: safetyRemovals,
+  });
   const technicalRemovals = [
     ...deterministicGapAnalysis.removals,
     ...melismAnalysis.autoRemoveRanges,
@@ -359,6 +381,13 @@ export async function planCuts(
       info("AI script selection enabled — selecting final spoken script...");
       const scriptPlan = await selectScriptWithAi(normalizedTranscript, cleanupMode, duration, info, projectId);
       info(`AI script selection complete: ${scriptPlan.keepSegments.length} keep segments selected. Reasoning: ${scriptPlan.reasoning}`);
+      await auditProjectEvent(projectId, {
+        phase: "cutting",
+        step: "ai_script_selection",
+        kind: "result",
+        summary: `AI selected ${scriptPlan.keepSegments.length} keep segments.`,
+        payload: scriptPlan,
+      });
 
       const edl = buildEditDecisionListFromKeepSegments(
         normalizedTranscript,
@@ -367,6 +396,13 @@ export async function planCuts(
         duration
       );
       logFinalEdl(edl, info);
+      await auditProjectEvent(projectId, {
+        phase: "cutting",
+        step: "final_edl",
+        kind: "ai_keep_segments",
+        summary: summarizeEdlForAudit(edl),
+        payload: edl,
+      });
       return edl;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -379,6 +415,13 @@ export async function planCuts(
   // Heuristic fallback
   const edl = planCutsHeuristic(normalizedTranscript, duration, cleanupMode, technicalRemovals);
   logFinalEdl(edl, info);
+  await auditProjectEvent(projectId, {
+    phase: "cutting",
+    step: "final_edl",
+    kind: "heuristic",
+    summary: summarizeEdlForAudit(edl),
+    payload: edl,
+  });
   return edl;
 }
 
@@ -422,11 +465,25 @@ async function detectMelismRemovals(input: {
     input.log(
       `Melism removals accepted: ${reconciled.autoRemoveRanges.length}; review: ${reconciled.reviewItems.length}; keep: ${reconciled.keepItems.length}; rejected by safety: ${reconciled.rejectedCount}.`
     );
+    await auditProjectEvent(input.projectId, {
+      phase: "cutting",
+      step: "melism_detection",
+      kind: "result",
+      summary: `Melism accepted ${reconciled.autoRemoveRanges.length}, review ${reconciled.reviewItems.length}, keep ${reconciled.keepItems.length}, rejected ${reconciled.rejectedCount}.`,
+      payload: { detection, reconciled },
+    });
     await saveMelismReviewCandidates(input.projectId, reconciled.reviewItems, input.log);
     return { autoRemoveRanges: reconciled.autoRemoveRanges };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     input.log(`Gemini melism detector failed, keeping deterministic cleanup only: ${message}`);
+    await auditProjectEvent(input.projectId, {
+      phase: "cutting",
+      step: "melism_detection",
+      kind: "failed",
+      summary: `Gemini melism detector failed: ${message}`,
+      payload: { error: message },
+    });
     return { autoRemoveRanges: [] };
   }
 }
@@ -593,11 +650,10 @@ async function detectDeterministicGapRemovals(
     const sileroVad = precomputedSileroVad ?? (vad.provider === "silero-vad" ? vad : undefined);
     const pauseVad = sileroVad ?? vad;
     const vadGaps = speechGapsFromVad(pauseVad, duration, minSpeechGap);
-    const refinedWordGaps = await detectWordGapRemovalsWithFallback(transcript, audioPath, duration, pauseVad, log);
-    const nonOverlappingVadGaps = dropVadGapsCoveredByRefinedGaps(vadGaps, refinedWordGaps);
+    const wordGapRemovals = gapsToEditRanges(transcriptGaps);
     const untranscribedVoiceRemovals = detectUntranscribedVoiceRemovals(transcript, vad, cleanupMode, log);
     log(
-      `${vad.provider}: detected ${vad.speechRanges.length} main-speaker speech ranges; ${pauseVad.provider}: detected ${vadGaps.length} no-speech gaps, ${refinedWordGaps.length} refined word gaps (${nonOverlappingVadGaps.length} standalone after refinement).`
+      `${vad.provider}: detected ${vad.speechRanges.length} main-speaker speech ranges; ${pauseVad.provider}: detected ${vadGaps.length} VAD no-speech gaps for diagnostics; word timing policy selected ${wordGapRemovals.length} removable transcript pauses.`
     );
     if (untranscribedVoiceRemovals.length > 0 && cleanupMode === "pauses_only") {
       log(`Voice/transcript mismatch diagnostics only: ${untranscribedVoiceRemovals.length} ranges were detected but not auto-removed.`);
@@ -607,17 +663,12 @@ async function detectDeterministicGapRemovals(
       log(`Voice/transcript mismatch safety pass: ${untranscribedVoiceRemovals.length} ranges added to EDL.`);
     }
     const removals = [
-      ...nonOverlappingVadGaps.map((gap) => ({
-        sourceStart: gap.start,
-        sourceEnd: gap.end,
-        reason: "vad_pause",
-      })),
-      ...refinedWordGaps,
+      ...wordGapRemovals,
       ...(cleanupMode === "pauses_only" || UNTRANSCRIBED_VOICE_REQUIRES_GEMINI ? [] : untranscribedVoiceRemovals),
     ];
     return {
       removals,
-      gapCandidates: [...removals, ...gapsToEditRanges(transcriptGaps)],
+      gapCandidates: [...wordGapRemovals, ...untranscribedVoiceRemovals],
       untranscribedVoiceCandidates: untranscribedVoiceRemovals,
       vad,
     };
@@ -633,34 +684,6 @@ async function detectDeterministicGapRemovals(
     log(`Audio post-check: ${noisyGaps.length} transcript pauses contain background/audible sound and are treated as noisy pauses, not speech: ${noisyGaps.join("; ")}`);
   }
   return { removals: gapRemovals, gapCandidates: gapRemovals, untranscribedVoiceCandidates: [] };
-}
-
-function dropVadGapsCoveredByRefinedGaps(
-  vadGaps: { start: number; end: number }[],
-  refinedWordGaps: EditRange[]
-): { start: number; end: number }[] {
-  return vadGaps.filter(
-    (gap) =>
-      !refinedWordGaps.some(
-        (refined) => refined.sourceStart < gap.end && refined.sourceEnd > gap.start
-      )
-  );
-}
-
-async function detectWordGapRemovalsWithFallback(
-  transcript: TranscriptJson,
-  audioPath: string,
-  duration: number,
-  vad: VoiceActivityMap,
-  log: (message: string) => void
-): Promise<EditRange[]> {
-  try {
-    return await detectRefinedWordGapRemovals(transcript, audioPath, duration, vad);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log(`Boundary refinement failed, using VAD pauses only: ${message}`);
-    return [];
-  }
 }
 
 /**
@@ -707,4 +730,10 @@ function logFinalEdl(edl: EditDecisionList, log: (message: string) => void): voi
   log(
     `Final EDL: ${edl.keptRanges.length} kept ranges (${keptSeconds.toFixed(2)}s), ${edl.removedRanges.length} removed ranges (${removedSeconds.toFixed(2)}s), ${semanticRemoved.length} semantic removals.`
   );
+}
+
+function summarizeEdlForAudit(edl: EditDecisionList) {
+  const removedSeconds = edl.removedRanges.reduce((total, range) => total + range.sourceEnd - range.sourceStart, 0);
+  const keptSeconds = edl.keptRanges.reduce((total, range) => total + range.sourceEnd - range.sourceStart, 0);
+  return `Final EDL: ${edl.keptRanges.length} kept ranges (${keptSeconds.toFixed(2)}s), ${edl.removedRanges.length} removed ranges (${removedSeconds.toFixed(2)}s).`;
 }

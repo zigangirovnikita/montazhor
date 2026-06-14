@@ -320,6 +320,7 @@ export interface DraftProposal {
 export interface TranscriptionInput {
   audioPath: string;
   language: LanguageSetting;
+  projectId?: string;
 }
 
 export interface TranscriptionProvider {

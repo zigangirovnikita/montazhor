@@ -74,13 +74,11 @@ export function ProcessingScreen({ payload, status }: { payload: ProjectPayload;
 export function FinalPreview({
   payload,
   onApprove,
-  onElements,
   onStyle,
   onText
 }: {
   payload: ProjectPayload;
   onApprove: () => void;
-  onElements: () => void;
   onStyle: () => void;
   onText: () => void;
 }) {
@@ -96,8 +94,7 @@ export function FinalPreview({
       <VisualPlanReview payload={payload} />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
-        <button className="mode-button secondary-action" type="button" onClick={onElements}>Корректировка</button>
-        <button className="mode-button secondary-action" type="button" onClick={onStyle}>Изменить стиль</button>
+        <button className="mode-button secondary-action" type="button" onClick={onStyle}>Выбрать другой шаблон</button>
         <button className="mode-button secondary-action" type="button" onClick={onText}>Вернуться к тексту</button>
       </div>
     </div>

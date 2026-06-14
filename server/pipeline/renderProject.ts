@@ -1,4 +1,5 @@
 import { copyFile, readFile, unlink, writeFile } from "node:fs/promises";
+import { auditProjectEvent } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
@@ -28,6 +29,12 @@ export async function renderStyledPreview(projectId: string) {
   await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
   const paths = pathsForProject(projectId);
   await logProject(projectId, "info", "Styled preview render started.");
+  await auditProjectEvent(projectId, {
+    phase: "render_preview",
+    step: "start",
+    kind: "request",
+    summary: "Styled preview render started.",
+  });
 
   const { stylePreset, presentationMode } = await buildStyledReview(projectId);
 
@@ -54,6 +61,14 @@ export async function renderStyledPreview(projectId: string) {
     "info",
     `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, duration: ${reviewMetadata.duration.toFixed(2)}s.`
   );
+  await auditProjectEvent(projectId, {
+    phase: "render_preview",
+    step: "review_ready",
+    kind: "result",
+    summary: `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, duration: ${reviewMetadata.duration.toFixed(2)}s.`,
+    metadata: { reviewVideoPath: paths.reviewVideo, duration: reviewMetadata.duration, presentationMode, stylePreset },
+    payload: { reviewMetadata },
+  });
 }
 
 export async function finalizeProjectExport(projectId: string) {
@@ -66,6 +81,13 @@ export async function finalizeProjectExport(projectId: string) {
 
   await updateProjectStatus(projectId, "rendering_final");
   await logProject(projectId, "info", "Final export started from approved preview.");
+  await auditProjectEvent(projectId, {
+    phase: "final_export",
+    step: "start",
+    kind: "request",
+    summary: "Final export started from approved preview.",
+    metadata: { reviewVideoPath: project.reviewVideoPath },
+  });
 
   await safeUnlink(paths.finalVideo);
   await copyFile(project.reviewVideoPath, paths.finalVideo);
@@ -84,6 +106,14 @@ export async function finalizeProjectExport(projectId: string) {
   await cleanupProjectArtifacts(projectId);
   await logProject(projectId, "info", "Temporary source, preview, subtitles, audio, and intermediate render files were deleted after final export.");
   await logProject(projectId, "info", `Final MP4 is ready. Duration: ${finalMetadata.duration.toFixed(2)}s.`);
+  await auditProjectEvent(projectId, {
+    phase: "final_export",
+    step: "done",
+    kind: "result",
+    summary: `Final MP4 is ready. Duration: ${finalMetadata.duration.toFixed(2)}s.`,
+    metadata: { finalVideoPath: paths.finalVideo, duration: finalMetadata.duration },
+    payload: { finalMetadata },
+  });
 }
 
 async function buildStyledReview(projectId: string) {
@@ -93,6 +123,13 @@ async function buildStyledReview(projectId: string) {
   const edl = JSON.parse(await readFile(paths.edl, "utf8")) as EditDecisionList;
   const transcript = JSON.parse(await readFile(paths.transcript, "utf8")) as TranscriptJson;
   const contentPlan = JSON.parse(await readFile(paths.contentPlan, "utf8")) as ContentPlan;
+  await auditProjectEvent(projectId, {
+    phase: "render_preview",
+    step: "load_inputs",
+    kind: "input",
+    summary: `Loaded render inputs: ${edl.keptRanges.length} kept ranges, ${transcript.segments.length} transcript segments.`,
+    payload: { edl, transcript, contentPlan },
+  });
   const sourceMetadata = await probeVideo(project.originalPath);
   const profile = resolveVideoProfile(sourceMetadata);
   const stylePreset = project.stylePreset as StylePreset;
@@ -145,12 +182,27 @@ async function buildStyledReview(projectId: string) {
         (message) => logProject(projectId, "info", message)
       );
       await writeJsonFile(paths.visualPlan, visualPlan);
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "visual_plan",
+        kind: "result",
+        summary: `Visual plan generated with ${visualPlan.beats.length} beats.`,
+        metadata: { path: paths.visualPlan },
+        payload: visualPlan,
+      });
 
       if (visualPlan.beats.length > 0) {
         await renderSemanticOverlay(paths.project, paths.cleanVideo, visualPlan, profile, cleanMetadata.duration, paths.subtitledVideo, effectiveVisualOptions);
         await prisma.renderAsset.create({ data: { projectId, type: "semantic_overlay", path: paths.subtitledVideo } });
-        await logProject(projectId, `info`, `Semantic overlay rendered with ${visualPlan.beats.length} beats natively.`);
-        return { profile, stylePreset, presentationMode: effectivePresentationMode };
+      await logProject(projectId, `info`, `Semantic overlay rendered with ${visualPlan.beats.length} beats natively.`);
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "semantic_overlay",
+        kind: "result",
+        summary: `Semantic overlay rendered with ${visualPlan.beats.length} beats natively.`,
+        metadata: { outputPath: paths.subtitledVideo },
+      });
+      return { profile, stylePreset, presentationMode: effectivePresentationMode };
       }
 
       await logProject(projectId, "warn", "Semantic planner produced no strong beats, falling back to subtitles.");
@@ -162,6 +214,13 @@ async function buildStyledReview(projectId: string) {
         "warn",
         `Semantic overlay failed, continuing with subtitle fallback. ${hyperframesRenderDiagnostics()} Original error: ${message}`
       );
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "semantic_overlay",
+        kind: "failed",
+        summary: `Semantic overlay failed: ${message}`,
+        payload: { error: message, diagnostics: hyperframesRenderDiagnostics() },
+      });
     }
   }
 
@@ -174,6 +233,13 @@ async function buildStyledReview(projectId: string) {
       await prisma.renderAsset.create({ data: { projectId, type: "split", path: paths.splitVideo } });
       videoForSubtitles = paths.splitVideo;
       await logProject(projectId, "info", "Infographic split layout rendered.");
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "infographic_split",
+        kind: "result",
+        summary: "Infographic split layout rendered.",
+        metadata: { infographicVideo: paths.infographicVideo, splitVideo: paths.splitVideo },
+      });
     } catch (infographicError) {
       const message = infographicError instanceof Error ? infographicError.message : String(infographicError);
       effectivePresentationMode = "subtitles_only";
@@ -185,6 +251,13 @@ async function buildStyledReview(projectId: string) {
         "warn",
         `Infographic rendering failed, continuing with subtitles-only preview. ${hyperframesRenderDiagnostics()} Original error: ${message}`
       );
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "infographic_split",
+        kind: "failed",
+        summary: `Infographic rendering failed: ${message}`,
+        payload: { error: message, diagnostics: hyperframesRenderDiagnostics() },
+      });
     }
   }
 
@@ -201,11 +274,25 @@ async function buildStyledReview(projectId: string) {
     await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, paths.subtitledVideo);
     await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
     await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitlesMode}).`);
+    await auditProjectEvent(projectId, {
+      phase: "render_preview",
+      step: "subtitles_overlay",
+      kind: "result",
+      summary: `Subtitles rendered via HyperFrames overlay (${subtitlesMode}).`,
+      metadata: { subtitlesOverlayPath },
+    });
   } catch (hyperframesError) {
     const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
     await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
     await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, paths.subtitledVideo);
     await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS fallback.");
+    await auditProjectEvent(projectId, {
+      phase: "render_preview",
+      step: "subtitles_overlay",
+      kind: "fallback",
+      summary: `HyperFrames subtitles failed, burned via FFmpeg ASS fallback: ${msg}`,
+      payload: { error: msg, diagnostics: hyperframesRenderDiagnostics() },
+    });
   }
 
   await logProject(projectId, "info", "Preview rendered with subtitle fallback because visual overlay mode was disabled or unavailable.");

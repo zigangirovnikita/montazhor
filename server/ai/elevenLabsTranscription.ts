@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fetch as undiciFetch, FormData as UndiciFormData, ProxyAgent } from "undici";
+import { auditProjectEvent } from "@/lib/audit";
 import type { TranscriptJson, TranscriptWord, TranscriptionInput, TranscriptionProvider } from "@/lib/types";
 
 interface ElevenLabsWord {
@@ -50,7 +51,33 @@ export class ElevenLabsTranscriptionProvider implements TranscriptionProvider {
     }
 
     const data = (await response.json()) as ElevenLabsTranscript;
-    return mapElevenLabsTranscript(data, input.language === "auto" ? "ru" : input.language);
+    await auditProjectEvent(input.projectId, {
+      phase: "transcription",
+      step: "elevenlabs",
+      kind: "raw_response",
+      summary: summarizeElevenLabsResponse(data),
+      metadata: {
+        provider: "elevenlabs",
+        model: process.env.ELEVENLABS_STT_MODEL ?? "scribe_v2",
+        timestampsGranularity: process.env.ELEVENLABS_TIMESTAMPS_GRANULARITY ?? "word",
+        language: input.language === "auto" ? "ru" : input.language,
+        fileFormat: elevenLabsFileFormat(),
+        temperature: elevenLabsOptionalNumber(process.env.ELEVENLABS_TEMPERATURE),
+        seed: elevenLabsOptionalInteger(process.env.ELEVENLABS_SEED),
+      },
+      payload: data,
+    });
+
+    const transcript = mapElevenLabsTranscript(data, input.language === "auto" ? "ru" : input.language);
+    await auditProjectEvent(input.projectId, {
+      phase: "transcription",
+      step: "elevenlabs",
+      kind: "mapped_transcript",
+      summary: summarizeTranscript(transcript),
+      metadata: { provider: "elevenlabs" },
+      payload: transcript,
+    });
+    return transcript;
   }
 }
 
@@ -63,12 +90,46 @@ async function buildFormData(input: TranscriptionInput, implementation: "native"
   const formData = implementation === "undici" ? new UndiciFormData() : new FormData();
   formData.append("model_id", process.env.ELEVENLABS_STT_MODEL ?? "scribe_v2");
   formData.append("file", new Blob([audioBuffer], { type: "audio/wav" }), "audio.wav");
+  formData.append("file_format", elevenLabsFileFormat());
   formData.append("language_code", input.language === "auto" ? "ru" : input.language);
   formData.append("timestamps_granularity", process.env.ELEVENLABS_TIMESTAMPS_GRANULARITY ?? "word");
   formData.append("diarize", process.env.ELEVENLABS_DIARIZE ?? "false");
   formData.append("tag_audio_events", process.env.ELEVENLABS_TAG_AUDIO_EVENTS ?? "true");
   formData.append("no_verbatim", process.env.ELEVENLABS_NO_VERBATIM ?? "false");
+  appendOptionalNumber(formData, "temperature", process.env.ELEVENLABS_TEMPERATURE);
+  appendOptionalInteger(formData, "seed", process.env.ELEVENLABS_SEED);
   return formData;
+}
+
+function elevenLabsFileFormat(): string {
+  return process.env.ELEVENLABS_FILE_FORMAT ?? "pcm_s16le_16";
+}
+
+function appendOptionalNumber(formData: unknown, name: string, value: string | undefined): void {
+  const parsed = elevenLabsOptionalNumber(value);
+  if (parsed === undefined) return;
+  appendFormValue(formData, name, String(parsed));
+}
+
+function appendOptionalInteger(formData: unknown, name: string, value: string | undefined): void {
+  const parsed = elevenLabsOptionalInteger(value);
+  if (parsed === undefined) return;
+  appendFormValue(formData, name, String(parsed));
+}
+
+function appendFormValue(formData: unknown, name: string, value: string): void {
+  (formData as FormData | UndiciFormData).append(name, value);
+}
+
+function elevenLabsOptionalNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function elevenLabsOptionalInteger(value: string | undefined): number | undefined {
+  const parsed = elevenLabsOptionalNumber(value);
+  return parsed === undefined ? undefined : Math.trunc(parsed);
 }
 
 export function mapElevenLabsTranscript(data: ElevenLabsTranscript, fallbackLanguage: string): TranscriptJson {
@@ -130,4 +191,16 @@ function numberOr(value: unknown, fallback: number): number {
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function summarizeElevenLabsResponse(data: ElevenLabsTranscript) {
+  const wordCount = Array.isArray(data.words) ? data.words.filter((word) => (word as ElevenLabsWord).type === "word").length : 0;
+  const duration = numberOrUndefined(data.audio_duration_secs);
+  const text = typeof data.text === "string" ? data.text : "";
+  return `ElevenLabs raw response: ${wordCount} words, ${duration?.toFixed(2) ?? "unknown"}s, ${text.length} text chars.`;
+}
+
+function summarizeTranscript(transcript: TranscriptJson) {
+  const words = transcript.segments.reduce((count, segment) => count + (segment.words?.length ?? 0), 0);
+  return `Mapped ElevenLabs transcript: ${transcript.segments.length} segments, ${words} words.`;
 }

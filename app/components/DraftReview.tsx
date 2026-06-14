@@ -16,7 +16,7 @@ export function DraftReview({
   compareMode: "after" | "before";
   editBusy: boolean;
   onCompareModeChange: (value: "after" | "before") => void;
-  onDraftEdit: (request: DraftEditRequest) => void;
+  onDraftEdit: (request: DraftEditRequest) => void | Promise<void>;
   onOpenPrecision: () => void;
   onContinue?: () => void;
 }) {
@@ -60,7 +60,7 @@ export function PrecisionTune({
   payload: ProjectPayload;
   editBusy: boolean;
   onBack: () => void;
-  onDraftEdit: (request: DraftEditRequest) => void;
+  onDraftEdit: (request: DraftEditRequest) => void | Promise<void>;
 }) {
   const ranges = payload.draft?.edl?.removedRanges ?? [];
   return (

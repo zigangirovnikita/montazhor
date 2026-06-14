@@ -28,7 +28,7 @@ import { clamp, snapAnchor } from "./utils/mathUtils";
 
 import styles from "../TemplateBuilder.module.css";
 
-export function TemplateBuilder() {
+export function TemplateBuilder({ returnTo = "/" }: { returnTo?: string }) {
   const state = useTemplateState();
   const {
     templates, setTemplates, current, setCurrent, draft, setDraft,
@@ -66,7 +66,7 @@ export function TemplateBuilder() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <Link className={styles.back} href="/">Назад</Link>
+        <Link className={styles.back} href={returnTo}>Назад</Link>
         <div>
           <p className={styles.kicker}>Template Builder</p>
           <h1>Шаблон для автопилота</h1>

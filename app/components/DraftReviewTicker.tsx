@@ -1,36 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent, MutableRefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
+import { DEFAULT_TIMELINE_PX_PER_SECOND, DraftReviewRail } from "@/app/components/DraftReviewRail";
 import type { DraftEditOperation, DraftEditRequest, ProjectPayload } from "@/app/components/projectFlowTypes";
-import { buildDraftReviewCandidates } from "@/lib/draftReviewCandidates";
-import type { TranscriptWord } from "@/lib/types";
-
-type TimelinePiece =
-  | {
-    kind: "word";
-    id: string;
-    sourceStart: number;
-    sourceEnd: number;
-    playbackStart: number;
-    playbackEnd: number;
-    text: string;
-    state: "kept" | "removed" | "candidate";
-    reason?: string;
-  }
-  | {
-    kind: "range";
-    id: string;
-    sourceStart: number;
-    sourceEnd: number;
-    playbackStart: number;
-    playbackEnd: number;
-    text: string;
-    state: "kept" | "removed" | "candidate";
-    reason: string;
-  };
-
-const GAP_REASONS = new Set(["pause", "silence", "long_pause", "non_silent_gap", "noisy_pause", "vad_pause", "untranscribed_voice"]);
+import {
+  actionHint,
+  buildTextSegments,
+  buildTimelinePieces,
+  findActivePiece,
+  findPieceBySourceTime,
+  findSegmentBySourceTime,
+  findSegmentForPiece,
+  formatReviewTime,
+  outputTimeToSourceTime,
+  sourceTimeToOutputTime,
+  timelineDuration,
+  tokenTitle,
+  type TimelinePiece
+} from "@/app/components/draftReviewTimeline";
 
 export function DraftReviewTicker({
   payload,
@@ -44,122 +32,84 @@ export function DraftReviewTicker({
   compareMode: "after" | "before";
   editBusy: boolean;
   onCompareModeChange: (value: "after" | "before") => void;
-  onDraftEdit: (request: DraftEditRequest) => void;
+  onDraftEdit: (request: DraftEditRequest) => void | Promise<void>;
   onContinue: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const tokenRefs = useRef(new Map<string, HTMLButtonElement>());
+  const textViewportRef = useRef<HTMLDivElement | null>(null);
+  const segmentRefs = useRef(new Map<string, HTMLDivElement>());
   const piecesRef = useRef<TimelinePiece[]>([]);
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const releaseScrubTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const programmaticScrollRef = useRef(false);
-  const userScrubbingRef = useRef(false);
-  const pendingScrubSeekRef = useRef<number | null>(null);
-  const manualScrubSelectionRef = useRef(false);
-  const controlledPlayRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [centeredPiece, setCenteredPiece] = useState<TimelinePiece | null>(null);
+  const [scrubSourceTime, setScrubSourceTime] = useState<number | null>(null);
   const [selected, setSelected] = useState<TimelinePiece | null>(null);
   const [approvedCandidates, setApprovedCandidates] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<TimelinePiece | null>(null);
   const [editText, setEditText] = useState("");
   const [pendingEdits, setPendingEdits] = useState<DraftEditOperation[]>([]);
+  const [pxPerSecond, setPxPerSecond] = useState(DEFAULT_TIMELINE_PX_PER_SECOND);
   const pieces = useMemo(
     () => buildTimelinePieces(payload, approvedCandidates, pendingEdits, compareMode),
     [payload, approvedCandidates, pendingEdits, compareMode]
   );
+  const segments = useMemo(() => buildTextSegments(pieces), [pieces]);
+  const duration = useMemo(() => timelineDuration(payload, pieces), [payload, pieces]);
   const videoSrc = compareMode === "before" ? payload.originalUrl : payload.cleanPreviewUrl ?? payload.originalUrl;
-  const resolvedCenteredPiece = centeredPiece && pieces.some((piece) => piece.id === centeredPiece.id)
-    ? centeredPiece
-    : null;
-  const activePiece = resolvedCenteredPiece ?? findActivePiece(pieces, currentTime);
-  const activePieceId = activePiece?.id;
-  const displayTime = resolvedCenteredPiece ? resolvedCenteredPiece.sourceStart : activePiece?.sourceStart ?? currentTime;
+  const keptRanges = payload.draft?.edl?.keptRanges ?? [];
+  const activeSourceTime = scrubSourceTime ?? (compareMode === "before" ? currentTime : outputTimeToSourceTime(keptRanges, currentTime));
+  const activePiece = scrubSourceTime !== null
+    ? findPieceBySourceTime(pieces, scrubSourceTime)
+    : findPieceBySourceTime(pieces, activeSourceTime) ?? findActivePiece(pieces, currentTime);
+  const activeSegment = findSegmentBySourceTime(segments, activeSourceTime) ?? (activePiece ? findSegmentForPiece(segments, activePiece) : segments[0]);
+  const displaySourceTime = scrubSourceTime ?? activeSourceTime;
+  const hasPendingEdits = pendingEdits.length > 0;
 
   useEffect(() => {
     piecesRef.current = pieces;
   }, [pieces]);
 
   useEffect(() => {
-    if (!activePieceId) return;
-    if (userScrubbingRef.current) return;
-    centerPieceInRail(activePieceId, videoRef.current?.paused ? "smooth" : "auto", railRef.current, tokenRefs.current, programmaticScrollRef);
-  }, [activePieceId]);
-
-  useEffect(() => {
-    return () => {
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-      if (releaseScrubTimerRef.current) clearTimeout(releaseScrubTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-
-    const onScroll = () => {
-      if (programmaticScrollRef.current) return;
-      userScrubbingRef.current = true;
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-      if (releaseScrubTimerRef.current) clearTimeout(releaseScrubTimerRef.current);
-      scrollTimerRef.current = setTimeout(() => {
-        const target = pieceNearestRailCenter(railRef.current, piecesRef.current, tokenRefs.current);
-        const video = videoRef.current;
-        if (!target || !video) return;
-        const time = Math.max(0, target.playbackStart);
-        setCenteredPiece(target);
-        manualScrubSelectionRef.current = true;
-        pendingScrubSeekRef.current = time;
-        video.currentTime = time;
-        setCurrentTime(time);
-      }, 30);
-      releaseScrubTimerRef.current = setTimeout(() => {
-        userScrubbingRef.current = false;
-      }, 140);
-    };
-
-    const onScrubStart = () => {
-      userScrubbingRef.current = true;
-    };
-
-    const onScrubEnd = () => {
-      if (releaseScrubTimerRef.current) clearTimeout(releaseScrubTimerRef.current);
-      releaseScrubTimerRef.current = setTimeout(() => {
-        userScrubbingRef.current = false;
-      }, 140);
-    };
-
-    rail.addEventListener("scroll", onScroll, { passive: true });
-    rail.addEventListener("pointerdown", onScrubStart, { passive: true });
-    rail.addEventListener("pointerup", onScrubEnd, { passive: true });
-    rail.addEventListener("pointercancel", onScrubEnd, { passive: true });
-    rail.addEventListener("wheel", onScrubStart, { passive: true });
-    return () => {
-      rail.removeEventListener("scroll", onScroll);
-      rail.removeEventListener("pointerdown", onScrubStart);
-      rail.removeEventListener("pointerup", onScrubEnd);
-      rail.removeEventListener("pointercancel", onScrubEnd);
-      rail.removeEventListener("wheel", onScrubStart);
-    };
-  }, []);
+    if (!activeSegment) return;
+    const frame = window.requestAnimationFrame(() => {
+      const node = segmentRefs.current.get(activeSegment.id);
+      const viewport = textViewportRef.current;
+      if (!node || !viewport) return;
+      const nodeRect = node.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+      const targetTop = viewport.scrollTop + (nodeRect.top + nodeRect.height / 2) - (viewportRect.top + viewportRect.height / 2);
+      viewport.scrollTo({ top: Math.max(0, targetTop), behavior: videoRef.current?.paused ? "smooth" : "auto" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSegment?.id]);
 
   function handleTimeUpdate() {
     const video = videoRef.current;
     if (!video) return;
-    if (!video.paused) {
-      setCenteredPiece(null);
-      manualScrubSelectionRef.current = false;
-      pendingScrubSeekRef.current = null;
-    }
+    if (!video.paused && scrubSourceTime !== null) setScrubSourceTime(null);
     setCurrentTime(video.currentTime);
   }
 
-  function getPendingScrubTargetTime() {
-    if (!manualScrubSelectionRef.current) return null;
-    if (pendingScrubSeekRef.current !== null) return pendingScrubSeekRef.current;
-    const centeredTarget = centeredPiece ?? pieceNearestRailCenter(railRef.current, piecesRef.current, tokenRefs.current);
-    return centeredTarget ? Math.max(0, centeredTarget.playbackStart) : null;
+  function handleVideoClick(event: MouseEvent<HTMLVideoElement>) {
+    const video = videoRef.current;
+    if (!video) return;
+    const rect = video.getBoundingClientRect();
+    if (event.clientY >= rect.bottom - 64) return;
+    if (video.paused) {
+      void startPlayback();
+      return;
+    }
+    video.pause();
+  }
+
+  async function startPlayback() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (scrubSourceTime !== null) {
+      const targetPiece = findPieceBySourceTime(piecesRef.current, scrubSourceTime);
+      const targetTime = Math.max(0, targetPiece?.playbackStart ?? sourceTimeToOutputTime(payload.draft?.edl?.keptRanges ?? [], scrubSourceTime));
+      await seekVideo(video, targetTime);
+      setScrubSourceTime(null);
+    }
+    await video.play();
   }
 
   async function seekVideo(video: HTMLVideoElement, targetTime: number) {
@@ -171,7 +121,7 @@ export function DraftReviewTicker({
         settled = true;
         resolve();
       };
-      const timer = window.setTimeout(finish, 160);
+      const timer = window.setTimeout(finish, 180);
       const onSeeked = () => {
         window.clearTimeout(timer);
         finish();
@@ -182,49 +132,15 @@ export function DraftReviewTicker({
     });
   }
 
-  async function startPlayback() {
-    const video = videoRef.current;
-    if (!video) return;
-    const targetTime = getPendingScrubTargetTime();
-    if (targetTime !== null) {
-      await seekVideo(video, targetTime);
-      manualScrubSelectionRef.current = false;
-      pendingScrubSeekRef.current = null;
+  function scrubToSourceTime(sourceTime: number) {
+    setScrubSourceTime(sourceTime);
+    const targetPiece = findPieceBySourceTime(piecesRef.current, sourceTime);
+    const targetPlayback = compareMode === "before" ? sourceTime : targetPiece?.playbackStart ?? sourceTimeToOutputTime(keptRanges, sourceTime);
+    if (videoRef.current) {
+      if (!videoRef.current.paused) videoRef.current.pause();
+      videoRef.current.currentTime = Math.max(0, targetPlayback);
+      setCurrentTime(Math.max(0, targetPlayback));
     }
-    setCenteredPiece(null);
-    controlledPlayRef.current = true;
-    try {
-      await video.play();
-    } finally {
-      controlledPlayRef.current = false;
-    }
-  }
-
-  function handleVideoPlay() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (controlledPlayRef.current) return;
-    const targetTime = getPendingScrubTargetTime();
-    if (targetTime === null || Math.abs(video.currentTime - targetTime) <= 0.02) {
-      manualScrubSelectionRef.current = false;
-      pendingScrubSeekRef.current = null;
-      setCenteredPiece(null);
-      return;
-    }
-    video.pause();
-    void startPlayback();
-  }
-
-  function handleVideoClick(event: MouseEvent<HTMLVideoElement>) {
-    const video = videoRef.current;
-    if (!video) return;
-    const rect = video.getBoundingClientRect();
-    if (event.clientY >= rect.bottom - 64) return;
-    if (video.paused) {
-      startPlayback();
-      return;
-    }
-    video.pause();
   }
 
   function selectPiece(piece: TimelinePiece) {
@@ -241,17 +157,16 @@ export function DraftReviewTicker({
     setSelected(null);
   }
 
-  function restorePiece(piece: TimelinePiece) {
-    queueEdit({
-      action: "restore_removed_range",
-      sourceStart: piece.sourceStart,
-      sourceEnd: piece.sourceEnd
-    });
-    setSelected(null);
-  }
-
-  function approveCandidate(piece: TimelinePiece) {
-    setApprovedCandidates((current) => new Set(current).add(piece.id));
+  function keepPiece(piece: TimelinePiece) {
+    if (piece.state === "candidate") {
+      setApprovedCandidates((current) => new Set(current).add(piece.reviewIssueId ?? piece.id));
+    } else if (piece.state === "removed") {
+      queueEdit({
+        action: "restore_removed_range",
+        sourceStart: piece.sourceStart,
+        sourceEnd: piece.sourceEnd
+      });
+    }
     setSelected(null);
   }
 
@@ -282,16 +197,17 @@ export function DraftReviewTicker({
     setPendingEdits((current) => [...current, edit]);
   }
 
-  function applyPendingEdits() {
+  async function applyPendingEdits() {
     if (pendingEdits.length === 0 || editBusy) return;
-    onDraftEdit({ action: "apply_review_edits", edits: pendingEdits });
-    setPendingEdits([]);
+    const editsToApply = pendingEdits;
+    await onDraftEdit({ action: "apply_review_edits", edits: editsToApply });
+    setPendingEdits((current) => current === editsToApply ? [] : current);
     setSelected(null);
     setEditing(null);
   }
 
   return (
-    <section className="review-ticker-card">
+    <section className="review-timeline-card">
       <div className="review-player-shell">
         <div className="review-video-stack">
           <video
@@ -301,7 +217,6 @@ export function DraftReviewTicker({
             controls
             playsInline
             onClick={handleVideoClick}
-            onPlay={handleVideoPlay}
             onTimeUpdate={handleTimeUpdate}
             onSeeked={handleTimeUpdate}
           />
@@ -313,7 +228,7 @@ export function DraftReviewTicker({
               const video = videoRef.current;
               if (!video) return;
               if (video.paused) {
-                startPlayback();
+                void startPlayback();
                 return;
               }
               video.pause();
@@ -330,31 +245,48 @@ export function DraftReviewTicker({
         </div>
       </div>
 
-      <div className="ticker-time-row">
-        <strong>{formatTime(displayTime)}</strong>
-        <span>{activePiece?.text ?? "Поставь видео на нужный момент"}</span>
-      </div>
+      <DraftReviewRail
+        activeLabel={activeSegment ? `${formatReviewTime(activeSegment.start)}-${formatReviewTime(activeSegment.end)}` : ""}
+        duration={duration}
+        pieces={pieces}
+        pxPerSecond={pxPerSecond}
+        sourceTime={displaySourceTime}
+        onScrub={scrubToSourceTime}
+        onZoomChange={setPxPerSecond}
+      />
 
-      <div className="ticker-viewport" ref={railRef}>
-        <div className="ticker-center-line" aria-hidden="true" />
-        <div className="ticker-track">
-          {pieces.length > 0 ? pieces.map((piece) => (
-            <button
-              className={tickerTokenClass(piece, selected?.id === piece.id, activePiece?.id === piece.id)}
-              key={piece.id}
-              ref={(node) => {
-                if (node) tokenRefs.current.set(piece.id, node);
-                else tokenRefs.current.delete(piece.id);
-              }}
-              type="button"
-              disabled={editBusy}
-              title={tokenTitle(piece)}
-              onClick={() => selectPiece(piece)}
-            >
-              {piece.text}
-            </button>
-          )) : <span className="ticker-empty">Текст черновика пока недоступен.</span>}
-        </div>
+      <div className="review-text-viewport" ref={textViewportRef}>
+        {segments.length > 0 ? segments.map((segment) => (
+          <div
+            className={`review-text-segment ${activeSegment?.id === segment.id ? "active" : ""}`}
+            key={segment.id}
+            ref={(node) => {
+              if (node) segmentRefs.current.set(segment.id, node);
+              else segmentRefs.current.delete(segment.id);
+            }}
+          >
+            <div className="segment-time start">{formatReviewTime(segment.start)}</div>
+            <div className="segment-body">
+              <span className="segment-connector" aria-hidden="true">✦</span>
+              <p>
+                {segment.pieces.map((piece) => (
+                  <Fragment key={piece.id}>
+                    <button
+                      className={textTokenClass(piece, selected?.id === piece.id)}
+                      type="button"
+                      disabled={editBusy}
+                      title={tokenTitle(piece)}
+                      onClick={() => selectPiece(piece)}
+                    >
+                      {piece.text}
+                    </button>{" "}
+                  </Fragment>
+                ))}
+              </p>
+            </div>
+            <div className="segment-time end">{formatReviewTime(segment.end)}</div>
+          </div>
+        )) : <p className="ticker-empty">Текст черновика пока недоступен.</p>}
       </div>
 
       {selected ? (
@@ -364,17 +296,11 @@ export function DraftReviewTicker({
             <span>{actionHint(selected)}</span>
           </div>
           <div className="word-popover-actions">
-            {selected.state === "kept" ? (
+            {selected.state !== "removed" ? (
               <button type="button" disabled={editBusy} onClick={() => deletePiece(selected)}>Удалить</button>
             ) : null}
-            {selected.state === "candidate" ? (
-              <>
-                <button type="button" disabled={editBusy} onClick={() => approveCandidate(selected)}>Утвердить</button>
-                <button type="button" disabled={editBusy} onClick={() => deletePiece(selected)}>Удалить</button>
-              </>
-            ) : null}
-            {selected.state === "removed" ? (
-              <button type="button" disabled={editBusy} onClick={() => restorePiece(selected)}>Восстановить</button>
+            {selected.state !== "kept" ? (
+              <button type="button" disabled={editBusy} onClick={() => keepPiece(selected)}>Оставить</button>
             ) : null}
             {selected.kind === "word" ? (
               <button type="button" disabled={editBusy} onClick={() => startEditing(selected)}>Редактировать</button>
@@ -405,219 +331,27 @@ export function DraftReviewTicker({
         <button className="small-ghost" type="button" disabled={editBusy} onClick={() => onDraftEdit({ action: "reset_draft" })}>
           Вернуть всё
         </button>
-        <button className="small-ghost" type="button" disabled={editBusy || pendingEdits.length === 0} onClick={applyPendingEdits}>
-          {pendingEdits.length > 0 ? `Применить изменения (${pendingEdits.length})` : "Нет изменений"}
+        <button
+          className={hasPendingEdits ? "cta-button compact apply-review-edits" : "small-ghost no-review-edits"}
+          type="button"
+          disabled={editBusy || !hasPendingEdits}
+          onClick={() => void applyPendingEdits()}
+        >
+          {hasPendingEdits ? `Применить изменения (${pendingEdits.length})` : "Нет изменений"}
         </button>
-        <button className="cta-button compact" type="button" disabled={pendingEdits.length > 0 || editBusy} onClick={onContinue}>
-          {pendingEdits.length > 0 ? "Сначала применить" : "Утвердить монтаж"}
+        <button
+          className={hasPendingEdits ? "cta-button compact approve-review-blocked" : "cta-button compact"}
+          type="button"
+          disabled={editBusy || hasPendingEdits}
+          onClick={onContinue}
+        >
+          {hasPendingEdits ? "Сначала применить изменения" : "Утвердить монтаж"}
         </button>
       </div>
     </section>
   );
 }
 
-function buildTimelinePieces(
-  payload: ProjectPayload,
-  approvedCandidates: Set<string>,
-  pendingEdits: DraftEditOperation[],
-  compareMode: "after" | "before"
-): TimelinePiece[] {
-  const transcript = payload.draft?.transcript ?? { language: "ru", segments: [] };
-  const removed = payload.draft?.edl?.removedRanges ?? [];
-  const keptRanges = payload.draft?.edl?.keptRanges ?? [];
-  const mapPlaybackTime = compareMode === "before"
-    ? (time: number) => time
-    : (time: number) => sourceTimeToOutputTime(keptRanges, time);
-  const candidates = buildDraftReviewCandidates(transcript, removed);
-  const issues = [
-    ...removed.map((range, index) => ({ ...range, state: "removed" as const, id: `removed-${index}-${range.sourceStart}-${range.sourceEnd}` })),
-    ...candidates.map((range, index) => ({ ...range, state: "candidate" as const, id: `candidate-${index}-${range.sourceStart}-${range.sourceEnd}` }))
-  ].sort((a, b) => a.sourceStart - b.sourceStart);
-  const words = transcript.segments
-    .flatMap((segment) => (segment.words ?? wordsFromSegmentText(segment.text, segment.start, segment.end)).map((word, index) => ({ ...word, segmentId: segment.id, index })))
-    .sort((a, b) => a.start - b.start);
-  const pieces: TimelinePiece[] = [];
-
-  for (const [wordIndex, word] of words.entries()) {
-    const wordIssue = issues.find((issue) => wordBelongsToRange(word, issue.sourceStart, issue.sourceEnd) && !approvedCandidates.has(issue.id));
-    const wordPiece = applyPendingToPiece({
-      kind: "word",
-      id: `word-${word.segmentId}-${word.index}-${word.start}-${word.end}-${word.word}`,
-      sourceStart: word.start,
-      sourceEnd: word.end,
-      playbackStart: mapPlaybackTime(word.start),
-      playbackEnd: mapPlaybackTime(word.end),
-      text: word.word,
-      state: wordIssue?.state ?? "kept",
-      reason: wordIssue?.reason
-    }, pendingEdits);
-    pieces.push(wordPiece);
-
-    const nextWord = words[wordIndex + 1];
-    const gapEnd = nextWord?.start ?? word.end;
-    for (const issue of issues) {
-      if (approvedCandidates.has(issue.id)) continue;
-      const overlapsWord = words.some((item) => wordBelongsToRange(item, issue.sourceStart, issue.sourceEnd));
-      if (overlapsWord) continue;
-      if (issue.sourceStart < word.end - 0.02 || issue.sourceStart > gapEnd + 0.02) continue;
-      const rangePiece = applyPendingToPiece({
-        kind: "range",
-        id: issue.id,
-        sourceStart: issue.sourceStart,
-        sourceEnd: issue.sourceEnd,
-        playbackStart: mapPlaybackTime(issue.sourceStart),
-        playbackEnd: mapPlaybackTime(issue.sourceEnd),
-        text: displayRangeLabel(issue.reason, issue.sourceEnd - issue.sourceStart, issue.state) ?? issue.text ?? fallbackRangeText(issue.reason, issue.sourceEnd - issue.sourceStart),
-        state: issue.state,
-        reason: issue.reason
-      }, pendingEdits);
-      if (rangePiece.state !== "kept") pieces.push(rangePiece as TimelinePiece);
-    }
-  }
-
-  return pieces.sort((a, b) => a.sourceStart - b.sourceStart);
-}
-
-function applyPendingToPiece(piece: TimelinePiece, pendingEdits: DraftEditOperation[]): TimelinePiece {
-  return pendingEdits.reduce<TimelinePiece>((current, edit) => {
-    if (edit.action === "edit_word_text" && current.kind === "word" && sameWord(current, edit)) {
-      return { ...current, text: edit.text?.trim() || current.text };
-    }
-    if (edit.action === "delete_word") {
-      return current.kind === "word" && sameWord(current, edit) ? { ...current, state: "removed", reason: "manual_word" } : current;
-    }
-    if (!rangesTouch(current.sourceStart, current.sourceEnd, edit.sourceStart, edit.sourceEnd)) return current;
-    if (edit.action === "restore_removed_range") return { ...current, state: "kept" };
-    if (edit.action === "delete_range") return { ...current, state: "removed", reason: "manual_text" };
-    return current;
-  }, piece);
-}
-
-function wordsFromSegmentText(text: string, start: number, end: number): TranscriptWord[] {
-  const tokens = text.split(/\s+/).filter(Boolean);
-  const duration = Math.max(0.1, end - start);
-  return tokens.map((word, index) => ({
-    word,
-    start: start + (duration * index) / tokens.length,
-    end: start + (duration * (index + 1)) / tokens.length
-  }));
-}
-
-function wordBelongsToRange(word: TranscriptWord, start: number, end: number) {
-  const overlap = Math.max(0, Math.min(word.end, end) - Math.max(word.start, start));
-  const share = overlap / Math.max(0.05, word.end - word.start);
-  const midpoint = (word.start + word.end) / 2;
-  return share >= 0.45 || (midpoint >= start && midpoint <= end);
-}
-
-function findActivePiece(pieces: TimelinePiece[], time: number) {
-  return pieces.find((piece) => piece.playbackEnd - piece.playbackStart > 0.02 && time >= piece.playbackStart && time <= piece.playbackEnd)
-    ?? pieces.find((piece) => piece.playbackStart >= time && piece.playbackEnd - piece.playbackStart > 0.02)
-    ?? pieces.find((piece) => piece.playbackEnd - piece.playbackStart > 0.02)
-    ?? pieces.at(-1);
-}
-
-function sourceTimeToOutputTime(
-  keptRanges: Array<{ sourceStart: number; sourceEnd: number }>,
-  sourceTime: number
-) {
-  let outputTime = 0;
-
-  for (const range of keptRanges) {
-    if (sourceTime <= range.sourceStart) return outputTime;
-    if (sourceTime <= range.sourceEnd) {
-      return outputTime + sourceTime - range.sourceStart;
-    }
-    outputTime += Math.max(0, range.sourceEnd - range.sourceStart);
-  }
-
-  return outputTime;
-}
-
-function pieceNearestRailCenter(rail: HTMLDivElement | null, pieces: TimelinePiece[], refs: Map<string, HTMLButtonElement>) {
-  if (!rail || pieces.length === 0) return null;
-  const railRect = rail.getBoundingClientRect();
-  const center = railRect.left + railRect.width / 2;
-  let best: { piece: TimelinePiece; distance: number } | null = null;
-  for (const piece of pieces) {
-    const node = refs.get(piece.id);
-    if (!node) continue;
-    const rect = node.getBoundingClientRect();
-    const distance = Math.abs(rect.left + rect.width / 2 - center);
-    if (!best || distance < best.distance) best = { piece, distance };
-  }
-  return best?.piece ?? null;
-}
-
-function centerPieceInRail(
-  pieceId: string,
-  behavior: ScrollBehavior,
-  rail: HTMLDivElement | null,
-  refs: Map<string, HTMLButtonElement>,
-  programmaticScrollRef: MutableRefObject<boolean>
-) {
-  const node = refs.get(pieceId);
-  if (!node || !rail) return;
-  const targetLeft = Math.max(0, node.offsetLeft - rail.clientWidth / 2 + node.clientWidth / 2);
-  programmaticScrollRef.current = true;
-  rail.scrollTo({ left: targetLeft, behavior });
-  window.setTimeout(() => {
-    programmaticScrollRef.current = false;
-  }, behavior === "smooth" ? 260 : 80);
-}
-
-function sameWord(piece: TimelinePiece, edit: DraftEditOperation) {
-  return Math.abs(piece.sourceStart - edit.sourceStart) < 0.015 && Math.abs(piece.sourceEnd - edit.sourceEnd) < 0.015;
-}
-
-function rangesTouch(start: number, end: number, targetStart: number, targetEnd: number) {
-  return Math.min(end, targetEnd) - Math.max(start, targetStart) > 0.02;
-}
-
-function tickerTokenClass(piece: TimelinePiece, selected: boolean, active: boolean) {
-  return ["ticker-token", piece.state, piece.kind === "range" ? "range" : "", selected ? "selected" : "", active ? "active" : ""].filter(Boolean).join(" ");
-}
-
-function tokenTitle(piece: TimelinePiece) {
-  if (piece.state === "removed") return "Восстановить или отредактировать";
-  if (piece.state === "candidate") return "Утвердить, удалить или отредактировать";
-  return "Удалить или отредактировать";
-}
-
-function actionHint(piece: TimelinePiece) {
-  if (piece.state === "removed") return "Этот фрагмент уже удален из черновика.";
-  if (piece.state === "candidate") return "Спорный фрагмент: можно оставить или удалить.";
-  return "Обычное слово: можно удалить или исправить текст для субтитров.";
-}
-
-function formatTime(value: number) {
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.floor(value % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-function formatSeconds(value: number) {
-  if (value < 1) return `${value.toFixed(2)} сек`;
-  if (value < 10) return `${value.toFixed(1)} сек`;
-  return `${Math.round(value)} сек`;
-}
-
-function fallbackRangeText(reason: string, duration: number) {
-  if (reason === "potential_pause") return `пауза/звук ${formatSeconds(duration)}`;
-  if (reason === "potential_filler") return `кандидат ${formatSeconds(duration)}`;
-  return `пауза ${formatSeconds(duration)}`;
-}
-
-function displayRangeLabel(reason: string, duration: number, kind: "removed" | "candidate") {
-  if (kind === "candidate") {
-    if (reason === "potential_pause") return `Спорная пауза ${formatSeconds(duration)}`;
-    if (reason === "potential_filler") return "Спорное слово";
-    return "Спорный фрагмент";
-  }
-  if (reason === "untranscribed_voice") return `Лишний звук ${formatSeconds(duration)}`;
-  if (reason === "hesitation") return "Запинка";
-  if (reason === "filler_word") return "Слово-паразит";
-  if (reason === "profanity") return "Лишний фрагмент";
-  if (GAP_REASONS.has(reason)) return `Пауза ${formatSeconds(duration)}`;
-  return "Удалено";
+function textTokenClass(piece: TimelinePiece, selected: boolean) {
+  return ["review-word-token", piece.state, piece.kind === "range" ? "range" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
 }

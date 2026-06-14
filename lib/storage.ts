@@ -57,7 +57,8 @@ export function pathsForProject(projectId: string) {
     subtitledVideo: path.join(project, "subtitled.mp4"),
     reviewVideo: path.join(project, "review.mp4"),
     finalVideo: path.join(project, "final.mp4"),
-    motionDir: path.join(project, "motion")
+    motionDir: path.join(project, "motion"),
+    auditDir: path.join(project, "audit")
   };
 }
 
@@ -66,6 +67,7 @@ export async function ensureProjectStorage(projectId: string) {
   await mkdir(paths.upload, { recursive: true });
   await mkdir(paths.project, { recursive: true });
   await mkdir(paths.motionDir, { recursive: true });
+  await mkdir(paths.auditDir, { recursive: true });
   return paths;
 }
 

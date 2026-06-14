@@ -764,7 +764,7 @@ async function main() {
         {
           id: 0,
           start: 0,
-          end: 7,
+          end: 9,
           text: "я мэээ потом бэээ дальше нуууу яяя итог",
           words: [
             { word: "я", start: 0.1, end: 0.25 },
