@@ -42,6 +42,15 @@ const motionLabels: Record<MotionIntensity, string> = {
   active: "Активно"
 };
 
+const cinematicScenes = [
+  { id: "lesson", title: "Lesson title", note: "Крупный заголовок + HUD-сетка", sample: "THE GOLDEN RATIO" },
+  { id: "ratio", title: "Ratio stack", note: "60/30/10, доли, проценты", sample: "60%" },
+  { id: "myth", title: "Myth strike", note: "Миф, ошибка, красное зачеркивание", sample: "MAGIC" },
+  { id: "map", title: "Trust map", note: "Схема с центром и двумя источниками", sample: "TRUST" },
+  { id: "cards", title: "Three cards", note: "WHEN / HOW / CHARGE", sample: "03" },
+  { id: "pip", title: "PIP slide", note: "Full-screen слайд + автор в углу", sample: "AIS" }
+];
+
 export function StyleStudioCatalog({
   presetPack,
   visualDensity,
@@ -104,6 +113,24 @@ export function StyleStudioCatalog({
             </div>
           </div>
         ) : null}
+      </div>
+
+      <div className="cinematic-gallery">
+        <div className="style-catalog-head compact">
+          <div>
+            <p className="screen-step">Cinematic scenes</p>
+            <h3>Режиссерские сцены нового режима</h3>
+          </div>
+        </div>
+        <div className="cinematic-gallery-grid">
+          {cinematicScenes.map((scene) => (
+            <article className={`cinematic-scene-card scene-${scene.id}`} key={scene.id}>
+              <span>{scene.sample}</span>
+              <strong>{scene.title}</strong>
+              <p>{scene.note}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

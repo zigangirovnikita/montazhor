@@ -1,5 +1,5 @@
 import { accessSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { resolveAppDir } from "@/lib/runtimePaths";
 
@@ -58,7 +58,9 @@ function resolveBinary(configured: string | undefined, systemName: "ffmpeg" | "f
   const localBin = path.join(resolveAppDir(), "bin", systemName);
   try {
     accessSync(localBin);
-    return localBin;
+    const probe = spawnSync(localBin, ["-version"], { stdio: "ignore" });
+    if (probe.status === 0) return localBin;
+    return systemName;
   } catch {
     return systemName;
   }

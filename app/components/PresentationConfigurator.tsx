@@ -37,6 +37,13 @@ type StylingProps = {
 
 const overlayCards = [
   {
+    id: "cinematic_scenes",
+    title: "Кинематографичные сцены",
+    description: "HUD, PIP-слайды, крупная типографика и смысловые вставки в стиле референсов.",
+    preview: "cinematic",
+    available: true
+  },
+  {
     id: "subtitles_only",
     title: "Только субтитры",
     description: "Чистый монтаж с сабами без дополнительных вставок.",
@@ -267,7 +274,20 @@ function VisualCategory({
   );
 }
 
-function VisualPreview({ kind }: { kind: "subtitles" | "infographics" | "media" }) {
+function VisualPreview({ kind }: { kind: "cinematic" | "subtitles" | "infographics" | "media" }) {
+  if (kind === "cinematic") {
+    return (
+      <div className="mini-canvas overlay-cinematic">
+        <div className="mini-hud-panel">
+          <strong>60%</strong>
+          <span>DETERMINISTIC</span>
+        </div>
+        <div className="mini-pip" />
+        <div className="mini-gridline" />
+      </div>
+    );
+  }
+
   return (
     <div className={`mini-canvas overlay-${kind}`}>
       <div className="mini-author" />

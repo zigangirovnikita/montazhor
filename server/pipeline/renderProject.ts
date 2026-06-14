@@ -5,10 +5,12 @@ import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { ContentPlan, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
 import { parseVisualPlanOptions } from "@/lib/visualStyleOptions";
+import { buildVisualScenePlanWithAi } from "@/server/ai/visualScenePlanner";
 import { buildVisualOverlayPlanWithAi } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
 import { loadOptionalFaceSafeRegions } from "@/server/hyperframes/faceSafeRegions";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
+import { renderCinematicSceneTimeline } from "@/server/hyperframes/sceneComposer";
 import { renderSemanticOverlay } from "@/server/hyperframes/semanticOverlay";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
@@ -150,6 +152,8 @@ async function buildStyledReview(projectId: string) {
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticOverlayMp4);
+  await safeUnlink(paths.cinematicSceneVideo);
+  await safeUnlink(paths.cinematicComposedVideo);
   await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
   await prisma.renderAsset.upsert({
     where: { id: `${projectId}-clean` },
@@ -164,6 +168,74 @@ async function buildStyledReview(projectId: string) {
   let captionRegion = undefined;
 
   await updateProjectStatus(projectId, "rendering_preview");
+
+  if (presentationMode === "cinematic_scenes") {
+    const visualScenePlan = await buildVisualScenePlanWithAi(
+      {
+        transcript,
+        edl,
+        subtitles,
+        contentPlan,
+        stylePreset,
+        duration: cleanMetadata.duration
+      },
+      projectId,
+      (message) => logProject(projectId, "info", message)
+    );
+    await writeJsonFile(paths.visualScenePlan, visualScenePlan);
+    await auditProjectEvent(projectId, {
+      phase: "render_preview",
+      step: "visual_scene_plan",
+      kind: "result",
+      summary: `Cinematic scene plan generated with ${visualScenePlan.scenes.length} scenes.`,
+      metadata: { path: paths.visualScenePlan },
+      payload: visualScenePlan,
+    });
+
+    if (visualScenePlan.scenes.length === 0) {
+      throw new Error("Cinematic scene planner produced no scenes.");
+    }
+
+    try {
+      await renderCinematicSceneTimeline(
+        paths.project,
+        paths.cleanVideo,
+        visualScenePlan,
+        profile,
+        cleanMetadata.duration,
+        paths.cinematicSceneVideo,
+        paths.cinematicComposedVideo
+      );
+    } catch (cinematicError) {
+      const message = cinematicError instanceof Error ? cinematicError.message : String(cinematicError);
+      await logProject(projectId, "error", `Cinematic scene rendering failed. ${hyperframesRenderDiagnostics()} Original error: ${message}`);
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "cinematic_scenes",
+        kind: "failed",
+        summary: `Cinematic scene rendering failed: ${message}`,
+        payload: { error: message, diagnostics: hyperframesRenderDiagnostics() },
+      });
+      throw cinematicError;
+    }
+
+    await prisma.renderAsset.create({ data: { projectId, type: "cinematic_scene_layer", path: paths.cinematicSceneVideo } });
+    await prisma.renderAsset.create({ data: { projectId, type: "cinematic_base", path: paths.cinematicComposedVideo } });
+    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, ".mov");
+    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, undefined, "alpha");
+    await overlaySubtitlesLayer(paths.cinematicComposedVideo, subtitlesOverlayPath, profile, paths.subtitledVideo);
+    await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+    await prisma.renderAsset.create({ data: { projectId, type: "cinematic_preview", path: paths.subtitledVideo } });
+    await logProject(projectId, "info", `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`);
+    await auditProjectEvent(projectId, {
+      phase: "render_preview",
+      step: "cinematic_scenes",
+      kind: "result",
+      summary: `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`,
+      metadata: { sceneLayerPath: paths.cinematicSceneVideo, cinematicComposedPath: paths.cinematicComposedVideo, outputPath: paths.subtitledVideo },
+    });
+    return { profile, stylePreset, presentationMode: effectivePresentationMode };
+  }
 
   if (presentationMode === "subtitles_infographics") {
     try {

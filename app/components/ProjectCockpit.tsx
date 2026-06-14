@@ -256,7 +256,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
 function styleStateForTemplate(template: StoredTemplate): StyleState {
   const templateOptions = templateToVisualPlanOptions(template.data);
   return {
-    presentationMode: "subtitles_infographics",
+    presentationMode: "cinematic_scenes",
     stylePreset: stylePresetForTemplate(templateOptions.presetPack),
     styleOptions: {
       subtitleFont: "manrope",

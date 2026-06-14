@@ -95,7 +95,13 @@ function formatAutoRenderFailure(dockerError: unknown, localError: unknown) {
 
 function isDockerUnavailable(error: unknown) {
   const message = messageFor(error);
-  return message.includes("Docker not available") || message.includes("spawnSync docker ENOENT") || message.includes("docker ENOENT");
+  return (
+    message.includes("Docker not available") ||
+    message.includes("spawnSync docker ENOENT") ||
+    message.includes("docker ENOENT") ||
+    message.includes("Cannot connect to the Docker daemon") ||
+    message.includes("Check Docker is running")
+  );
 }
 
 async function ensureHyperframesBrowser(command: string, env: Record<string, string | undefined>, appDir: string) {

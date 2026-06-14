@@ -91,18 +91,18 @@ export function StyleStudio({
         />
         <ToggleRow
           label="Плашки с главными мыслями"
-          checked={styleState.presentationMode === "subtitles_infographics"}
+          checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode === "subtitles_infographics" ? "subtitles_only" : "subtitles_infographics"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
           })}
         />
         <ToggleRow
           label="Инфографика"
-          checked={styleState.presentationMode === "subtitles_infographics"}
+          checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode === "subtitles_infographics" ? "subtitles_only" : "subtitles_infographics"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
           })}
         />
         <ToggleRow
@@ -180,10 +180,10 @@ export function ElementAdjustments({
         />
         <ToggleRow
           label="Плашки / инфографика"
-          checked={styleState.presentationMode === "subtitles_infographics"}
+          checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode === "subtitles_infographics" ? "subtitles_only" : "subtitles_infographics"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
           })}
         />
       </section>
@@ -386,7 +386,7 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
 }
 
 export function resolvePresentationMode(value: string | null | undefined): PresentationMode {
-  if (value === "subtitles_infographics" || value === "subtitles_infographics_media") return value;
+  if (value === "subtitles_infographics" || value === "subtitles_infographics_media" || value === "cinematic_scenes") return value;
   return "subtitles_only";
 }
 

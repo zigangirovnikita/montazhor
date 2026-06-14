@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string }> };
 
 const CLEANUP_MODES = new Set(["pauses_only", "pauses_and_fillers", "semantic_cleanup"]);
-const PRESENTATION_MODES = new Set(["subtitles_only", "subtitles_infographics", "subtitles_infographics_media"]);
+const PRESENTATION_MODES = new Set(["subtitles_only", "subtitles_infographics", "subtitles_infographics_media", "cinematic_scenes"]);
 const STYLE_PRESETS = new Set(["clean_expert", "dynamic_viral", "premium_calm", "course_glass", "expert_clean", "viral_kinetic"]);
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -89,7 +89,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         return NextResponse.json({ error: "Unknown presentation mode." }, { status: 400 });
       }
       data.presentationMode = presentationMode;
-      data.editMode = presentationMode === "subtitles_infographics" ? "cut_subtitles_infographics" : "cut_subtitles";
+      data.editMode = presentationMode === "subtitles_only" ? "cut_subtitles" : "cut_subtitles_infographics";
     }
 
     if (body.stylePreset !== undefined) {

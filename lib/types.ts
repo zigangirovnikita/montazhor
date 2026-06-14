@@ -14,7 +14,7 @@ export type ProjectStatus =
 export type Platform = "instagram_reels" | "tiktok" | "youtube_shorts";
 export type EditMode = "cut_subtitles" | "cut_subtitles_infographics";
 export type CleanupMode = "pauses_only" | "pauses_and_fillers" | "semantic_cleanup";
-export type PresentationMode = "subtitles_only" | "subtitles_infographics" | "subtitles_infographics_media";
+export type PresentationMode = "subtitles_only" | "subtitles_infographics" | "subtitles_infographics_media" | "cinematic_scenes";
 export type StylePreset =
   | "clean_expert"
   | "dynamic_viral"
@@ -262,6 +262,43 @@ export interface VisualOverlayPlan {
   beats: VisualBeat[];
   fallbackSubtitleMode: "off" | "minimal" | "active_word";
   planner: "heuristic" | "ai" | "continuous";
+  diagnostics?: string[];
+}
+
+export type VisualSceneType =
+  | "lesson_title"
+  | "ratio_stack"
+  | "myth_strike"
+  | "stat_hud"
+  | "trust_map"
+  | "pip_slide"
+  | "three_cards"
+  | "warning_dialogue"
+  | "compare_split"
+  | "timeline_steps"
+  | "quote_focus"
+  | "cta_plate";
+
+export type VisualSceneLayoutMode = "overlay" | "full_frame" | "pip" | "split";
+
+export interface VisualScene {
+  id: string;
+  start: number;
+  duration: number;
+  sceneType: VisualSceneType;
+  presetId: string;
+  layoutMode: VisualSceneLayoutMode;
+  sourceText: string;
+  payload: Record<string, unknown>;
+  safeRegionPolicy: "avoid_speaker" | "full_frame" | "pip_safe";
+  transitionIn: "fade" | "slide" | "zoom";
+  transitionOut: "fade" | "slide" | "cut";
+}
+
+export interface VisualScenePlan {
+  styleProfileId: StylePreset;
+  scenes: VisualScene[];
+  planner: "deterministic" | "ai";
   diagnostics?: string[];
 }
 
