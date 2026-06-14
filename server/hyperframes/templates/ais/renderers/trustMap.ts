@@ -12,7 +12,7 @@ export function renderTrustMap(slots: Record<string, any>, width: number, height
     const y = Math.sin(angle) * radius;
     return `
       <div class="gsap-node" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) translate(${x}px, ${y}px); background-color: ${aisTokens.colors.surfaceHighlight}; padding: ${aisTokens.spacing.sm} ${aisTokens.spacing.md}; border-radius: ${aisTokens.borders.radiusSm}; border: 1px solid ${aisTokens.colors.border}; font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.textSecondary}; white-space: nowrap;">
-        ${node}
+        ${escapeHtml(node)}
       </div>
     `;
   }).join("");
@@ -24,7 +24,7 @@ export function renderTrustMap(slots: Record<string, any>, width: number, height
       <div class="gsap-nodes-container" style="position: relative; width: 100%; height: 100%;">
         ${nodeHtml}
         <div class="gsap-center" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: ${aisTokens.colors.surface}; border: 2px solid ${aisTokens.colors.primary}; padding: ${aisTokens.spacing.md} ${aisTokens.spacing.lg}; border-radius: ${aisTokens.borders.radiusMd}; font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: bold; color: ${aisTokens.colors.textPrimary}; box-shadow: ${aisTokens.effects.glowMild}; text-shadow: ${aisTokens.effects.glowStrong};">
-          ${centerEntity}
+          ${escapeHtml(centerEntity)}
         </div>
       </div>
     </div>

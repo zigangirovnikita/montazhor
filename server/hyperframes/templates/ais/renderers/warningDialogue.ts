@@ -1,7 +1,7 @@
 import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderWarningDialogue(slots: Record<string, any>, width: number, height: number): string {
-  const speaker = slots.speaker ? `<div style="font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.warning}; text-transform: uppercase; margin-bottom: ${aisTokens.spacing.xs};">${slots.speaker}</div>` : "";
+  const speaker = slots.speaker ? `<div style="font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.warning}; text-transform: uppercase; margin-bottom: ${aisTokens.spacing.xs};">${escapeHtml(slots.speaker)}</div>` : "";
   const message = slots.message || "WARNING";
 
   return `

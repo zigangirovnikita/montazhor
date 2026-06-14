@@ -6,6 +6,7 @@ import { renderTemplateInstanceHtml } from "@/server/hyperframes/templates/ais/r
 import type { RenderProfile } from "@/server/video/encoding";
 import type { VideoProfile } from "@/server/video/profile";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
+import { AIS_RENDERERS_VERSION } from "@/server/hyperframes/templates/ais/designTokens";
 import { VISUAL_DIRECTOR_VERSION } from "@/server/visual/visualDirector";
 import { pathsForProject } from "@/lib/storage";
 
@@ -29,7 +30,6 @@ export async function renderTemplateFragments(
     const fragmentPath = path.join(motionDir, fragmentName);
     
     // Explicit cache key based on exactly what affects this instance
-    const RENDERERS_VERSION = "v1.1"; // Bump this when changing AIS template styles/HTML
     const cacheKey = [
       cleanFingerprint,
       instance.templateId,
@@ -41,7 +41,7 @@ export async function renderTemplateFragments(
       instance.transitionIn,
       instance.transitionOut,
       VISUAL_DIRECTOR_VERSION,
-      RENDERERS_VERSION,
+      AIS_RENDERERS_VERSION,
       hashJson(profile),
       renderProfile
     ].join(":");

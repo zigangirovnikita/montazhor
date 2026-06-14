@@ -62,6 +62,8 @@ export const aisTokens = {
   }
 };
 
+export const AIS_RENDERERS_VERSION = "v1.2";
+
 export function escapeHtml(str: any): string {
   if (str === null || str === undefined) return "";
   return String(str)
