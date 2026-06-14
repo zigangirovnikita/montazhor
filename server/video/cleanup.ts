@@ -14,8 +14,7 @@ export async function cleanupProjectArtifacts(projectId: string) {
     safeRm(paths.infographicVideo),
     safeRm(paths.splitVideo),
     safeRm(paths.subtitledVideo),
-    safeRm(paths.reviewVideo),
-    safeRm(projectUploadDir)
+    safeRm(paths.reviewVideo)
   ]);
 
   await prisma.renderAsset.deleteMany({
