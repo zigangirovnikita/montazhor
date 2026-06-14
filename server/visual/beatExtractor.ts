@@ -29,7 +29,7 @@ export function extractVisualBeats(
     const start = block.words[0]?.start ?? 0;
     const end = block.words[block.words.length - 1]?.end ?? 0;
 
-    let intent: VisualBeatIntent = "statement" as any;
+    let intent: VisualBeatIntent = "statement";
     let importance: 1 | 2 | 3 | 4 | 5 = 2;
     const entities: VisualBeat["entities"] = {};
 

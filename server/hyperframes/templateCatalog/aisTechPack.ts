@@ -15,7 +15,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: false, preferredArea: "full" },
     render: "hyperframes",
     component: "HookFlash",
-    version: "v1"
+    version: "v1",
+    compositingMode: "opaque_fullscreen"
   },
   {
     id: "ais.side_callout.v1",
@@ -30,7 +31,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "right" },
     render: "hyperframes",
     component: "SideCallout",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.stat_meter.v1",
@@ -46,7 +48,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "left" },
     render: "hyperframes",
     component: "StatMeter",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.golden_ratio_sidebar.v1",
@@ -62,7 +65,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "right" },
     render: "hyperframes",
     component: "GoldenRatioSidebar",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.myth_strike_overlay.v1",
@@ -78,7 +82,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "left" },
     render: "hyperframes",
     component: "MythStrike",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.before_after.v1",
@@ -94,7 +99,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: false, preferredArea: "full" },
     render: "hyperframes",
     component: "BeforeAfter",
-    version: "v1"
+    version: "v1",
+    compositingMode: "opaque_fullscreen"
   },
   {
     id: "ais.steps_cards.v1",
@@ -109,7 +115,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: false, preferredArea: "full" },
     render: "hyperframes",
     component: "StepsCards",
-    version: "v1"
+    version: "v1",
+    compositingMode: "opaque_fullscreen"
   },
   {
     id: "ais.trust_map.v1",
@@ -125,7 +132,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: false, preferredArea: "full" },
     render: "hyperframes",
     component: "TrustMap",
-    version: "v1"
+    version: "v1",
+    compositingMode: "opaque_fullscreen"
   },
   {
     id: "ais.warning_dialogue.v1",
@@ -141,7 +149,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "right" },
     render: "hyperframes",
     component: "WarningDialogue",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.quote_flash.v1",
@@ -156,7 +165,8 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: true, preferredArea: "left" },
     render: "hyperframes",
     component: "QuoteFlash",
-    version: "v1"
+    version: "v1",
+    compositingMode: "chroma_overlay"
   },
   {
     id: "ais.cta_flash.v1",
@@ -172,6 +182,7 @@ export const aisTechPack: MotionTemplateDefinition[] = [
     safeZones: { avoidFace: false, preferredArea: "full" },
     render: "hyperframes",
     component: "CtaFlash",
-    version: "v1"
+    version: "v1",
+    compositingMode: "opaque_fullscreen"
   }
 ];

@@ -80,6 +80,8 @@ async function runComposition(
   ], { signal });
 }
 
+import { templateCatalog } from "@/server/hyperframes/templateCatalog";
+
 function buildFragmentsComposeFilter(
   instances: TemplateInstancePlan["instances"],
   profile: VideoProfile,
@@ -95,12 +97,8 @@ function buildFragmentsComposeFilter(
     const start = instance.start;
     const end = instance.start + instance.duration;
     
-    const isOverlay = 
-      instance.templateId.includes("callout") ||
-      instance.templateId.includes("stat_meter") ||
-      instance.templateId.includes("myth_strike") ||
-      instance.templateId.includes("warning_dialogue") ||
-      instance.templateId.includes("quote_flash");
+    const def = templateCatalog.find(t => t.id === instance.templateId);
+    const isOverlay = def?.compositingMode === "chroma_overlay";
 
     if (isOverlay) {
       // Convert green background to transparent (hyperframes standard)

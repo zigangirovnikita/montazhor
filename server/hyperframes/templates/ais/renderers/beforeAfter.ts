@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderBeforeAfter(slots: Record<string, any>, width: number, height: number): string {
   const before = slots.before || "BEFORE";

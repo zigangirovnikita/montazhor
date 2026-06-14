@@ -46,6 +46,7 @@ export interface MotionTemplateDefinition {
   render: "hyperframes";
   component: string;
   version: string;
+  compositingMode: "chroma_overlay" | "opaque_fullscreen" | "alpha_overlay";
 }
 
 export type VisualBeatIntent =
@@ -57,7 +58,8 @@ export type VisualBeatIntent =
   | "comparison"
   | "steps"
   | "quote"
-  | "cta";
+  | "cta"
+  | "statement";
 
 export interface VisualBeat {
   id: string;

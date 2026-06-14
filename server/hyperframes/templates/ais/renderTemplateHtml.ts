@@ -15,6 +15,8 @@ import { renderWarningDialogue } from "./renderers/warningDialogue";
 import { renderQuoteFlash } from "./renderers/quoteFlash";
 import { renderCtaFlash } from "./renderers/ctaFlash";
 
+import { templateCatalog } from "@/server/hyperframes/templateCatalog";
+
 export function renderTemplateInstanceHtml(
   instance: TemplateInstancePlan["instances"][number],
   profile: VideoProfile
@@ -65,15 +67,8 @@ export function renderTemplateInstanceHtml(
       break;
   }
 
-  // Find the layout to determine compositing mode
-  // The catalog tells us layout, but here we can infer it or check it.
-  // Overlays need a green chroma key background.
-  const isOverlay = 
-    instance.templateId.includes("callout") ||
-    instance.templateId.includes("stat_meter") ||
-    instance.templateId.includes("myth_strike") ||
-    instance.templateId.includes("warning_dialogue") ||
-    instance.templateId.includes("quote_flash");
+  const def = templateCatalog.find(t => t.id === instance.templateId);
+  const isOverlay = def?.compositingMode === "chroma_overlay";
 
   // We wrap the appHtml in a green screen if it's an overlay
   if (isOverlay) {

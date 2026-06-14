@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderStepsCards(slots: Record<string, any>, width: number, height: number): string {
   const steps = Array.isArray(slots.steps) ? slots.steps : ["Step 1", "Step 2", "Step 3"];
@@ -9,7 +9,7 @@ export function renderStepsCards(slots: Record<string, any>, width: number, heig
         ${idx + 1}
       </div>
       <div style="font-size: ${aisTokens.typography.body.fontSize}; color: ${aisTokens.colors.textPrimary}; font-weight: ${aisTokens.typography.body.fontWeight};">
-        ${step}
+        ${escapeHtml(step)}
       </div>
     </div>
   `).join("");

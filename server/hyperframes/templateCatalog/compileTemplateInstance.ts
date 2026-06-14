@@ -5,6 +5,12 @@ function normalizeText(text: string): string {
   return text.toLowerCase().replace(/[.,!?;:"'«»()\[\]]/g, "").trim();
 }
 
+function shortenText(text: string, maxWords: number = 12): string {
+  const words = text.split(/\s+/);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(" ") + "...";
+}
+
 export function compileTemplateInstance(
   instance: TemplateInstance,
   templateDefinition: MotionTemplateDefinition
@@ -22,14 +28,8 @@ export function compileTemplateInstance(
       if (slotDef.type === "short_text" || slotDef.type === "label") {
         if (typeof value === "string") {
           let text = value.trim();
-          const words = text.split(/\s+/);
-          if (words.length > 15) {
-            // Reject sourceText-style long sentences completely
-            return null;
-          }
-          if (slotDef.maxWords && words.length > slotDef.maxWords) {
-            text = words.slice(0, slotDef.maxWords).join(" ") + "...";
-          }
+          text = shortenText(text, slotDef.maxWords || 12);
+          if (slotDef.required && text.length === 0) return null;
           compiledSlots[slotDef.name] = text;
         } else {
           compiledSlots[slotDef.name] = String(value);
@@ -42,16 +42,8 @@ export function compileTemplateInstance(
           if (slotDef.maxItems && list.length > slotDef.maxItems) {
             list = list.slice(0, slotDef.maxItems);
           }
-          let hasLongSentence = false;
-          list = list.map(item => {
-            const words = item.split(/\s+/);
-            if (words.length > 15) hasLongSentence = true;
-            if (slotDef.maxWords && words.length > slotDef.maxWords) {
-              return words.slice(0, slotDef.maxWords).join(" ") + "...";
-            }
-            return item;
-          });
-          if (hasLongSentence) return null;
+          list = list.map(item => shortenText(item, slotDef.maxWords || 10));
+          if (slotDef.required && list.every(i => i.length === 0)) return null;
           compiledSlots[slotDef.name] = list;
         } else {
           compiledSlots[slotDef.name] = [String(value)];

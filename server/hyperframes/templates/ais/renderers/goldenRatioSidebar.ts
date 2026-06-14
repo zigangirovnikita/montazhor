@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderGoldenRatioSidebar(slots: Record<string, any>, width: number, height: number): string {
   const title = slots.title || "LESSON";
@@ -10,7 +10,7 @@ export function renderGoldenRatioSidebar(slots: Record<string, any>, width: numb
       <div style="flex: 2;"></div>
       <div class="gsap-sidebar" style="flex: 1; background-color: ${aisTokens.colors.background}; border-left: 2px solid ${aisTokens.colors.surfaceHighlight}; display: flex; flex-direction: column; justify-content: center; padding: ${aisTokens.spacing.lg}; box-shadow: ${aisTokens.effects.cardShadow}; z-index: 10;">
         <h3 class="gsap-sidebar-title" style="font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: ${aisTokens.typography.subtitle.fontWeight}; color: ${aisTokens.colors.primary}; margin: 0 0 ${aisTokens.spacing.sm} 0; text-shadow: ${aisTokens.effects.glowMild};">
-          ${title}
+          ${escapeHtml(title)}
         </h3>
         <p class="gsap-sidebar-body" style="font-size: ${aisTokens.typography.body.fontSize}; color: ${aisTokens.colors.textPrimary}; line-height: ${aisTokens.typography.body.lineHeight}; margin: 0;">
           ${body}

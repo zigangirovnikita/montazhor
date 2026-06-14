@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderCtaFlash(slots: Record<string, any>, width: number, height: number): string {
   const action = slots.action || "SUBSCRIBE";

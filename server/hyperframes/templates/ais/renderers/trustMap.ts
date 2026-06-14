@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderTrustMap(slots: Record<string, any>, width: number, height: number): string {
   const centerEntity = slots.centerEntity || "CORE";

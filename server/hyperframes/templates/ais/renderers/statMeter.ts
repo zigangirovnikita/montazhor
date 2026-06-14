@@ -1,4 +1,4 @@
-import { aisTokens } from "../designTokens";
+import { aisTokens, escapeHtml } from "../designTokens";
 
 export function renderStatMeter(slots: Record<string, any>, width: number, height: number): string {
   const value = slots.value || "100";
@@ -11,7 +11,7 @@ export function renderStatMeter(slots: Record<string, any>, width: number, heigh
           ${value}
         </h2>
         <div class="gsap-stat-label" style="font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.textSecondary}; text-transform: uppercase; letter-spacing: 0.1em; margin-top: ${aisTokens.spacing.xs};">
-          ${label}
+          ${escapeHtml(label)}
         </div>
       </div>
     </div>
