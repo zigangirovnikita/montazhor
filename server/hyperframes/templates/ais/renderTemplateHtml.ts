@@ -1,9 +1,7 @@
-import React from "react";
-import { renderToString } from "react-dom/server";
 import { hyperframesLocalFontsCss, hyperframesLocalGsapScript } from "@/server/hyperframes/assets";
 import type { VideoProfile } from "@/server/video/profile";
 import type { TemplateInstancePlan } from "@/lib/types/visual";
-import { AisRenderShell } from "./AisRenderShell";
+import { aisTokens } from "./designTokens";
 
 export function renderTemplateInstanceHtml(
   instance: TemplateInstancePlan["instances"][number],
@@ -12,19 +10,27 @@ export function renderTemplateInstanceHtml(
   const width = profile.width;
   const height = profile.height;
 
-  const appHtml = renderToString(
-    <AisRenderShell 
-      templateId={instance.templateId}
-      slots={instance.slots}
-      visualWeight={instance.visualWeight}
-      layout={instance.variantId} 
-      width={width}
-      height={height}
-    />
-  );
+  // Very simple generic renderer to replace React SSR for these templates
+  const slots = instance.slots;
+  const title = slots.title || slots.eyebrow || slots.quote || slots.wrong || slots.action || instance.templateId;
+  const subtitle = slots.text || slots.body || slots.right || slots.message || slots.before || slots.after || JSON.stringify(slots);
 
-  // Provide GSAP timeline logic based on transitionIn / transitionOut
-  // HyperFrames natively executes timelines defined under window.timeline or handles elements with data-composition-id
+  const needsDarkBg = instance.variantId === "fullscreen" || instance.variantId === "side_panel";
+  const bgColor = needsDarkBg ? aisTokens.colors.background : "transparent";
+
+  const appHtml = `
+    <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; overflow: hidden; font-family: ${aisTokens.typography.fontFamily}; color: ${aisTokens.colors.textPrimary}; box-sizing: border-box; background-color: ${bgColor};">
+      <div style="padding: ${aisTokens.spacing.xl}; display: flex; flex-direction: column; justify-content: center; height: 100%; width: 100%;">
+        <h1 style="font-size: ${aisTokens.typography.title.fontSize}; font-weight: ${aisTokens.typography.title.fontWeight}; line-height: ${aisTokens.typography.title.lineHeight}; color: ${aisTokens.colors.primary}; text-shadow: ${aisTokens.effects.glowStrong};">
+          ${title}
+        </h1>
+        <p style="font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: ${aisTokens.typography.subtitle.fontWeight}; line-height: ${aisTokens.typography.subtitle.lineHeight}; color: ${aisTokens.colors.textSecondary};">
+          ${subtitle}
+        </p>
+      </div>
+    </div>
+  `;
+
   return `<!doctype html>
 <html>
   <head>
@@ -46,7 +52,6 @@ export function renderTemplateInstanceHtml(
       const transOut = "${instance.transitionOut}";
       const duration = ${instance.duration};
 
-      // Very simple transitions to satisfy HyperFrames timeline requirement
       if (transIn === "fade") {
         tl.from(container, { opacity: 0, duration: 0.3 });
       } else if (transIn === "slide") {
