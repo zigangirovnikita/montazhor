@@ -21,10 +21,10 @@ export function renderTemplateInstanceHtml(
   const appHtml = `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; overflow: hidden; font-family: ${aisTokens.typography.fontFamily}; color: ${aisTokens.colors.textPrimary}; box-sizing: border-box; background-color: ${bgColor};">
       <div style="padding: ${aisTokens.spacing.xl}; display: flex; flex-direction: column; justify-content: center; height: 100%; width: 100%;">
-        <h1 style="font-size: ${aisTokens.typography.title.fontSize}; font-weight: ${aisTokens.typography.title.fontWeight}; line-height: ${aisTokens.typography.title.lineHeight}; color: ${aisTokens.colors.primary}; text-shadow: ${aisTokens.effects.glowStrong};">
+        <h1 style="font-size: ${aisTokens.typography.title.fontSize}; font-weight: ${aisTokens.typography.title.fontWeight}; color: ${aisTokens.colors.primary}; text-shadow: ${aisTokens.effects.glowStrong};">
           ${title}
         </h1>
-        <p style="font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: ${aisTokens.typography.subtitle.fontWeight}; line-height: ${aisTokens.typography.subtitle.lineHeight}; color: ${aisTokens.colors.textSecondary};">
+        <p style="font-size: ${aisTokens.typography.subtitle.fontSize}; font-weight: ${aisTokens.typography.subtitle.fontWeight}; color: ${aisTokens.colors.textSecondary};">
           ${subtitle}
         </p>
       </div>
