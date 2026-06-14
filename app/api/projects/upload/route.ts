@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         durationTarget: String(formData.get("durationTarget") ?? "auto"),
         cleanupMode: "pauses_and_fillers",
         editMode: "cut_subtitles_infographics",
-        presentationMode: "cinematic_scenes",
+        presentationMode: "subtitles_infographics",
         styleOptionsJson: JSON.stringify({
           subtitleFont: "manrope",
           subtitleStyle: "active_word",

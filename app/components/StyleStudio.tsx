@@ -94,7 +94,7 @@ export function StyleStudio({
           checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
           })}
         />
         <ToggleRow
@@ -102,7 +102,7 @@ export function StyleStudio({
           checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
           })}
         />
         <ToggleRow
@@ -183,7 +183,7 @@ export function ElementAdjustments({
           checked={styleState.presentationMode !== "subtitles_only"}
           onToggle={() => onStyleChange({
             ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "cinematic_scenes"
+            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
           })}
         />
       </section>

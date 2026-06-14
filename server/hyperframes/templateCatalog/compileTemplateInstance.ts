@@ -8,7 +8,7 @@ function normalizeText(text: string): string {
 function shortenText(text: string, maxWords: number = 12): string {
   const words = text.split(/\s+/);
   if (words.length <= maxWords) return text;
-  return words.slice(0, maxWords).join(" ") + "...";
+  return words.slice(0, maxWords).join(" ");
 }
 
 export function compileTemplateInstance(
@@ -18,7 +18,7 @@ export function compileTemplateInstance(
   const compiledSlots: Record<string, unknown> = {};
 
   for (const slotDef of templateDefinition.slots) {
-    let value = instance.slots[slotDef.name];
+    const value = instance.slots[slotDef.name];
 
     if (slotDef.required && (value === undefined || value === null || value === "")) {
       return null;

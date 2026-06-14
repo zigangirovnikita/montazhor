@@ -1,7 +1,6 @@
 import { hyperframesLocalFontsCss, hyperframesLocalGsapScript } from "@/server/hyperframes/assets";
 import type { VideoProfile } from "@/server/video/profile";
 import type { TemplateInstancePlan } from "@/lib/types/visual";
-import { aisTokens } from "./designTokens";
 
 import { renderHookFlash } from "./renderers/hookFlash";
 import { renderSideCallout } from "./renderers/sideCallout";
@@ -88,12 +87,13 @@ export function renderTemplateInstanceHtml(
     </style>
   </head>
   <body>
-    <div id="ais-scenes" data-composition-id="ais-scenes" data-start="0" data-duration="${instance.duration.toFixed(3)}" data-width="${width}" data-height="${height}">
+    <div id="ais-scenes" data-composition-id="ais-scenes" data-start="0" data-duration="${instance.duration.toFixed(3)}" data-track-index="0" data-width="${width}" data-height="${height}">
       ${appHtml}
     </div>
-    <script>${hyperframesLocalGsapScript()}</script>
+    ${hyperframesLocalGsapScript()}
     <script>
-      const tl = gsap.timeline();
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
       const container = document.getElementById("ais-scenes");
       
       const transIn = "${instance.transitionIn}";
@@ -108,13 +108,16 @@ export function renderTemplateInstanceHtml(
         tl.from(container, { scale: 0.8, opacity: 0, duration: 0.4, ease: "back.out(1.5)" });
       }
 
-      tl.to(container, { opacity: 1, duration: duration - 0.8 });
+      tl.to(container, { opacity: 1, duration: Math.max(0, duration - 0.8) });
 
       if (transOut === "fade") {
         tl.to(container, { opacity: 0, duration: 0.3 });
       } else if (transOut === "slide") {
         tl.to(container, { x: 100, opacity: 0, duration: 0.4 });
       }
+
+      tl.seek(0);
+      window.__timelines["ais-scenes"] = tl;
     </script>
   </body>
 </html>`;

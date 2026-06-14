@@ -37,10 +37,10 @@ type StylingProps = {
 
 const overlayCards = [
   {
-    id: "cinematic_scenes",
-    title: "Кинематографичные сцены",
-    description: "HUD, PIP-слайды, крупная типографика и смысловые вставки в стиле референсов.",
-    preview: "cinematic",
+    id: "subtitles_infographics",
+    title: "Смысловой визуальный слой",
+    description: "Непрерывный HyperFrames-слой: кинетический текст, цифры, карточки и акценты поверх ролика.",
+    preview: "infographics",
     available: true
   },
   {
@@ -51,11 +51,11 @@ const overlayCards = [
     available: true
   },
   {
-    id: "subtitles_infographics",
-    title: "Субтитры и инфографика",
-    description: "Автор и инфографика стоят рядом в split-layout.",
-    preview: "infographics",
-    available: true
+    id: "cinematic_scenes",
+    title: "Кинематографичные сцены",
+    description: "HUD, PIP-слайды и полноэкранные учебные сцены. Сейчас режим дорабатывается.",
+    preview: "cinematic",
+    available: false
   },
   {
     id: "subtitles_infographics_media",
