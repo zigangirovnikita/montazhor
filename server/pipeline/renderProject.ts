@@ -99,7 +99,7 @@ export async function finalizeProjectExport(projectId: string) {
   let videoForImage = paths.cleanVideo;
   if (presentationMode === "subtitles_only") videoForImage = paths.subtitledVideo;
   if (presentationMode === "subtitles_infographics") videoForImage = paths.subtitledVideo;
-  if (presentationMode === "cinematic_scenes") videoForImage = paths.cinematicComposedVideo;
+  if (presentationMode === "cinematic_scenes") videoForImage = paths.subtitledVideo;
 
   // Composite final full-quality MP4
   await composeFinalVideo(
@@ -401,21 +401,33 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   await logProject(projectId, "info", `Generated ${subtitles.length} subtitle chunks (ASS).`);
 
   try {
-    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_rich";
-    const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
-    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
+    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_fast";
     
-    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, captionRegion, subtitleMode === "final_alpha" ? "alpha" : "chroma");
-    await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
-    await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
-    await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`);
-    await auditProjectEvent(projectId, {
-      phase: "render_preview",
-      step: "subtitles_overlay",
-      kind: "result",
-      summary: `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`,
-      metadata: { subtitlesOverlayPath },
-    });
+    if (subtitleMode === "preview_fast") {
+      await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, renderProfile, paths.subtitledVideo);
+      await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS (preview_fast).");
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "subtitles_overlay",
+        kind: "result",
+        summary: "Subtitles burned via FFmpeg ASS (preview_fast).",
+      });
+    } else {
+      const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
+      const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
+      
+      await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, captionRegion, subtitleMode === "final_alpha" ? "alpha" : "chroma");
+      await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
+      await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+      await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`);
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "subtitles_overlay",
+        kind: "result",
+        summary: `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`,
+        metadata: { subtitlesOverlayPath },
+      });
+    }
   } catch (hyperframesError) {
     const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
     await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);

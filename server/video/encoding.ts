@@ -38,8 +38,7 @@ export function reviewPreviewMp4OutputArgs() {
     "-crf", "26",
     "-r", "24",
     "-pix_fmt", "yuv420p",
-    "-c:a", "aac",
-    "-b:a", "128k",
+    "-c:a", "copy",
     "-movflags", "+faststart",
   ];
 }
@@ -52,7 +51,8 @@ export function intermediateMp4OutputArgs() {
     "-crf", "23",
     "-r", "30",
     "-pix_fmt", "yuv420p",
-    "-c:a", "pcm_s16le",
+    "-c:a", "aac",
+    "-b:a", "320k",
     "-movflags", "+faststart",
   ];
 }
@@ -72,7 +72,7 @@ export function standardVideoEncodeArgs() {
     "-c:v",
     "libx264",
     "-preset",
-    "veryfast",
+    "medium",
     "-profile:v",
     "high",
     "-level:v",

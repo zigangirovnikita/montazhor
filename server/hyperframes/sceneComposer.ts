@@ -8,6 +8,7 @@ import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
 import { SCENE_PLANNER_VERSION } from "@/server/ai/visualScenePlanner";
+import { pathsForProject } from "@/lib/storage";
 
 export async function renderSceneFragments(
   projectId: string,
@@ -18,7 +19,9 @@ export async function renderSceneFragments(
   outputPath: string,
   renderProfile: RenderProfile
 ) {
-  const motionDir = path.join(projectDir, "motion", "scene-fragments");
+  const paths = pathsForProject(projectId);
+  // Separate preview/final fragments physically
+  const motionDir = path.join(paths.sceneFragmentsDir, renderProfile);
   await mkdir(motionDir, { recursive: true });
 
   const cleanFingerprint = await fingerprintFile(cleanVideoPath);
@@ -27,25 +30,37 @@ export async function renderSceneFragments(
   for (const [index, scene] of plan.scenes.entries()) {
     const fragmentName = `scene_${index}.mp4`;
     const fragmentPath = path.join(motionDir, fragmentName);
-    const cacheKey = [cleanFingerprint, hashJson(scene), SCENE_PLANNER_VERSION].join(":");
+    const templateVersion = "v1";
+    const cacheKey = [cleanFingerprint, hashJson(scene), templateVersion, SCENE_PLANNER_VERSION, hashJson(profile), renderProfile].join(":");
 
     await ensureArtifact(
       projectId,
-      `scene_${index}`,
+      `scene_${index}_${renderProfile}`,
       cacheKey,
       fragmentPath,
-      async () => {
+      async (signal) => {
         const tempDir = path.join(motionDir, `temp_${index}`);
         await mkdir(tempDir, { recursive: true });
         await writeFile(path.join(tempDir, "index.html"), aisTechSceneFragmentTemplate(scene, profile), "utf8");
-        await renderHyperframesVideo(tempDir, fragmentPath);
+        await renderHyperframesVideo(tempDir, fragmentPath, { signal });
       },
       { timeoutMs: 2 * 60_000 }
     );
     fragmentPaths.push(fragmentPath);
   }
 
-  await composeFragmentsOntoClean(cleanVideoPath, fragmentPaths, plan, profile, outputPath, renderProfile);
+  // Cache cinematic_compose via ensureArtifact
+  const composeCacheKey = [cleanFingerprint, hashJson(fragmentPaths), "compose_v1", renderProfile].join(":");
+  await ensureArtifact(
+    projectId,
+    `cinematic_compose_${renderProfile}`,
+    composeCacheKey,
+    outputPath,
+    async (signal) => {
+      await composeFragmentsOntoClean(cleanVideoPath, fragmentPaths, plan, profile, outputPath, renderProfile, signal);
+    },
+    { timeoutMs: 5 * 60_000 }
+  );
 }
 
 async function composeFragmentsOntoClean(
@@ -54,7 +69,8 @@ async function composeFragmentsOntoClean(
   plan: VisualScenePlan,
   profile: VideoProfile,
   outputPath: string,
-  renderProfile: RenderProfile
+  renderProfile: RenderProfile,
+  signal?: AbortSignal
 ) {
   if (fragmentPaths.length === 0) {
     // If no scenes, just copy the clean video over
@@ -64,7 +80,7 @@ async function composeFragmentsOntoClean(
       "-c:v", "copy",
       "-c:a", "copy",
       outputPath
-    ]);
+    ], { signal });
     return;
   }
 
@@ -88,7 +104,7 @@ async function composeFragmentsOntoClean(
     "-map", "0:a:0",
     ...outputArgsForProfile(renderProfile),
     outputPath
-  ]);
+  ], { signal });
 }
 
 function buildFragmentsComposeFilter(

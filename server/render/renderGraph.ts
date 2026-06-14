@@ -81,7 +81,7 @@ export async function ensureArtifact(
   stageName: string,
   cacheKey: string,
   outputPath: string,
-  render: () => Promise<void>,
+  render: (signal?: AbortSignal) => Promise<void>,
   options?: { timeoutMs?: number }
 ): Promise<StageResult> {
   const startedAt = Date.now();
@@ -115,15 +115,26 @@ export async function ensureArtifact(
   });
 
   try {
+    const controller = new AbortController();
     if (options?.timeoutMs) {
-      await Promise.race([
-        render(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Stage ${stageName} timed out after ${options.timeoutMs}ms`)), options.timeoutMs)
-        ),
-      ]);
+      const timeoutId = setTimeout(() => {
+        controller.abort(new Error(`Stage ${stageName} timed out after ${options.timeoutMs}ms`));
+      }, options.timeoutMs);
+      
+      try {
+        await Promise.race([
+          render(controller.signal),
+          new Promise<never>((_, reject) => {
+            const onAbort = () => reject(controller.signal.reason);
+            if (controller.signal.aborted) return onAbort();
+            controller.signal.addEventListener("abort", onAbort);
+          })
+        ]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } else {
-      await render();
+      await render(controller.signal);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

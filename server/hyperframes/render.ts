@@ -10,6 +10,7 @@ type HyperframesRenderMode = "docker" | "local" | "auto";
 type HyperframesRenderOptions = {
   format?: "mp4" | "webm" | "mov";
   normalize?: boolean;
+  signal?: AbortSignal;
 };
 let browserEnsurePromise: Promise<void> | null = null;
 
@@ -70,15 +71,15 @@ async function renderWithMode(
     if (!useDocker) {
       await ensureHyperframesBrowser(command, env, appDir);
     }
-    await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env });
-    if (options.normalize !== false) await normalizeRenderedVideo(outputPath);
+    await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env, signal: options.signal });
+    if (options.normalize !== false) await normalizeRenderedVideo(outputPath, options.signal);
     return { mode };
   } catch (error) {
     if (!useDocker && shouldRetryAfterBrowserBootstrap(error)) {
       browserEnsurePromise = null;
       await ensureHyperframesBrowser(command, env, appDir);
-      await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env });
-      if (options.normalize !== false) await normalizeRenderedVideo(outputPath);
+      await runCommand(command, renderArgs(dir, outputPath, useDocker, options), { cwd: appDir, env, signal: options.signal });
+      if (options.normalize !== false) await normalizeRenderedVideo(outputPath, options.signal);
       return { mode };
     }
     throw new Error(`HyperFrames ${mode} render failed: ${messageFor(error)}`);
@@ -126,7 +127,7 @@ function shouldRetryAfterBrowserBootstrap(error: unknown) {
   );
 }
 
-async function normalizeRenderedVideo(outputPath: string) {
+async function normalizeRenderedVideo(outputPath: string, signal?: AbortSignal) {
   const normalizedPath = `${outputPath}.normalized.mp4`;
   await runCommand(ffmpegPath(), [
     "-y",
@@ -138,6 +139,6 @@ async function normalizeRenderedVideo(outputPath: string) {
     "0:a:0?",
     ...standardMp4OutputArgs(),
     normalizedPath
-  ]);
+  ], { signal });
   await rename(normalizedPath, outputPath);
 }

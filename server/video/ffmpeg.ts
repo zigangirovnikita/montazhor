@@ -14,11 +14,29 @@ export function ffprobePath() {
   return ffprobeBin;
 }
 
-export async function runCommand(command: string, args: string[], options?: { cwd?: string; env?: Record<string, string | undefined> }) {
+export async function runCommand(command: string, args: string[], options?: { cwd?: string; env?: Record<string, string | undefined>; signal?: AbortSignal }) {
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, { cwd: options?.cwd, env: options?.env ? { ...process.env, ...options.env } : process.env });
     let stdout = "";
     let stderr = "";
+
+    const onAbort = () => {
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 5000).unref();
+      reject(new Error(`Command ${command} aborted via signal.`));
+    };
+
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        onAbort();
+        return;
+      }
+      options.signal.addEventListener("abort", onAbort);
+    }
+
+    const cleanup = () => {
+      if (options?.signal) options.signal.removeEventListener("abort", onAbort);
+    };
 
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
@@ -27,6 +45,7 @@ export async function runCommand(command: string, args: string[], options?: { cw
       stderr += String(chunk);
     });
     child.on("error", (error) => {
+      cleanup();
       if (error.message.includes("ENOENT")) {
         reject(new Error(`${command} was not found. Install it and make sure it is available in PATH.`));
         return;
@@ -34,6 +53,7 @@ export async function runCommand(command: string, args: string[], options?: { cw
       reject(error);
     });
     child.on("close", (code) => {
+      cleanup();
       if (code === 0) {
         resolve({ stdout, stderr });
         return;
