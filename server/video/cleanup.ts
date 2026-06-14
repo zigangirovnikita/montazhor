@@ -11,12 +11,10 @@ export async function cleanupProjectArtifacts(projectId: string) {
     safeRm(paths.visualPlan),
     safeRm(paths.subtitlesOverlayMp4),
     safeRm(paths.semanticOverlayMp4),
-    safeRm(paths.cleanVideo),
     safeRm(paths.infographicVideo),
     safeRm(paths.splitVideo),
     safeRm(paths.subtitledVideo),
     safeRm(paths.reviewVideo),
-    safeRm(paths.motionDir),
     safeRm(projectUploadDir)
   ]);
 

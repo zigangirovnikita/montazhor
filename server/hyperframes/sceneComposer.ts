@@ -2,76 +2,140 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { VisualScenePlan } from "@/lib/types";
 import { renderHyperframesVideo } from "@/server/hyperframes/render";
-import { aisTechSceneTemplate } from "@/server/hyperframes/templates/AisTechScene";
-import { standardMp4OutputArgs } from "@/server/video/encoding";
+import { aisTechSceneFragmentTemplate } from "@/server/hyperframes/templates/AisTechScene";
+import { outputArgsForProfile, type RenderProfile } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
+import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
+import { SCENE_PLANNER_VERSION } from "@/server/ai/visualScenePlanner";
 
-export async function renderCinematicSceneTimeline(
+export async function renderSceneFragments(
+  projectId: string,
   projectDir: string,
   cleanVideoPath: string,
   plan: VisualScenePlan,
   profile: VideoProfile,
-  duration: number,
-  sceneLayerPath: string,
-  outputPath: string
+  outputPath: string,
+  renderProfile: RenderProfile
 ) {
-  const dir = path.join(projectDir, "motion", "cinematic-scenes");
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "index.html"), aisTechSceneTemplate(plan, profile, duration), "utf8");
-  await renderHyperframesVideo(dir, sceneLayerPath);
-  await composeCinematicScenes(cleanVideoPath, sceneLayerPath, plan, profile, outputPath);
+  const motionDir = path.join(projectDir, "motion", "scene-fragments");
+  await mkdir(motionDir, { recursive: true });
+
+  const cleanFingerprint = await fingerprintFile(cleanVideoPath);
+  const fragmentPaths: string[] = [];
+
+  for (const [index, scene] of plan.scenes.entries()) {
+    const fragmentName = `scene_${index}.mp4`;
+    const fragmentPath = path.join(motionDir, fragmentName);
+    const cacheKey = [cleanFingerprint, hashJson(scene), SCENE_PLANNER_VERSION].join(":");
+
+    await ensureArtifact(
+      projectId,
+      `scene_${index}`,
+      cacheKey,
+      fragmentPath,
+      async () => {
+        const tempDir = path.join(motionDir, `temp_${index}`);
+        await mkdir(tempDir, { recursive: true });
+        await writeFile(path.join(tempDir, "index.html"), aisTechSceneFragmentTemplate(scene, profile), "utf8");
+        await renderHyperframesVideo(tempDir, fragmentPath);
+      },
+      { timeoutMs: 2 * 60_000 }
+    );
+    fragmentPaths.push(fragmentPath);
+  }
+
+  await composeFragmentsOntoClean(cleanVideoPath, fragmentPaths, plan, profile, outputPath, renderProfile);
 }
 
-async function composeCinematicScenes(
+async function composeFragmentsOntoClean(
   cleanVideoPath: string,
-  sceneLayerPath: string,
+  fragmentPaths: string[],
   plan: VisualScenePlan,
   profile: VideoProfile,
-  outputPath: string
+  outputPath: string,
+  renderProfile: RenderProfile
 ) {
-  const pipScenes = plan.scenes.filter((scene) => scene.layoutMode === "pip" || scene.layoutMode === "full_frame" || scene.layoutMode === "split");
-  const filter = buildComposeFilter(pipScenes, profile);
+  if (fragmentPaths.length === 0) {
+    // If no scenes, just copy the clean video over
+    await runCommand(ffmpegPath(), [
+      "-y",
+      "-i", cleanVideoPath,
+      "-c:v", "copy",
+      "-c:a", "copy",
+      outputPath
+    ]);
+    return;
+  }
+
+  const pipScenes = plan.scenes.map((scene, index) => ({
+    scene,
+    index,
+    isPip: scene.layoutMode === "pip" || scene.layoutMode === "full_frame" || scene.layoutMode === "split"
+  })).filter(x => x.isPip);
+
+  const filter = buildFragmentsComposeFilter(plan.scenes, pipScenes, profile);
+
+  const inputs: string[] = [];
+  fragmentPaths.forEach(fp => inputs.push("-i", fp));
 
   await runCommand(ffmpegPath(), [
     "-y",
-    "-i",
-    cleanVideoPath,
-    "-i",
-    sceneLayerPath,
-    "-filter_complex",
-    filter,
-    "-map",
-    `[v${pipScenes.length}]`,
-    "-map",
-    "0:a:0",
-    ...standardMp4OutputArgs(),
+    "-i", cleanVideoPath,
+    ...inputs,
+    "-filter_complex", filter,
+    "-map", `[v_out]`,
+    "-map", "0:a:0",
+    ...outputArgsForProfile(renderProfile),
     outputPath
   ]);
 }
 
-function buildComposeFilter(pipScenes: VisualScenePlan["scenes"], profile: VideoProfile) {
-  const splitLabels = ["basein", ...pipScenes.map((_, index) => `pipin${index}`)];
-  const chains: string[] = [
-    `[0:v]split=${splitLabels.length}${splitLabels.map((label) => `[${label}]`).join("")}`,
-    "[basein]setpts=PTS-STARTPTS[base]",
-    "[1:v]setpts=PTS-STARTPTS,colorkey=0x00ff00:0.22:0.04[scene]",
-    "[base][scene]overlay=x=0:y=0:eof_action=pass[v0]"
-  ];
+function buildFragmentsComposeFilter(
+  scenes: VisualScenePlan["scenes"],
+  pipScenes: { scene: VisualScenePlan["scenes"][number]; index: number }[],
+  profile: VideoProfile
+) {
+  const chains: string[] = [];
+  const splitLabels = ["basein", ...pipScenes.map((p) => `pipin${p.index}`)];
+  
+  if (splitLabels.length > 1) {
+    chains.push(`[0:v]split=${splitLabels.length}${splitLabels.map((label) => `[${label}]`).join("")}`);
+  } else {
+    chains.push(`[0:v]copy[basein]`);
+  }
+  
+  chains.push(`[basein]setpts=PTS-STARTPTS[v0]`);
 
-  pipScenes.forEach((scene, index) => {
-    const pip = speakerBox(profile, scene.layoutMode);
-    const input = `pipin${index}`;
-    const scaled = `pip${index}`;
-    const previous = `v${index}`;
-    const next = `v${index + 1}`;
+  scenes.forEach((scene, index) => {
+    const inputIdx = index + 1;
     const start = round(scene.start);
     const end = round(scene.start + scene.duration);
-    chains.push(
-      `[${input}]setpts=PTS-STARTPTS,scale=${pip.width}:${pip.height}:force_original_aspect_ratio=increase,crop=${pip.width}:${pip.height},setsar=1[${scaled}]`,
-      `[${previous}][${scaled}]overlay=x=${pip.x}:y=${pip.y}:enable='between(t,${start},${end})':eof_action=pass[${next}]`
-    );
+    
+    chains.push(`[${inputIdx}:v]setpts=PTS-STARTPTS,tpad=start_duration=${start}:color=0x00ff00,colorkey=0x00ff00:0.22:0.04[scene${index}]`);
+    chains.push(`[v${index}][scene${index}]overlay=x=0:y=0:enable='between(t,${start},${end})':eof_action=pass[v${index + 1}]`);
   });
+
+  const lastOverlayLayer = `v${scenes.length}`;
+
+  if (pipScenes.length === 0) {
+    chains.push(`[${lastOverlayLayer}]copy[v_out]`);
+  } else {
+    pipScenes.forEach((p, i) => {
+      const pip = speakerBox(profile, p.scene.layoutMode);
+      const input = `pipin${p.index}`;
+      const scaled = `pip${p.index}`;
+      const previous = i === 0 ? lastOverlayLayer : `pipout${i - 1}`;
+      const next = i === pipScenes.length - 1 ? `v_out` : `pipout${i}`;
+      const start = round(p.scene.start);
+      const end = round(p.scene.start + p.scene.duration);
+      
+      chains.push(
+        `[${input}]setpts=PTS-STARTPTS,scale=${pip.width}:${pip.height}:force_original_aspect_ratio=increase,crop=${pip.width}:${pip.height},setsar=1[${scaled}]`,
+        `[${previous}][${scaled}]overlay=x=${pip.x}:y=${pip.y}:enable='between(t,${start},${end})':eof_action=pass[${next}]`
+      );
+    });
+  }
 
   return chains.join(";");
 }

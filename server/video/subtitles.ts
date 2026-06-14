@@ -1,11 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { EditDecisionList, StylePreset, SubtitleDraft, TranscriptJson, TranscriptWord } from "@/lib/types";
-import { standardMp4OutputArgs } from "@/server/video/encoding";
-import { assPathForFilter, ffmpegPath, runCommand } from "@/server/video/ffmpeg";
+import { outputArgsForProfile, type RenderProfile } from "@/server/video/encoding";
+import { assPathForFilter, ffmpegPath, ffprobePath, runCommand } from "@/server/video/ffmpeg";
 import { subtitlesOverlayTemplate } from "@/server/hyperframes/templates/SubtitlesOverlay";
 import { renderHyperframesVideo } from "@/server/hyperframes/render";
 import type { VideoProfile, VideoRegion } from "@/server/video/profile";
+
+export type SubtitleRenderMode = "preview_fast" | "preview_rich" | "final_alpha";
 
 const importantWords = [
   "важно",
@@ -146,14 +148,14 @@ ${events}
 `;
 }
 
-export async function burnSubtitles(inputPath: string, assPath: string, _profile: VideoProfile, outputPath: string) {
+export async function burnSubtitles(inputPath: string, assPath: string, _profile: VideoProfile, renderProfile: RenderProfile, outputPath: string) {
   await runCommand(ffmpegPath(), [
     "-y",
     "-i",
     inputPath,
     "-vf",
     `ass='${assPathForFilter(assPath)}'`,
-    ...standardMp4OutputArgs(),
+    ...outputArgsForProfile(renderProfile),
     outputPath
   ]);
 }
@@ -177,12 +179,16 @@ export async function overlaySubtitlesLayer(
   inputVideoPath: string,
   overlayVideoPath: string,
   _profile: VideoProfile,
+  renderProfile: RenderProfile,
   outputPath: string
 ) {
   const hasAlpha = overlayVideoPath.endsWith(".mov");
+  if (hasAlpha) {
+    await assertAlphaVideo(overlayVideoPath);
+  }
 
   const filter = hasAlpha 
-    ? "[1:v]format=auto[overlay];[0:v][overlay]overlay=x=0:y=0[outv]"
+    ? "[0:v][1:v]overlay=x=0:y=0:format=auto[outv]"
     : "[1:v]colorkey=0x00ff00:0.1:0.2[ckout];[0:v][ckout]overlay=x=0:y=0[outv]";
 
   await runCommand(ffmpegPath(), [
@@ -197,9 +203,27 @@ export async function overlaySubtitlesLayer(
     "[outv]",
     "-map",
     "0:a",
-    ...standardMp4OutputArgs(),
+    ...outputArgsForProfile(renderProfile),
     outputPath
   ]);
+}
+
+async function assertAlphaVideo(videoPath: string) {
+  const { stdout } = await runCommand(ffprobePath(), [
+    "-v",
+    "error",
+    "-select_streams",
+    "v:0",
+    "-show_entries",
+    "stream=pix_fmt",
+    "-of",
+    "default=noprint_wrappers=1:nokey=1",
+    videoPath
+  ]);
+  const pixFmt = stdout.trim();
+  if (!pixFmt.includes("a")) {
+    throw new Error(`HyperFrames subtitles alpha overlay did not contain alpha channel. pix_fmt=${pixFmt || "unknown"}`);
+  }
 }
 
 function styleForPreset(preset: StylePreset, profile: VideoProfile, captionRegion?: VideoRegion) {

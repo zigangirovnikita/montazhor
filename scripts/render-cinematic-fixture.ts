@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ContentPlan, SubtitleDraft, TranscriptWord } from "@/lib/types";
 import { writeJsonFile } from "@/lib/storage";
 import { buildVisualScenePlan } from "@/server/ai/visualScenePlanner";
-import { renderCinematicSceneTimeline } from "@/server/hyperframes/sceneComposer";
+import { renderSceneFragments } from "@/server/hyperframes/sceneComposer";
 import { standardMp4OutputArgs } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
@@ -30,7 +30,7 @@ async function main() {
   };
   const scenePlan = buildVisualScenePlan({ subtitles, contentPlan, stylePreset: "course_glass", duration });
   await writeJsonFile(path.join(outDir, "visualScenePlan.json"), scenePlan);
-  await renderCinematicSceneTimeline(outDir, cleanVideoPath, scenePlan, profile, duration, sceneLayerPath, outputPath);
+  await renderSceneFragments("fixture_project", outDir, cleanVideoPath, scenePlan, profile, outputPath, "review");
   console.log(`Rendered fixture: ${outputPath}`);
   console.log(`Scene plan: ${path.join(outDir, "visualScenePlan.json")}`);
 }

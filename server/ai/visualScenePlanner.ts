@@ -16,6 +16,11 @@ import { recordAiUsage } from "@/server/ai/usage";
 import { cleanText, roundTime } from "@/server/ai/visualPayload";
 import { scenePresetById, scenePresetForType, visualScenePresets } from "@/server/hyperframes/sceneRegistry";
 
+/** Bump when the AI scene planner prompt or parsing logic changes. */
+export const SCENE_PLANNER_VERSION = "v1";
+/** Bump when sceneRegistry.ts presets change. */
+export const SCENE_REGISTRY_VERSION = "v1";
+
 interface ScenePlannerInput {
   transcript?: TranscriptJson;
   edl?: EditDecisionList;

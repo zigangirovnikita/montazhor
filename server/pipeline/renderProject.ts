@@ -5,13 +5,16 @@ import { logProject, updateProjectStatus } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { ContentPlan, PresentationMode, StylePreset, TranscriptJson } from "@/lib/types";
 import { parseVisualPlanOptions } from "@/lib/visualStyleOptions";
-import { buildVisualScenePlanWithAi } from "@/server/ai/visualScenePlanner";
+import { buildVisualScenePlanWithAi, SCENE_PLANNER_VERSION, SCENE_REGISTRY_VERSION } from "@/server/ai/visualScenePlanner";
 import { buildVisualOverlayPlanWithAi } from "@/server/ai/visualPlanner";
 import { hyperframesRenderDiagnostics } from "@/server/hyperframes/diagnostics";
 import { loadOptionalFaceSafeRegions } from "@/server/hyperframes/faceSafeRegions";
 import { renderInfographicPanel } from "@/server/hyperframes/infographic";
-import { renderCinematicSceneTimeline } from "@/server/hyperframes/sceneComposer";
+import { renderSceneFragments } from "@/server/hyperframes/sceneComposer";
+import { type RenderProfile } from "@/server/video/encoding";
 import { renderSemanticOverlay } from "@/server/hyperframes/semanticOverlay";
+import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
+import { logStageEvent } from "@/server/render/stageProgress";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
 import {
@@ -19,13 +22,15 @@ import {
   buildSubtitlesForEdl,
   burnSubtitles,
   renderSubtitlesLayerViaHyperFrames,
-  overlaySubtitlesLayer
+  overlaySubtitlesLayer,
+  type SubtitleRenderMode
 } from "@/server/video/subtitles";
 import { composeFinalVideo } from "@/server/video/compose";
 import { probeVideo } from "@/server/video/metadata";
 import { resolveVideoProfile, splitLayoutForProfile } from "@/server/video/profile";
 import { composeSplitLayout } from "@/server/video/splitLayout";
 import type { EditDecisionList } from "@/lib/types";
+import type { VisualScenePlan } from "@/lib/types";
 
 export async function renderStyledPreview(projectId: string) {
   await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
@@ -38,13 +43,13 @@ export async function renderStyledPreview(projectId: string) {
     summary: "Styled preview render started.",
   });
 
-  const { stylePreset, presentationMode } = await buildStyledReview(projectId);
+  const { stylePreset, presentationMode } = await buildStyledReview(projectId, "review");
 
   await updateProjectStatus(projectId, "rendering_preview");
   await logProject(projectId, "info", "Composing review preview MP4...");
   await safeUnlink(paths.reviewVideo);
   await safeUnlink(paths.finalVideo);
-  await composeFinalVideo(paths.subtitledVideo, paths.reviewVideo);
+  await composeFinalVideo(paths.subtitledVideo, paths.reviewVideo, "review");
   const reviewMetadata = await probeVideo(paths.reviewVideo);
 
   await prisma.renderAsset.create({ data: { projectId, type: "review", path: paths.reviewVideo } });
@@ -77,22 +82,32 @@ export async function finalizeProjectExport(projectId: string) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
   const paths = pathsForProject(projectId);
 
-  if (!project.reviewVideoPath) {
-    throw new Error("Review preview is not ready yet. Render the preview before final export.");
-  }
-
   await updateProjectStatus(projectId, "rendering_final");
-  await logProject(projectId, "info", "Final export started from approved preview.");
+  await logProject(projectId, "info", "Final full-quality export started.");
   await auditProjectEvent(projectId, {
     phase: "final_export",
     step: "start",
     kind: "request",
-    summary: "Final export started from approved preview.",
-    metadata: { reviewVideoPath: project.reviewVideoPath },
+    summary: "Final export started.",
   });
 
   await safeUnlink(paths.finalVideo);
-  await copyFile(project.reviewVideoPath, paths.finalVideo);
+
+  // Render high-quality intermediate assets
+  const { profile, presentationMode } = await buildStyledReview(projectId, "final");
+
+  let videoForImage = paths.cleanVideo;
+  if (presentationMode === "subtitles_only") videoForImage = paths.subtitledVideo;
+  if (presentationMode === "subtitles_infographics") videoForImage = paths.subtitledVideo;
+  if (presentationMode === "cinematic_scenes") videoForImage = paths.cinematicComposedVideo;
+
+  // Composite final full-quality MP4
+  await composeFinalVideo(
+    videoForImage,
+    paths.finalVideo,
+    "final"
+  );
+  
   const finalMetadata = await probeVideo(paths.finalVideo);
 
   await prisma.renderAsset.create({ data: { projectId, type: "final", path: paths.finalVideo } });
@@ -105,6 +120,7 @@ export async function finalizeProjectExport(projectId: string) {
       durationFinal: finalMetadata.duration
     }
   });
+
   await cleanupProjectArtifacts(projectId);
   await logProject(projectId, "info", "Temporary source, preview, subtitles, audio, and intermediate render files were deleted after final export.");
   await logProject(projectId, "info", `Final MP4 is ready. Duration: ${finalMetadata.duration.toFixed(2)}s.`);
@@ -118,7 +134,7 @@ export async function finalizeProjectExport(projectId: string) {
   });
 }
 
-async function buildStyledReview(projectId: string) {
+async function buildStyledReview(projectId: string, renderProfile: RenderProfile) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
   const paths = pathsForProject(projectId);
 
@@ -147,20 +163,39 @@ async function buildStyledReview(projectId: string) {
   let effectivePresentationMode = presentationMode;
 
   await updateProjectStatus(projectId, "rendering_clean_video");
-  await safeUnlink(paths.cleanVideo);
+  // Invalidate downstream artifacts that depend on stages not yet cached.
+  // clean.mp4 and visual-scene-plan.json are now cached via ensureArtifact;
+  // other intermediates are still unconditionally invalidated until Steps 2-3.
   await safeUnlink(paths.subtitledVideo);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticOverlayMp4);
   await safeUnlink(paths.cinematicSceneVideo);
   await safeUnlink(paths.cinematicComposedVideo);
-  await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
-  await prisma.renderAsset.upsert({
-    where: { id: `${projectId}-clean` },
-    update: { path: paths.cleanVideo },
-    create: { id: `${projectId}-clean`, projectId, type: "intermediate", path: paths.cleanVideo }
-  });
-  await logProject(projectId, "info", "Clean cut rendered for styled preview.");
+
+  // Stage: clean_cut (cached by original fingerprint + EDL hash + profile)
+  const cleanCacheKey = [
+    await fingerprintFile(project.originalPath),
+    hashJson(edl),
+    `${profile.orientation}:${profile.width}x${profile.height}`,
+  ].join(":");
+  const cleanResult = await ensureArtifact(
+    projectId,
+    "clean_cut",
+    cleanCacheKey,
+    paths.cleanVideo,
+    async () => {
+      await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
+    },
+    { timeoutMs: 5 * 60_000 }
+  );
+  if (!cleanResult.cached) {
+    await prisma.renderAsset.upsert({
+      where: { id: `${projectId}-clean` },
+      update: { path: paths.cleanVideo },
+      create: { id: `${projectId}-clean`, projectId, type: "intermediate", path: paths.cleanVideo }
+    });
+  }
 
   const cleanMetadata = await probeVideo(paths.cleanVideo);
   const subtitles = buildSubtitlesForEdl(transcript, edl);
@@ -170,41 +205,65 @@ async function buildStyledReview(projectId: string) {
   await updateProjectStatus(projectId, "rendering_preview");
 
   if (presentationMode === "cinematic_scenes") {
-    const visualScenePlan = await buildVisualScenePlanWithAi(
-      {
-        transcript,
-        edl,
-        subtitles,
-        contentPlan,
-        stylePreset,
-        duration: cleanMetadata.duration
-      },
+    // Stage: scene_plan (cached by transcript + EDL + contentPlan + planner/registry versions)
+    // If cache hit, AI is NOT called at all — saves API cost and latency.
+    const scenePlanCacheKey = [
+      hashJson(transcript),
+      hashJson(edl),
+      hashJson(contentPlan),
+      SCENE_PLANNER_VERSION,
+      SCENE_REGISTRY_VERSION,
+    ].join(":");
+    let visualScenePlan: VisualScenePlan;
+    const scenePlanResult = await ensureArtifact(
       projectId,
-      (message) => logProject(projectId, "info", message)
+      "scene_plan",
+      scenePlanCacheKey,
+      paths.visualScenePlan,
+      async () => {
+        const plan = await buildVisualScenePlanWithAi(
+          {
+            transcript,
+            edl,
+            subtitles,
+            contentPlan,
+            stylePreset,
+            duration: cleanMetadata.duration
+          },
+          projectId,
+          (message) => logProject(projectId, "info", message)
+        );
+        await writeJsonFile(paths.visualScenePlan, plan);
+      },
+      { timeoutMs: 2 * 60_000 }
     );
-    await writeJsonFile(paths.visualScenePlan, visualScenePlan);
-    await auditProjectEvent(projectId, {
-      phase: "render_preview",
-      step: "visual_scene_plan",
-      kind: "result",
-      summary: `Cinematic scene plan generated with ${visualScenePlan.scenes.length} scenes.`,
-      metadata: { path: paths.visualScenePlan },
-      payload: visualScenePlan,
-    });
+    // Load the plan from disk (whether freshly written or cached)
+    visualScenePlan = JSON.parse(await readFile(paths.visualScenePlan, "utf8")) as VisualScenePlan;
+    if (!scenePlanResult.cached) {
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "visual_scene_plan",
+        kind: "result",
+        summary: `Cinematic scene plan generated with ${visualScenePlan.scenes.length} scenes.`,
+        metadata: { path: paths.visualScenePlan },
+        payload: visualScenePlan,
+      });
+    }
 
     if (visualScenePlan.scenes.length === 0) {
       throw new Error("Cinematic scene planner produced no scenes.");
     }
 
     try {
-      await renderCinematicSceneTimeline(
+      await logStageEvent(projectId, { stage: "cinematic_scenes", status: "started" });
+      await renderSceneFragments(
+        projectId,
         paths.project,
         paths.cleanVideo,
         visualScenePlan,
         profile,
-        cleanMetadata.duration,
-        paths.cinematicSceneVideo,
-        paths.cinematicComposedVideo
+        paths.cinematicComposedVideo,
+        renderProfile
       );
     } catch (cinematicError) {
       const message = cinematicError instanceof Error ? cinematicError.message : String(cinematicError);
@@ -221,9 +280,13 @@ async function buildStyledReview(projectId: string) {
 
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_scene_layer", path: paths.cinematicSceneVideo } });
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_base", path: paths.cinematicComposedVideo } });
-    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, ".mov");
-    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, undefined, "alpha");
-    await overlaySubtitlesLayer(paths.cinematicComposedVideo, subtitlesOverlayPath, profile, paths.subtitledVideo);
+    
+    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_rich";
+    const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
+    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
+    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, undefined, subtitleMode === "final_alpha" ? "alpha" : "chroma");
+    await overlaySubtitlesLayer(paths.cinematicComposedVideo, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
+    
     await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_preview", path: paths.subtitledVideo } });
     await logProject(projectId, "info", `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`);
@@ -338,25 +401,25 @@ async function buildStyledReview(projectId: string) {
   await logProject(projectId, "info", `Generated ${subtitles.length} subtitle chunks (ASS).`);
 
   try {
-    const subtitlesMode = "alpha";
-    const overlayExt = subtitlesMode === "alpha" ? "mov" : "mp4";
+    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_rich";
+    const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
     const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
     
-    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, captionRegion, subtitlesMode);
-    await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, paths.subtitledVideo);
+    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, captionRegion, subtitleMode === "final_alpha" ? "alpha" : "chroma");
+    await overlaySubtitlesLayer(videoForSubtitles, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
     await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
-    await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitlesMode}).`);
+    await logProject(projectId, "info", `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`);
     await auditProjectEvent(projectId, {
       phase: "render_preview",
       step: "subtitles_overlay",
       kind: "result",
-      summary: `Subtitles rendered via HyperFrames overlay (${subtitlesMode}).`,
+      summary: `Subtitles rendered via HyperFrames overlay (${subtitleMode}).`,
       metadata: { subtitlesOverlayPath },
     });
   } catch (hyperframesError) {
     const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
     await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
-    await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, paths.subtitledVideo);
+    await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, renderProfile, paths.subtitledVideo);
     await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS fallback.");
     await auditProjectEvent(projectId, {
       phase: "render_preview",

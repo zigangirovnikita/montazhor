@@ -14,6 +14,59 @@ export function scalePadFilter(profile: VideoProfile) {
   ].join(",");
 }
 
+export type RenderProfile = "draft" | "review" | "final";
+
+// Draft preview: 720p, 24fps, CRF 30, superfast
+export function draftPreviewMp4OutputArgs() {
+  return [
+    "-c:v", "libx264",
+    "-preset", "superfast",
+    "-crf", "30",
+    "-r", "24",
+    "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-movflags", "+faststart",
+  ];
+}
+
+// Review preview: 1080p, 24fps, CRF 26, superfast
+export function reviewPreviewMp4OutputArgs() {
+  return [
+    "-c:v", "libx264",
+    "-preset", "superfast",
+    "-crf", "26",
+    "-r", "24",
+    "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-movflags", "+faststart",
+  ];
+}
+
+// Intermediate profile for cached fragments feeding final
+export function intermediateMp4OutputArgs() {
+  return [
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-r", "30",
+    "-pix_fmt", "yuv420p",
+    "-c:a", "pcm_s16le",
+    "-movflags", "+faststart",
+  ];
+}
+
+// Final production profile: 1080p, 30fps, 4000k CBR
+export function finalMp4OutputArgs() {
+  return [
+    ...standardVideoEncodeArgs(),
+    ...standardAudioEncodeArgs(),
+    "-movflags",
+    "+faststart"
+  ];
+}
+
 export function standardVideoEncodeArgs() {
   return [
     "-c:v",
@@ -73,4 +126,27 @@ export function standardMp4OutputArgs() {
     "-movflags",
     "+faststart"
   ];
+}
+
+export function outputArgsForProfile(profile: RenderProfile) {
+  switch (profile) {
+    case "draft":
+      return draftPreviewMp4OutputArgs();
+    case "review":
+      return reviewPreviewMp4OutputArgs();
+    case "final":
+      return finalMp4OutputArgs();
+  }
+}
+
+export function previewScaleFilter(profile: VideoProfile, renderProfile: RenderProfile): string {
+  if (renderProfile !== "draft") {
+    // review/final stay at native size
+    return `scale=${profile.width}:${profile.height}`;
+  }
+  // draft preview is 720p
+  if (profile.orientation === "portrait") {
+    return "scale=720:-2";
+  }
+  return "scale=-2:720";
 }

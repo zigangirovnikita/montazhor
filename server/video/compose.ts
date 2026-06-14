@@ -1,21 +1,23 @@
-import { standardMp4OutputArgs } from "@/server/video/encoding";
+import { outputArgsForProfile, type RenderProfile } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 
 /**
- * Final loudness normalization pass (EBU R128).
- * Visual overlay compositing happens upstream in semanticOverlay.ts.
+ * Final compositing and normalization pass.
+ * Loudnorm is skipped for fast preview rendering.
  */
 export async function composeFinalVideo(
   inputPath: string,
-  outputPath: string
+  outputPath: string,
+  renderProfile: RenderProfile
 ) {
+  const audioArgs = renderProfile === "final" ? ["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"] : [];
+
   await runCommand(ffmpegPath(), [
     "-y",
     "-i",
     inputPath,
-    "-af",
-    "loudnorm=I=-16:TP=-1.5:LRA=11",
-    ...standardMp4OutputArgs(),
+    ...audioArgs,
+    ...outputArgsForProfile(renderProfile),
     outputPath
   ]);
 }

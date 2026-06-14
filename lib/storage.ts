@@ -60,6 +60,8 @@ export function pathsForProject(projectId: string) {
     subtitledVideo: path.join(project, "subtitled.mp4"),
     reviewVideo: path.join(project, "review.mp4"),
     finalVideo: path.join(project, "final.mp4"),
+    previewVideo: path.join(project, "preview.mp4"),
+    sceneFragmentsDir: path.join(project, "scene-fragments"),
     motionDir: path.join(project, "motion"),
     auditDir: path.join(project, "audit")
   };

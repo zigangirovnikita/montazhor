@@ -12,6 +12,23 @@ export function aisTechSceneTemplate(plan: VisualScenePlan, profile: VideoProfil
     transitionOut: scene.transitionOut
   })));
 
+  return renderHtmlShell(scenes, timeline, duration, profile);
+}
+
+export function aisTechSceneFragmentTemplate(scene: VisualScenePlan["scenes"][number], profile: VideoProfile) {
+  const scenes = sceneHtml(scene, 0);
+  const timeline = JSON.stringify([{
+    index: 0,
+    start: 0,
+    duration: scene.duration,
+    transitionIn: scene.transitionIn,
+    transitionOut: scene.transitionOut
+  }]);
+
+  return renderHtmlShell(scenes, timeline, scene.duration, profile);
+}
+
+function renderHtmlShell(scenes: string, timeline: string, duration: number, profile: VideoProfile) {
   return `<!doctype html>
 <html>
   <head>
