@@ -171,7 +171,6 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticOverlayMp4);
   await safeUnlink(paths.cinematicSceneVideo);
-  await safeUnlink(paths.cinematicComposedVideo);
 
   // Stage: clean_cut (cached by original fingerprint + EDL hash + profile)
   const cleanCacheKey = [
@@ -281,13 +280,19 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_scene_layer", path: paths.cinematicSceneVideo } });
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_base", path: paths.cinematicComposedVideo } });
     
-    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_rich";
-    const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
-    const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
-    await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, undefined, subtitleMode === "final_alpha" ? "alpha" : "chroma");
-    await overlaySubtitlesLayer(paths.cinematicComposedVideo, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
-    
-    await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+    const subtitleMode: SubtitleRenderMode = renderProfile === "final" ? "final_alpha" : "preview_fast";
+    if (subtitleMode === "preview_fast") {
+      await writeFile(paths.subtitlesAss, assFromSubtitles(subtitles, stylePreset, profile, undefined), "utf8");
+      await burnSubtitles(paths.cinematicComposedVideo, paths.subtitlesAss, profile, renderProfile, paths.subtitledVideo);
+      const subtitlesOverlayPath = paths.subtitledVideo; // Mock path since we burn directly
+      await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+    } else {
+      const overlayExt = subtitleMode === "final_alpha" ? "mov" : "mp4";
+      const subtitlesOverlayPath = paths.subtitlesOverlayMp4.replace(/\.mp4$/, `.${overlayExt}`);
+      await renderSubtitlesLayerViaHyperFrames(paths.project, subtitles, stylePreset, profile, subtitlesOverlayPath, undefined, subtitleMode === "final_alpha" ? "alpha" : "chroma");
+      await overlaySubtitlesLayer(paths.cinematicComposedVideo, subtitlesOverlayPath, profile, renderProfile, paths.subtitledVideo);
+      await prisma.renderAsset.create({ data: { projectId, type: "subtitle", path: subtitlesOverlayPath } });
+    }
     await prisma.renderAsset.create({ data: { projectId, type: "cinematic_preview", path: paths.subtitledVideo } });
     await logProject(projectId, "info", `Cinematic scenes rendered with ${visualScenePlan.scenes.length} directed scenes and subtitle overlay.`);
     await auditProjectEvent(projectId, {

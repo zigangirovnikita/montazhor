@@ -3,7 +3,7 @@ import path from "node:path";
 import type { VisualScenePlan } from "@/lib/types";
 import { renderHyperframesVideo } from "@/server/hyperframes/render";
 import { aisTechSceneFragmentTemplate } from "@/server/hyperframes/templates/AisTechScene";
-import { outputArgsForProfile, type RenderProfile } from "@/server/video/encoding";
+import { outputArgsForProfile, previewScaleFilter, type RenderProfile } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
@@ -27,6 +27,8 @@ export async function renderSceneFragments(
   const cleanFingerprint = await fingerprintFile(cleanVideoPath);
   const fragmentPaths: string[] = [];
 
+  const fragmentCacheKeys: string[] = [];
+
   for (const [index, scene] of plan.scenes.entries()) {
     const fragmentName = `scene_${index}.mp4`;
     const fragmentPath = path.join(motionDir, fragmentName);
@@ -42,15 +44,22 @@ export async function renderSceneFragments(
         const tempDir = path.join(motionDir, `temp_${index}`);
         await mkdir(tempDir, { recursive: true });
         await writeFile(path.join(tempDir, "index.html"), aisTechSceneFragmentTemplate(scene, profile), "utf8");
-        await renderHyperframesVideo(tempDir, fragmentPath, { signal });
+        await renderHyperframesVideo(tempDir, fragmentPath, { signal, normalize: false });
       },
       { timeoutMs: 2 * 60_000 }
     );
+    fragmentCacheKeys.push(cacheKey);
     fragmentPaths.push(fragmentPath);
   }
 
   // Cache cinematic_compose via ensureArtifact
-  const composeCacheKey = [cleanFingerprint, hashJson(fragmentPaths), "compose_v1", renderProfile].join(":");
+  const composeCacheKey = [
+    cleanFingerprint,
+    ...fragmentCacheKeys,
+    hashJson(plan.scenes.map(s => ({ id: s.id, start: s.start, duration: s.duration, layoutMode: s.layoutMode }))),
+    "compose_v1",
+    renderProfile
+  ].join(":");
   await ensureArtifact(
     projectId,
     `cinematic_compose_${renderProfile}`,
@@ -90,7 +99,7 @@ async function composeFragmentsOntoClean(
     isPip: scene.layoutMode === "pip" || scene.layoutMode === "full_frame" || scene.layoutMode === "split"
   })).filter(x => x.isPip);
 
-  const filter = buildFragmentsComposeFilter(plan.scenes, pipScenes, profile);
+  const filter = buildFragmentsComposeFilter(plan.scenes, pipScenes, profile, renderProfile);
 
   const inputs: string[] = [];
   fragmentPaths.forEach(fp => inputs.push("-i", fp));
@@ -110,7 +119,8 @@ async function composeFragmentsOntoClean(
 function buildFragmentsComposeFilter(
   scenes: VisualScenePlan["scenes"],
   pipScenes: { scene: VisualScenePlan["scenes"][number]; index: number }[],
-  profile: VideoProfile
+  profile: VideoProfile,
+  renderProfile: RenderProfile
 ) {
   const chains: string[] = [];
   const splitLabels = ["basein", ...pipScenes.map((p) => `pipin${p.index}`)];
@@ -135,14 +145,14 @@ function buildFragmentsComposeFilter(
   const lastOverlayLayer = `v${scenes.length}`;
 
   if (pipScenes.length === 0) {
-    chains.push(`[${lastOverlayLayer}]copy[v_out]`);
+    chains.push(`[${lastOverlayLayer}]copy[v_pre_scale]`);
   } else {
     pipScenes.forEach((p, i) => {
       const pip = speakerBox(profile, p.scene.layoutMode);
       const input = `pipin${p.index}`;
       const scaled = `pip${p.index}`;
       const previous = i === 0 ? lastOverlayLayer : `pipout${i - 1}`;
-      const next = i === pipScenes.length - 1 ? `v_out` : `pipout${i}`;
+      const next = i === pipScenes.length - 1 ? `v_pre_scale` : `pipout${i}`;
       const start = round(p.scene.start);
       const end = round(p.scene.start + p.scene.duration);
       
@@ -152,6 +162,8 @@ function buildFragmentsComposeFilter(
       );
     });
   }
+
+  chains.push(`[v_pre_scale]${previewScaleFilter(profile, renderProfile)}[v_out]`);
 
   return chains.join(";");
 }
