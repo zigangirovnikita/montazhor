@@ -120,7 +120,7 @@ function compileOverlayBeats(
 
 function compileFullScene(block: ScenePlanBlock, recipeId: ScenePlanBlock["recipeId"], summary: string): VisualScene {
   const recipeDef = getSceneRecipe(recipeId);
-  const payload = Object.assign({}, ...block.layerPlan.filter((layer) => layer.enabled).map((layer) => layer.payload));
+  const payload = buildFullScenePayload(block, recipeDef.id, summary);
   return {
     id: `${block.id}-full`,
     start: round(block.start),
@@ -128,12 +128,73 @@ function compileFullScene(block: ScenePlanBlock, recipeId: ScenePlanBlock["recip
     sceneType: (recipeDef.visualMapping.fullSceneType ?? "pip_slide") as VisualScene["sceneType"],
     presetId: recipeId,
     layoutMode: recipeDef.visualMapping.layoutMode ?? "overlay",
+    speakerMode: block.speakerMode,
     sourceText: summary,
     payload,
     safeRegionPolicy: block.speakerMode === "hidden" ? "full_frame" : block.speakerMode === "pip" ? "pip_safe" : "avoid_speaker",
     transitionIn: block.transitionIn === "wipe" ? "slide" : block.transitionIn === "cut" ? "fade" : block.transitionIn,
     transitionOut: block.transitionOut === "zoom" || block.transitionOut === "wipe" ? "slide" : block.transitionOut
   };
+}
+
+function buildFullScenePayload(
+  block: ScenePlanBlock,
+  recipeId: ScenePlanBlock["recipeId"],
+  summary: string
+) {
+  const payload = Object.assign({}, ...block.layerPlan.filter((layer) => layer.enabled).map((layer) => layer.payload));
+  const title = readText(payload.title ?? payload.text) ?? summary;
+  const subtitle = readText(payload.subtitle);
+  const items = normalizeItems(payload.items, summary);
+  const [left, right] = splitPair(readText(payload.left), readText(payload.right), summary);
+
+  if (recipeId === "comparison_split") {
+    return {
+      eyebrow: "COMPARE",
+      left,
+      right,
+      caption: readText(payload.caption)
+    };
+  }
+  if (recipeId === "speaker_lower_half_top_visual") {
+    return {
+      eyebrow: "SEQUENCE",
+      title,
+      items
+    };
+  }
+  if (recipeId === "speaker_right_panel_left_infographic") {
+    return {
+      eyebrow: "SYSTEM",
+      value: readText(payload.value) ?? "01",
+      label: readText(payload.label) ?? title,
+      caption: subtitle
+    };
+  }
+  if (recipeId === "trust_diagram") {
+    return {
+      eyebrow: "TRUST MAP",
+      title,
+      center: readText(payload.center) ?? "TRUST",
+      left,
+      right
+    };
+  }
+  if (recipeId === "voiceover_full_graphic") {
+    return {
+      eyebrow: "KEY POINTS",
+      items
+    };
+  }
+  if (recipeId === "camera_punch_in") {
+    return {
+      eyebrow: "KEY IDEA",
+      title,
+      subtitle
+    };
+  }
+
+  return payload;
 }
 
 function decoratePayloadForBeat(basePayload: Record<string, unknown>, anchorText: string | undefined, fallbackApplied: boolean) {
@@ -207,4 +268,34 @@ function fallbackPresetForTemplate(templateId: VisualBeat["templateId"]) {
 
 function round(value: number) {
   return Math.round(value * 1000) / 1000;
+}
+
+function normalizeItems(value: unknown, summary: string) {
+  const rawItems = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  const normalized = rawItems.slice(0, 3).map((item, index) => ({
+    index: String(index + 1).padStart(2, "0"),
+    title: item.split(/\s+/).slice(0, 4).join(" "),
+    text: item
+  }));
+
+  if (normalized.length > 0) return normalized;
+
+  const fallback = summary.split(/\s+/).slice(0, 9).join(" ");
+  return [{
+    index: "01",
+    title: fallback,
+    text: fallback
+  }];
+}
+
+function readText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function splitPair(left: string | undefined, right: string | undefined, summary: string) {
+  if (left && right) return [left, right] as const;
+  const fallback = summary.split(/[,:;]| и | and /i).map((item) => item.trim()).filter(Boolean);
+  return [left ?? fallback[0] ?? summary, right ?? fallback[1] ?? fallback[0] ?? summary] as const;
 }

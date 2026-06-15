@@ -161,6 +161,13 @@ How to use:
 ### 2026-06-15 — Scene-plan cache now invalidates on planner-version change
 
 - Problem: the new montage rebalance logic was present in code, but `renderScenePipeline` reused an old `scene-plan.json` whenever semantic block ids and template id matched, so behavior changes in the planner could be silently ignored on rerender.
-- Decision: version the planner output explicitly (`SCENE_PLAN_VERSION = v2`) and reject reusable scene-plan artifacts whose saved `version` no longer matches the current planner logic.
+- Decision: version the planner output explicitly (`SCENE_PLAN_VERSION`, currently `v3`) and reject reusable scene-plan artifacts whose saved `version` no longer matches the current planner logic.
 - Result: rerenders now rebuild the scene plan when planner behavior changes, instead of serving stale block recipes from a previous architecture revision.
 - Follow-up: if scene-compiler compatibility changes become more frequent, add the same explicit version gate for any future reusable compiled-scene-plan layer as well.
+
+### 2026-06-15 — Cinematic baseline restored inside the new scene engine
+
+- Problem: the new block-based scene pipeline kept the right architecture, but it had drifted away from the strongest 2026-06-14 cinematic behavior: deterministic recipe choice became too flat, some full-scene payloads no longer matched the old AIS cinematic renderer, and speaker compositing still treated `layoutMode` as if every `full_frame` scene needed a PIP box.
+- Decision: keep the current scene-engine architecture, but reintroduce the strongest old cinematic heuristics as a focused deterministic recipe selector, trim duplicate subtitle/title payloads, normalize full-scene payloads for AIS renderer contracts, and drive speaker-box compositing from `speakerMode` instead of blindly from `layoutMode`.
+- Result: the current build now preserves the newer scene-library/compiler pipeline while regaining more varied scene choice, better timeline/card/trust-map payloads, less duplicate on-screen text, and safer speaker placement in full-scene compositions.
+- Follow-up: validate this branch on the remote `/opt/montazhor` runtime with a known-good talking-head fixture and tune any remaining layout defects per recipe instead of broad planner changes.

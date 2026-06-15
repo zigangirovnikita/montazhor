@@ -96,7 +96,7 @@ async function composeFragmentsOntoClean(
   const pipScenes = plan.scenes.map((scene, index) => ({
     scene,
     index,
-    isPip: scene.layoutMode === "pip" || scene.layoutMode === "full_frame" || scene.layoutMode === "split"
+    isPip: scene.speakerMode === "pip" || scene.speakerMode === "reframed"
   })).filter(x => x.isPip);
 
   const filter = buildFragmentsComposeFilter(plan.scenes, pipScenes, profile, renderProfile);
@@ -148,7 +148,7 @@ function buildFragmentsComposeFilter(
     chains.push(`[${lastOverlayLayer}]copy[v_pre_scale]`);
   } else {
     pipScenes.forEach((p, i) => {
-      const pip = speakerBox(profile, p.scene.layoutMode);
+      const pip = speakerBox(profile, p.scene.layoutMode, p.scene.speakerMode);
       const input = `pipin${p.index}`;
       const scaled = `pip${p.index}`;
       const previous = i === 0 ? lastOverlayLayer : `pipout${i - 1}`;
@@ -168,8 +168,13 @@ function buildFragmentsComposeFilter(
   return chains.join(";");
 }
 
-function speakerBox(profile: VideoProfile, layoutMode: VisualScenePlan["scenes"][number]["layoutMode"]) {
+function speakerBox(
+  profile: VideoProfile,
+  layoutMode: VisualScenePlan["scenes"][number]["layoutMode"],
+  speakerMode: VisualScenePlan["scenes"][number]["speakerMode"]
+) {
   if (layoutMode === "split") return splitSpeakerBox(profile);
+  if (layoutMode === "full_frame" && speakerMode === "reframed") return lowerHalfSpeakerBox(profile);
   return pipBox(profile);
 }
 
@@ -209,6 +214,24 @@ function pipBox(profile: VideoProfile) {
     height,
     x: profile.width - width - 82,
     y: profile.height - height - 70
+  };
+}
+
+function lowerHalfSpeakerBox(profile: VideoProfile) {
+  if (profile.orientation === "portrait") {
+    return {
+      width: profile.width,
+      height: Math.round(profile.height * 0.4),
+      x: 0,
+      y: Math.round(profile.height * 0.6)
+    };
+  }
+
+  return {
+    width: Math.round(profile.width * 0.38),
+    height: profile.height,
+    x: Math.round(profile.width * 0.62),
+    y: 0
   };
 }
 

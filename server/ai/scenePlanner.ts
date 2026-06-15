@@ -11,12 +11,13 @@ import { getAiConfigForTask } from "@/lib/config";
 import { callChatCompletion } from "@/server/ai/openRouterClient";
 import { recordAiUsage } from "@/server/ai/usage";
 import { buildScenePlannerSystemPrompt, buildScenePlannerUserPrompt } from "@/server/ai/scenePlannerPrompts";
+import { choosePreferredRecipe, defaultSpeakerModeForRecipe } from "@/server/ai/scenePlannerHeuristics";
 import { scenePlanSchema } from "@/server/scene/scenePlanSchema";
 import type { TemplateSceneCapabilities } from "@/server/scene/sceneCompatibility";
 import { getSceneRecipe, listSceneRecipesForBlockType } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock } from "@/server/scene/microBeatPlanner";
 
-export const SCENE_PLAN_VERSION = "v2";
+export const SCENE_PLAN_VERSION = "v3";
 
 interface BuildScenePlanInput {
   semanticBlocks: SemanticBlock[];
@@ -76,7 +77,7 @@ export function buildDeterministicScenePlan(input: BuildScenePlanInput): ScenePl
 function buildPlanBlock(block: SemanticBlock, index: number, input: BuildScenePlanInput): ScenePlanBlock {
   const allowedRecipes = listSceneRecipesForBlockType(block.type)
     .filter((recipeDef) => input.capabilities.allowedRecipeIds.includes(recipeDef.id));
-  const preferredRecipeId = defaultRecipeForBlock(block.type, input.capabilities);
+  const preferredRecipeId = choosePreferredRecipe(block, index, input.capabilities);
   const recipeDef = allowedRecipes.find((recipeDef) => recipeDef.id === preferredRecipeId)
     ?? allowedRecipes[0]
     ?? getSceneRecipe(preferredRecipeId);
@@ -89,7 +90,7 @@ function buildPlanBlock(block: SemanticBlock, index: number, input: BuildScenePl
     blockType: block.type,
     sceneCategory: recipeDef.category,
     recipeId: recipeDef.id,
-    speakerMode: defaultSpeakerMode(recipeDef.allowedSpeakerModes),
+    speakerMode: defaultSpeakerModeForRecipe(recipeDef.allowedSpeakerModes),
     layerPlan: buildLayerPlan(block, recipeDef.id),
     microBeats,
     intensity: block.type === "hook" || block.type === "cta" ? "strong" : block.type === "warning" ? "balanced" : "safe",
@@ -112,14 +113,14 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
       kind: "title",
       emphasis: "primary",
       enabled: true,
-      payload: { text: block.summary }
+      payload: { text: conciseTitle(block.summary) }
     },
     {
       id: `${block.id}-subtitle`,
       kind: "subtitle",
       emphasis: "support",
-      enabled: block.wordCount > 5,
-      payload: { text: block.text }
+      enabled: shouldRenderSubtitle(block, recipeId),
+      payload: { text: subtitleText(block) }
     }
   ];
 
@@ -144,7 +145,11 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
         kind: "comparison",
         emphasis: "dominant",
         enabled: true,
-        payload: { left: left ?? block.summary, right: right ?? block.text }
+        payload: {
+          left: left ?? conciseTitle(block.summary),
+          right: right ?? subtitleText(block) ?? block.text,
+          caption: block.type === "myth_vs_truth" ? undefined : block.text
+        }
       }
     ];
   }
@@ -156,7 +161,56 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
         kind: "number",
         emphasis: "dominant",
         enabled: true,
-        payload: { value: firstNumber(block.text) ?? "1", label: block.summary }
+        payload: {
+          value: firstNumber(block.text) ?? "1",
+          label: conciseTitle(block.summary),
+          text: subtitleText(block) ?? block.text
+        }
+      }
+    ];
+  }
+  if (recipeId === "speaker_right_panel_left_infographic" || recipeId === "trust_diagram") {
+    return [
+      ...baseLayers,
+      {
+        id: `${block.id}-chart`,
+        kind: "chart",
+        emphasis: "dominant",
+        enabled: true,
+        payload: { items: splitItems(block.text) }
+      },
+      {
+        id: `${block.id}-number`,
+        kind: "number",
+        emphasis: "support",
+        enabled: Boolean(firstNumber(block.text)),
+        payload: {
+          value: firstNumber(block.text) ?? "1",
+          label: conciseTitle(block.summary)
+        }
+      }
+    ];
+  }
+  if (recipeId === "voiceover_full_graphic" || recipeId === "speaker_lower_half_top_visual") {
+    return [
+      ...baseLayers,
+      {
+        id: `${block.id}-chart`,
+        kind: "chart",
+        emphasis: "dominant",
+        enabled: true,
+        payload: { items: splitItems(block.text) }
+      }
+    ];
+  }
+  if (recipeId === "quote_emphasis") {
+    return [
+      {
+        id: `${block.id}-quote`,
+        kind: "quote",
+        emphasis: "dominant",
+        enabled: true,
+        payload: { quote: block.text }
       }
     ];
   }
@@ -167,7 +221,7 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
         kind: "cta",
         emphasis: "dominant",
         enabled: true,
-        payload: { text: block.text }
+        payload: { text: conciseTitle(block.text), label: "ACTION" }
       }
     ];
   }
@@ -178,7 +232,7 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
         kind: "transition",
         emphasis: "primary",
         enabled: true,
-        payload: { title: block.summary }
+        payload: { title: conciseTitle(block.summary) }
       }
     ];
   }
@@ -241,7 +295,7 @@ function rebalanceMontageRecipes(blocks: ScenePlanBlock[], input: BuildScenePlan
       recipeId: alternativeRecipe.id,
       sceneCategory: alternativeRecipe.category,
       layerPlan: buildLayerPlan(semanticBlock, alternativeRecipe.id),
-      speakerMode: defaultSpeakerMode(alternativeRecipe.allowedSpeakerModes),
+      speakerMode: defaultSpeakerModeForRecipe(alternativeRecipe.allowedSpeakerModes),
       fallbackRecipeId: alternativeRecipe.fallbackRecipeId,
       recommendedRecipeId: alternativeRecipe.id,
       rationale: `${block.rationale} Rebalanced from ${block.recipeId} to ${alternativeRecipe.id} to avoid adjacent repeated scene recipes.`
@@ -295,29 +349,35 @@ function parseJsonObject(raw: string) {
   }
 }
 
-function defaultRecipeForBlock(blockType: SemanticBlock["type"], capabilities: TemplateSceneCapabilities) {
-  if (blockType === "hook") return capabilities.preferredHookRecipeId;
-  if (blockType === "cta") return capabilities.preferredCtaRecipeId;
-  if (blockType === "list") return "checklist_reveal";
-  if (blockType === "comparison" || blockType === "myth_vs_truth") return "comparison_split";
-  if (blockType === "warning") return "big_number_plus_text_plate";
-  if (blockType === "proof") return capabilities.fullSceneEnabled ? "speaker_right_panel_left_infographic" : "big_number_grow";
-  if (blockType === "transition") return "clean_section_transition";
-  if (blockType === "definition") return capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "definition_card";
-  if (blockType === "timeline") return "timeline_year_callout";
-  return capabilities.fullSceneEnabled ? "speaker_lower_half_top_visual" : "hook_title_left";
-}
-
-function defaultSpeakerMode(allowed: SpeakerMode[]) {
-  return allowed.includes("reframed") ? "reframed" : allowed[0] ?? "full_frame";
-}
-
 function splitItems(text: string) {
   return text
     .split(/[,:;]| и | and /i)
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 4);
+}
+
+function shouldRenderSubtitle(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId"]) {
+  if (recipeId === "quote_emphasis" || recipeId === "cta_finish" || recipeId === "clean_section_transition") return false;
+  const subtitle = subtitleText(block);
+  return Boolean(subtitle && subtitle !== conciseTitle(block.summary));
+}
+
+function subtitleText(block: SemanticBlock) {
+  const trimmed = block.text.trim();
+  if (!trimmed) return "";
+  if (trimmed === block.summary.trim()) return "";
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= 10) return trimmed;
+  return words.slice(0, 12).join(" ");
+}
+
+function conciseTitle(text: string) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(" ");
 }
 
 function firstNumber(text: string) {

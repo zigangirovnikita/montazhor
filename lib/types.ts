@@ -288,6 +288,7 @@ export interface VisualScene {
   sceneType: VisualSceneType;
   presetId: string;
   layoutMode: VisualSceneLayoutMode;
+  speakerMode?: SpeakerMode;
   sourceText: string;
   payload: Record<string, unknown>;
   safeRegionPolicy: "avoid_speaker" | "full_frame" | "pip_safe";
