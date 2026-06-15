@@ -143,3 +143,10 @@ How to use:
 - Decision: keep the scene/block render architecture unchanged, but downgrade only the overlay compose implementation to batched passes. The default `HYPERFRAMES_OVERLAY_COMPOSE_BATCH_SIZE` is now `6`, with env override support up to `12`.
 - Result: the final overlay compose no longer needs one memory-explosive FFmpeg graph over all fragments at once; it can progress through bounded batches on the current server.
 - Follow-up: if we later add a true streamable compositor or a much larger server memory budget, we can revisit the batch size without changing planner/compiler behavior.
+
+### 2026-06-15 — Montage cleanup for duplicated inserts and hiss
+
+- Problem: the new scene path produced ugly repetition because one semantic block was compiled into many identical overlay cards, and the review path then burned a separate subtitle pass over the same spoken text layer. Audio also degraded because intermediate overlay-compose passes repeatedly re-encoded AAC.
+- Decision: change the overlay compiler so each block gets one primary semantic insert plus limited speech-support beats instead of repeated identical cards; skip standalone subtitle burn when scene composition already owns the spoken text layer; copy audio through intermediate overlay-compose passes instead of re-encoding it every time.
+- Result: the visual direction is closer to editorial montage instead of duplicated cards, and the audio path removes the most obvious source of hiss accumulation.
+- Follow-up: if some recipes still feel too static after this, tune recipe-specific support-beat behavior rather than reintroducing generic repeated panel triggers.

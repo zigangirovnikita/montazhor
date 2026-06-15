@@ -128,6 +128,9 @@ async function overlaySemanticFragmentsInBatches(
     const passOutput = isLastBatch
       ? outputPath
       : path.join(workDir, `pass-${String(offset / batchSize).padStart(3, "0")}.mp4`);
+    const encodeArgs = isLastBatch
+      ? standardMp4OutputArgs()
+      : intermediateOverlayPassArgs();
 
     await runCommand(ffmpegPath(), [
       "-y",
@@ -140,7 +143,7 @@ async function overlaySemanticFragmentsInBatches(
       `[v${batch.length}]`,
       "-map",
       "0:a:0",
-      ...standardMp4OutputArgs(),
+      ...encodeArgs,
       passOutput
     ]);
 
@@ -170,6 +173,22 @@ function overlayComposeBatchSize() {
   const raw = Number(process.env.HYPERFRAMES_OVERLAY_COMPOSE_BATCH_SIZE ?? "6");
   if (!Number.isFinite(raw)) return 6;
   return Math.max(1, Math.min(12, Math.trunc(raw)));
+}
+
+function intermediateOverlayPassArgs() {
+  return [
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-profile:v", "high",
+    "-level:v", "4.1",
+    "-pix_fmt", "yuv420p",
+    "-r", "30",
+    "-g", "60",
+    "-keyint_min", "60",
+    "-sc_threshold", "0",
+    "-movflags", "+faststart",
+    "-c:a", "copy"
+  ];
 }
 
 function round(value: number) {

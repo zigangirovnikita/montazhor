@@ -95,19 +95,27 @@ function compileOverlayBeats(
     anchorText: block.layerPlan.find((layer) => layer.kind === "title")?.payload.text as string | undefined
   }];
 
-  return beats.map((microBeat, index) => ({
-    id: `${block.id}-overlay-${index + 1}`,
-    start: round(Math.max(block.start, microBeat.start)),
-    duration: round(Math.max(0.35, Math.min(block.end, microBeat.end) - Math.max(block.start, microBeat.start))),
+  const supportBeats = buildSupportingSpeechBeats(block, beats, motionId);
+  const primaryStart = round(Math.max(block.start, beats[0]?.start ?? block.start));
+  const primaryEnd = supportBeats[0]
+    ? round(Math.max(primaryStart + 0.6, Math.min(block.end, supportBeats[0].start - 0.08)))
+    : round(Math.min(block.end, primaryStart + primaryOverlayDuration(block, recipeDef.id)));
+
+  const primaryBeat: VisualBeat = {
+    id: `${block.id}-overlay-primary`,
+    start: primaryStart,
+    duration: round(Math.max(0.45, primaryEnd - primaryStart)),
     templateId,
     presetId,
     motionId,
     layout,
-    payload: decoratePayloadForBeat(basePayload, microBeat.anchorText, fallbackApplied),
+    payload: decoratePayloadForBeat(basePayload, beats[0]?.anchorText, fallbackApplied),
     sourceMomentId: block.blockId,
     role: layers.some((layer) => layer.kind === "cta") ? "cta" : "semantic_accent",
     variant: fallbackApplied ? "safe" : block.intensity === "strong" ? "hero" : "standard"
-  })) satisfies VisualBeat[];
+  };
+
+  return [primaryBeat, ...supportBeats];
 }
 
 function compileFullScene(block: ScenePlanBlock, recipeId: ScenePlanBlock["recipeId"], summary: string): VisualScene {
@@ -134,6 +142,50 @@ function decoratePayloadForBeat(basePayload: Record<string, unknown>, anchorText
   if (!payload.title && typeof payload.text === "string") payload.title = payload.text;
   if (fallbackApplied) payload.subtext = payload.subtext ?? "safe mode";
   return payload;
+}
+
+function buildSupportingSpeechBeats(
+  block: ScenePlanBlock,
+  beats: ScenePlanBlock["microBeats"],
+  motionId: VisualBeat["motionId"]
+): VisualBeat[] {
+  if (block.recipeId === "cta_finish" || block.recipeId === "clean_section_transition") return [];
+
+  const selected = beats
+    .filter((beat) => beat.start >= block.start + 1.1)
+    .filter((beat, index) => index % 2 === 0)
+    .slice(0, block.end - block.start >= 5 ? 3 : 2);
+
+  let lastEnd = block.start;
+
+  return selected.map((beat, index) => {
+    const start = Math.max(lastEnd + 0.08, beat.start);
+    const end = Math.min(block.end, Math.max(start + 0.42, beat.end));
+    lastEnd = end;
+    return {
+      id: `${block.id}-overlay-support-${index + 1}`,
+      start: round(start),
+      duration: round(Math.max(0.4, end - start)),
+      templateId: "kinetic_text",
+      presetId: "kinetic_phrase_clean",
+      motionId,
+      layout: "lower_third",
+      payload: {
+        text: beat.anchorText ?? "",
+        sourceText: beat.anchorText ?? "",
+        emphasis: beat.anchorText ?? ""
+      },
+      sourceMomentId: block.blockId,
+      role: "speech_text",
+      variant: "compact"
+    };
+  });
+}
+
+function primaryOverlayDuration(block: ScenePlanBlock, recipeId: ScenePlanBlock["recipeId"]) {
+  if (recipeId === "cta_finish") return 1.8;
+  if (recipeId === "clean_section_transition") return 1.1;
+  return Math.min(1.6, Math.max(0.95, (block.end - block.start) * 0.38));
 }
 
 function chooseLayout(layouts: Array<"left" | "right" | "center" | "lower_third" | "full_frame">, orientation: VisualFrameProfile["orientation"]) {
