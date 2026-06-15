@@ -16,7 +16,7 @@ import type { TemplateSceneCapabilities } from "@/server/scene/sceneCompatibilit
 import { getSceneRecipe, listSceneRecipesForBlockType } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock } from "@/server/scene/microBeatPlanner";
 
-export const SCENE_PLAN_VERSION = "v1";
+export const SCENE_PLAN_VERSION = "v2";
 
 interface BuildScenePlanInput {
   semanticBlocks: SemanticBlock[];

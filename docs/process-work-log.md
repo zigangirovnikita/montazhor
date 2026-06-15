@@ -157,3 +157,10 @@ How to use:
 - Decision: add a deterministic rebalance pass in `scenePlanner` that swaps adjacent repeated recipes to a compatible alternative from the shared scene library whenever the template allows it, including safe fallback-recipe alternation for tightly repeated endings and list/proof runs.
 - Result: scene plans now keep the same semantic intent while varying neighboring mise-en-scene instead of stacking identical checklist/CTA/comparison treatments back to back.
 - Follow-up: if needed later, add recipe-specific layout alternation on top of this so repeated fallback-only cases can still vary position and framing without changing block semantics.
+
+### 2026-06-15 — Scene-plan cache now invalidates on planner-version change
+
+- Problem: the new montage rebalance logic was present in code, but `renderScenePipeline` reused an old `scene-plan.json` whenever semantic block ids and template id matched, so behavior changes in the planner could be silently ignored on rerender.
+- Decision: version the planner output explicitly (`SCENE_PLAN_VERSION = v2`) and reject reusable scene-plan artifacts whose saved `version` no longer matches the current planner logic.
+- Result: rerenders now rebuild the scene plan when planner behavior changes, instead of serving stale block recipes from a previous architecture revision.
+- Follow-up: if scene-compiler compatibility changes become more frequent, add the same explicit version gate for any future reusable compiled-scene-plan layer as well.

@@ -1,7 +1,7 @@
 import { copyFile, readFile } from "node:fs/promises";
 import type { ContentPlan, EditDecisionList, PresentationMode, ScenePlan, StylePreset, SubtitleDraft, TranscriptJson, VisualPlanOptions } from "@/lib/types";
 import { writeJsonFile } from "@/lib/storage";
-import { buildScenePlan } from "@/server/ai/scenePlanner";
+import { buildScenePlan, SCENE_PLAN_VERSION } from "@/server/ai/scenePlanner";
 import { buildSemanticBlocks } from "@/server/scene/blockPlanner";
 import { resolveTemplateSceneCapabilities } from "@/server/scene/sceneCompatibility";
 import { compileScenePlan } from "@/server/scene/sceneCompiler";
@@ -80,6 +80,7 @@ async function loadReusableScenePlan(filePath: string, semanticBlocks: ScenePlan
   try {
     const raw = JSON.parse(await readFile(filePath, "utf8")) as ScenePlan;
     if (!Array.isArray(raw.blocks) || !Array.isArray(raw.semanticBlocks)) return null;
+    if (raw.version !== SCENE_PLAN_VERSION) return null;
     if ((raw.templateId ?? undefined) !== templateId) return null;
     const sameIds = raw.semanticBlocks.length === semanticBlocks.length
       && raw.semanticBlocks.every((block, index) => block.id === semanticBlocks[index]?.id);
