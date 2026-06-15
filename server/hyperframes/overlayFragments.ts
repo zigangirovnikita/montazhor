@@ -67,7 +67,7 @@ export async function renderOverlayFragments(
   const cacheDir = path.join(dir, "fragments-cache");
   await mkdir(cacheDir, { recursive: true });
 
-  await mapWithConcurrency(fragments, 3, async (fragment, index) => {
+  await mapWithConcurrency(fragments, overlayFragmentConcurrency(), async (fragment, index) => {
     const fragmentPlan: VisualOverlayPlan = {
       ...plan,
       beats: fragment.beats.map((beat) => ({ ...beat, start: round(beat.start - fragment.start) }))
@@ -89,6 +89,12 @@ export async function renderOverlayFragments(
   });
 
   return rendered;
+}
+
+function overlayFragmentConcurrency() {
+  const raw = Number(process.env.HYPERFRAMES_OVERLAY_FRAGMENT_CONCURRENCY ?? "1");
+  if (!Number.isFinite(raw)) return 1;
+  return Math.max(1, Math.min(3, Math.trunc(raw)));
 }
 
 async function mapWithConcurrency<T>(

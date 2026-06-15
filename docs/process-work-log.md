@@ -129,3 +129,10 @@ How to use:
 - Decision: finish the scene architecture migration, then remove the remaining lint/type contract debt in the shared template-builder, AIS renderer, and visual planner boundaries instead of treating those failures as out-of-scope.
 - Result: the app now validates cleanly with `pnpm lint`, `pnpm build`, and `pnpm typecheck`; the spec checklist is fully closed, and the scene composition engine runs through template-backed semantic blocks, constrained AI scene plans, deterministic compilation, overlay composition, full-scene composition, and block-level review.
 - Follow-up: deploy this branch to `/opt/montazhor` and run the server-side release checklist if production verification is required in the same cycle.
+
+### 2026-06-15 — Server OOM on block-scene review render
+
+- Problem: the last server project entered the new block-based scene pipeline successfully, but the review render was OOM-killed during overlay fragment rendering after the cinematic scene pass completed.
+- Decision: keep the new architecture intact and apply a safe server-side downgrade only to overlay fragment concurrency. Default `HYPERFRAMES_OVERLAY_FRAGMENT_CONCURRENCY` is now `1`, with env override support up to `3`.
+- Result: the failure mode moves from process-killing memory spikes to slower but stable overlay fragment rendering on constrained server memory.
+- Follow-up: if the server memory budget increases later, raise `HYPERFRAMES_OVERLAY_FRAGMENT_CONCURRENCY` explicitly instead of changing code defaults back.
