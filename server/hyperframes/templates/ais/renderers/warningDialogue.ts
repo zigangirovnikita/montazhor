@@ -1,8 +1,10 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderWarningDialogue(slots: Record<string, any>, width: number, height: number): string {
-  const speaker = slots.speaker ? `<div style="font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.warning}; text-transform: uppercase; margin-bottom: ${aisTokens.spacing.xs};">${escapeHtml(slots.speaker)}</div>` : "";
-  const message = slots.message || "WARNING";
+export function renderWarningDialogue(slots: SlotMap, width: number, height: number): string {
+  const speakerValue = slotString(slots, "speaker", "");
+  const speaker = speakerValue ? `<div style="font-size: ${aisTokens.typography.label.fontSize}; color: ${aisTokens.colors.warning}; text-transform: uppercase; margin-bottom: ${aisTokens.spacing.xs};">${escapeHtml(speakerValue)}</div>` : "";
+  const message = slotString(slots, "message", "WARNING");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; padding: ${aisTokens.spacing.xl}; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

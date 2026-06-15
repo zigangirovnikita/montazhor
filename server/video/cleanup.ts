@@ -1,13 +1,15 @@
 import { rm } from "node:fs/promises";
 import { prisma } from "@/lib/db";
-import { pathsForProject, uploadDir } from "@/lib/storage";
+import { pathsForProject } from "@/lib/storage";
 
 export async function cleanupProjectArtifacts(projectId: string) {
   const paths = pathsForProject(projectId);
-  const projectUploadDir = uploadDir(projectId);
 
   await Promise.all([
     safeRm(paths.audio),
+    safeRm(paths.semanticBlocks),
+    safeRm(paths.scenePlan),
+    safeRm(paths.compiledScenePlan),
     safeRm(paths.visualPlan),
     safeRm(paths.subtitlesOverlayMp4),
     safeRm(paths.semanticOverlayMp4),

@@ -122,6 +122,20 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     }
   }
 
+  async function applySceneBlockAction(body: unknown) {
+    if (busy || isProcessing) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiPost(`/api/projects/${projectId}/scene-blocks`, body);
+      await apiPost(`/api/projects/${projectId}/render`);
+      await refresh();
+    } catch (requestError) {
+      setBusy(false);
+      setError(messageFromError(requestError));
+    }
+  }
+
   if (!payload || !styleState) {
     return <ProjectShell><LoadingScreen title="Открываю проект" text="Подгружаю видео, текст и статус обработки." /></ProjectShell>;
   }
@@ -241,7 +255,14 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
 
     return (
       <ProjectShell>
-        <FinalPreview payload={payload} onApprove={() => setView("export")} onStyle={() => setView("templates")} onText={() => setView("text")} />
+        <FinalPreview
+          payload={payload}
+          busy={busy}
+          onApprove={() => setView("export")}
+          onStyle={() => setView("templates")}
+          onText={() => setView("text")}
+          onSceneAction={applySceneBlockAction}
+        />
       </ProjectShell>
     );
   }

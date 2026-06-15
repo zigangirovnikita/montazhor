@@ -1,7 +1,8 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderTrustMap(slots: Record<string, any>, width: number, height: number): string {
-  const centerEntity = slots.centerEntity || "CORE";
+export function renderTrustMap(slots: SlotMap, width: number, height: number): string {
+  const centerEntity = slotString(slots, "centerEntity", "CORE");
   const nodes = Array.isArray(slots.nodes) ? slots.nodes : ["A", "B", "C", "D"];
 
   // Very simplified radial layout CSS

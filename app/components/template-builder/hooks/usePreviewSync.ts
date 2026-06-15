@@ -4,6 +4,7 @@ export function usePreviewSync(dependencies: React.DependencyList) {
   const shellRef = useRef<HTMLElement | null>(null);
   const previewColumnRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const dependencyKey = JSON.stringify(dependencies);
 
   useEffect(() => {
     if (!shellRef.current || !previewColumnRef.current || typeof ResizeObserver === "undefined") return;
@@ -23,7 +24,7 @@ export function usePreviewSync(dependencies: React.DependencyList) {
       observer.disconnect();
       window.removeEventListener("resize", syncPreviewHeight);
     };
-  }, dependencies);
+  }, [dependencyKey]);
 
   return { shellRef, previewColumnRef, stageRef };
 }

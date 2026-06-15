@@ -5,7 +5,6 @@ import type { PointerEvent } from "react";
 import {
   curatedPalettes,
   templateBlockLabels,
-  templateTabs,
   blockLayoutPresets
 } from "@/lib/templateBuilder";
 
@@ -32,9 +31,9 @@ export function TemplateBuilder({ returnTo = "/" }: { returnTo?: string }) {
   const state = useTemplateState();
   const {
     templates, setTemplates, current, setCurrent, draft, setDraft,
-    activeTab, elementPreviewKind, setElementPreviewKind, snapshot,
+    activeTab, elementPreviewKind, setElementPreviewKind,
     setSnapshot, status, setStatus, confirmState, openSection, setOpenSection,
-    sectionSnapshot, setSectionSnapshot, animationTrigger, setAnimationTrigger,
+    setSectionSnapshot, animationTrigger, setAnimationTrigger,
     isDirty, effectiveBlock, optionsSummary, previewKind,
     requestConfirm, closeConfirm, confirmPendingAction,
     switchTab, updateName, updateTheme, updateBlock, setPosition,

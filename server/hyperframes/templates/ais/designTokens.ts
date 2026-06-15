@@ -64,7 +64,7 @@ export const aisTokens = {
 
 export const AIS_RENDERERS_VERSION = "v1.2";
 
-export function escapeHtml(str: any): string {
+export function escapeHtml(str: unknown): string {
   if (str === null || str === undefined) return "";
   return String(str)
     .replace(/&/g, "&amp;")

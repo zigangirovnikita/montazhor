@@ -1,8 +1,9 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderGoldenRatioSidebar(slots: Record<string, any>, width: number, height: number): string {
-  const title = slots.title || "LESSON";
-  const body = slots.body || "Content";
+export function renderGoldenRatioSidebar(slots: SlotMap, width: number, height: number): string {
+  const title = slotString(slots, "title", "LESSON");
+  const body = slotString(slots, "body", "Content");
 
   // Using a side_panel layout which covers the right side completely
   return `

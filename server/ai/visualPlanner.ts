@@ -26,6 +26,7 @@ import { buildTimedVisualSegments } from "@/server/ai/timedVisualSegments";
 import { preflightVisualOverlayPlan } from "@/server/hyperframes/visualLayoutPreflight";
 import { defaultMotionForTemplate, presetForMoment, resolveVisualStyleProfile, visualPresets, visualTemplates } from "@/server/hyperframes/visualRegistry";
 import { validateVisualOverlayPlan } from "@/server/hyperframes/visualPlanValidator";
+import type { TemplateBlockId, VisualTemplateData } from "@/lib/templateBuilder";
 
 export function buildVisualOverlayPlan(input: VisualPlanInput): VisualOverlayPlan {
   const profile = resolveProfileForInput(input);
@@ -247,7 +248,7 @@ function extractSemanticMoments(subtitles: VisualPlanInput["subtitles"], content
   }));
 }
 
-function blockIdForMoment(moment: SemanticMoment): string {
+function blockIdForMoment(moment: SemanticMoment): TemplateBlockId {
   const type = moment.type;
   if (type === "kinetic_text") return "subtitle";
   if (type === "number") return "stat";
@@ -275,9 +276,9 @@ function visualBeatForMoment(
   let motionId = defaultMotionForTemplate(templateId, profile);
 
   // Apply custom layout preset and animations from the styleOptions.visualTemplate if present
-  const visualTemplate = styleOptions?.visualTemplate as any;
+  const visualTemplate = styleOptions?.visualTemplate as Partial<VisualTemplateData> | undefined;
   let motionOutId: string | undefined = undefined;
-  let styleOverrides: any = undefined;
+  let styleOverrides: VisualBeat["styleOverrides"] | undefined;
   if (visualTemplate?.blocks) {
     const blockId = blockIdForMoment(moment);
     const block = visualTemplate.blocks[blockId];
@@ -290,7 +291,7 @@ function visualBeatForMoment(
         }
       }
       if (block.animationIn && block.animationIn !== "none") {
-        motionId = block.animationIn as any;
+        motionId = block.animationIn as VisualBeat["motionId"];
       }
       if (block.animationOut) {
         motionOutId = block.animationOut;

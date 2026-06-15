@@ -312,6 +312,175 @@ export interface VisualPlanOptions {
   visualTemplate?: unknown;
 }
 
+export type SemanticBlockType =
+  | "hook"
+  | "thesis"
+  | "explanation"
+  | "definition"
+  | "example"
+  | "comparison"
+  | "myth_vs_truth"
+  | "proof"
+  | "timeline"
+  | "list"
+  | "warning"
+  | "cta"
+  | "transition";
+
+export type SceneCategory =
+  | "overlay_scene"
+  | "split_scene"
+  | "pip_scene"
+  | "full_graphic_scene"
+  | "camera_emphasis_scene"
+  | "transition_scene";
+
+export type SceneRecipeId =
+  | "hook_title_left"
+  | "hook_title_center"
+  | "big_number_grow"
+  | "big_number_plus_text_plate"
+  | "myth_vs_truth"
+  | "definition_card"
+  | "comparison_split"
+  | "checklist_reveal"
+  | "timeline_year_callout"
+  | "trust_diagram"
+  | "quote_emphasis"
+  | "cta_finish"
+  | "speaker_lower_half_top_visual"
+  | "speaker_right_panel_left_infographic"
+  | "voiceover_full_graphic"
+  | "camera_punch_in"
+  | "clean_section_transition";
+
+export type SpeakerMode = "full_frame" | "reframed" | "pip" | "hidden";
+export type SceneIntensity = "safe" | "balanced" | "strong";
+export type SceneTransition = "fade" | "slide" | "zoom" | "wipe" | "cut";
+export type MicroBeatType =
+  | "number_emphasis"
+  | "keyword_highlight"
+  | "chart_tick"
+  | "label_reveal"
+  | "checklist_row"
+  | "strike_through"
+  | "subtitle_emphasis"
+  | "panel_state_change"
+  | "camera_push"
+  | "icon_pop"
+  | "background_shift";
+export type SceneLayerKind =
+  | "speaker"
+  | "title"
+  | "subtitle"
+  | "number"
+  | "checklist"
+  | "comparison"
+  | "chart"
+  | "quote"
+  | "cta"
+  | "transition"
+  | "supporting_text";
+
+export interface SemanticBlock {
+  id: string;
+  type: SemanticBlockType;
+  start: number;
+  end: number;
+  text: string;
+  summary: string;
+  transcriptWordRange: {
+    startIndex: number;
+    endIndex: number;
+  };
+  wordCount: number;
+  contextBefore?: string;
+  contextAfter?: string;
+}
+
+export interface SceneLayerPlan {
+  id: string;
+  kind: SceneLayerKind;
+  emphasis?: "support" | "primary" | "dominant";
+  enabled: boolean;
+  payload: Record<string, unknown>;
+}
+
+export interface SceneMicroBeat {
+  id: string;
+  type: MicroBeatType;
+  start: number;
+  end: number;
+  anchorText?: string;
+  anchorWordRange?: {
+    startIndex: number;
+    endIndex: number;
+  };
+  payload?: Record<string, unknown>;
+}
+
+export interface ScenePlanBlock {
+  id: string;
+  blockId: string;
+  blockType: SemanticBlockType;
+  sceneCategory: SceneCategory;
+  recipeId: SceneRecipeId;
+  variantId?: string;
+  speakerMode: SpeakerMode;
+  layerPlan: SceneLayerPlan[];
+  microBeats: SceneMicroBeat[];
+  intensity: SceneIntensity;
+  transitionIn: SceneTransition;
+  transitionOut: SceneTransition;
+  start: number;
+  end: number;
+  rationale?: string;
+  fallbackRecipeId?: SceneRecipeId;
+  safeMode?: boolean;
+  allowedRecipeIds?: SceneRecipeId[];
+  recommendedRecipeId?: SceneRecipeId;
+}
+
+export interface ScenePlan {
+  version: string;
+  templateId?: string;
+  templateName?: string;
+  styleProfileId: StylePreset;
+  planner: "deterministic" | "ai";
+  semanticBlocks: SemanticBlock[];
+  blocks: ScenePlanBlock[];
+  diagnostics?: string[];
+}
+
+export interface CompiledSceneBlock {
+  id: string;
+  blockId: string;
+  sceneId: string;
+  blockType: SemanticBlockType;
+  sceneCategory: SceneCategory;
+  recipeId: SceneRecipeId;
+  speakerMode: SpeakerMode;
+  start: number;
+  end: number;
+  duration: number;
+  renderPath: "overlay" | "full_scene";
+  activeLayerIds: string[];
+  summary: string;
+  overlayBeats: VisualBeat[];
+  fullScene?: VisualScene;
+  microBeats: SceneMicroBeat[];
+  fallbackApplied?: boolean;
+}
+
+export interface CompiledScenePlan {
+  version: string;
+  templateId?: string;
+  styleProfileId: StylePreset;
+  planner: "deterministic" | "ai";
+  blocks: CompiledSceneBlock[];
+  diagnostics?: string[];
+}
+
 export interface VisualFrameProfile {
   orientation: "portrait" | "landscape";
   width: number;

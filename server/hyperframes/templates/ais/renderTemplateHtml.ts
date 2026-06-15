@@ -13,6 +13,7 @@ import { renderTrustMap } from "./renderers/trustMap";
 import { renderWarningDialogue } from "./renderers/warningDialogue";
 import { renderQuoteFlash } from "./renderers/quoteFlash";
 import { renderCtaFlash } from "./renderers/ctaFlash";
+import type { SlotMap, SlotValue } from "./renderers/slotTypes";
 
 import { templateCatalog } from "@/server/hyperframes/templateCatalog";
 
@@ -22,7 +23,7 @@ export function renderTemplateInstanceHtml(
 ): string {
   const width = profile.width;
   const height = profile.height;
-  const slots = instance.slots;
+  const slots = toSlotMap(instance.slots);
 
   let appHtml = "";
 
@@ -121,4 +122,24 @@ export function renderTemplateInstanceHtml(
     </script>
   </body>
 </html>`;
+}
+
+function toSlotMap(input: Record<string, unknown>): SlotMap {
+  const slots: SlotMap = {};
+
+  for (const [key, value] of Object.entries(input)) {
+    if (isSlotValue(value)) {
+      slots[key] = value;
+      continue;
+    }
+    if (Array.isArray(value) && value.every(isSlotValue)) {
+      slots[key] = value;
+    }
+  }
+
+  return slots;
+}
+
+function isSlotValue(value: unknown): value is SlotValue {
+  return value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 }

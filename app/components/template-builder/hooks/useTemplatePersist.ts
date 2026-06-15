@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { sanitizeTemplateData } from "@/lib/templateBuilder";
 import type { StoredTemplate, VisualTemplateData } from "@/lib/templateBuilder";
 import { upsertTemplate } from "../utils/upsertTemplate";
@@ -17,11 +17,7 @@ export function useTemplatePersist({
   setSectionSnapshot,
   isDirty
 }: UseTemplatePersistProps) {
-  useEffect(() => {
-    void loadTemplates();
-  }, []);
-
-  async function loadTemplates() {
+  const loadTemplates = useCallback(async () => {
     try {
       const response = await fetch("/api/templates", { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to load");
@@ -37,7 +33,11 @@ export function useTemplatePersist({
     } catch {
       setStatus("error");
     }
-  }
+  }, [setCurrent, setDraft, setSnapshot, setStatus, setTemplates]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   async function persistTemplate(data: VisualTemplateData) {
     const body = JSON.stringify({ name: data.name, data: sanitizeTemplateData(data, data.name) });

@@ -1,8 +1,9 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderMythStrike(slots: Record<string, any>, width: number, height: number): string {
-  const wrong = slots.wrong || "MYTH";
-  const right = slots.right || "FACT";
+export function renderMythStrike(slots: SlotMap, width: number, height: number): string {
+  const wrong = slotString(slots, "wrong", "MYTH");
+  const right = slotString(slots, "right", "FACT");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: ${aisTokens.spacing.xl}; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

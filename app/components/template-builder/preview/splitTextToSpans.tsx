@@ -8,7 +8,7 @@ export function splitTextToSpans(text: string, emphasis?: string, preset?: strin
     const normalizedWord = word.toLowerCase().replace(/[^\p{L}\p{N}%$₽-]+/gu, "");
     const isEmphasis = normalizedEmphasis && normalizedWord === normalizedEmphasis;
     
-    let style: CSSProperties = { display: "inline-block", marginRight: "6px" };
+    const style: CSSProperties = { display: "inline-block", marginRight: "6px" };
     if (textColor) style.color = textColor;
     
     // Set default styles/fonts per preset

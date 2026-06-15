@@ -1,7 +1,8 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderQuoteFlash(slots: Record<string, any>, width: number, height: number): string {
-  const quote = slots.quote || "QUOTE";
+export function renderQuoteFlash(slots: SlotMap, width: number, height: number): string {
+  const quote = slotString(slots, "quote", "QUOTE");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: ${aisTokens.spacing.xl}; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

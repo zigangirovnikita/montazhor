@@ -6,6 +6,7 @@ import { resolveVisualStyleProfile } from "@/server/hyperframes/visualRegistry";
 import { standardMp4OutputArgs } from "@/server/video/encoding";
 import { ffmpegPath, ffprobePath, runCommand } from "@/server/video/ffmpeg";
 import type { VideoProfile } from "@/server/video/profile";
+import type { VisualTemplateData } from "@/lib/templateBuilder";
 
 export async function renderSemanticOverlay(
   projectDir: string,
@@ -41,9 +42,9 @@ function fontIdToFontFamily(fontId: string): string {
   return '"HF Montserrat", Arial, sans-serif';
 }
 
-function mergeTemplateThemeIntoStyle(style: VisualStyleProfile, visualTemplate: any): VisualStyleProfile {
+function mergeTemplateThemeIntoStyle(style: VisualStyleProfile, visualTemplate: unknown): VisualStyleProfile {
   if (!visualTemplate || typeof visualTemplate !== "object") return style;
-  const theme = visualTemplate.theme;
+  const theme = (visualTemplate as Partial<VisualTemplateData>).theme;
   if (!theme || typeof theme !== "object") return style;
 
   const typography = { ...style.typography };

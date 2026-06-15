@@ -1,4 +1,12 @@
-import type { PresentationMode, StylePreset, TranscriptJson, VisualOverlayPlan } from "@/lib/types";
+import type {
+  CompiledScenePlan,
+  PresentationMode,
+  ScenePlan,
+  SemanticBlock,
+  StylePreset,
+  TranscriptJson,
+  VisualOverlayPlan
+} from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 
 export interface ProjectPayload {
@@ -22,6 +30,9 @@ export interface ProjectPayload {
     subtitles?: Array<{ id: string; start: number; end: number; text: string }>;
     contentPlan?: { hook: string; description: string; hashtags: string[] };
     visualPlan?: VisualOverlayPlan | null;
+    semanticBlocks?: SemanticBlock[] | null;
+    scenePlan?: ScenePlan | null;
+    compiledScenePlan?: CompiledScenePlan | null;
   } | null;
   originalUrl: string;
   cleanPreviewUrl: string | null;

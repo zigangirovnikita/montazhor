@@ -11,6 +11,27 @@ How to use:
 
 ## Entries
 
+### 2026-06-15 — Visual pipeline migrated to scene-plan source of truth
+
+- Problem: the visual pipeline had three competing contracts: beat-based overlay planning, cinematic template instances, and template-builder theme overrides. That prevented template restrictions, block planning, and full-scene composition from sharing one deterministic source of truth.
+- Decision: introduce `server/scene/*` and make the render path run through `semantic blocks -> scene plan -> compiled scene plan -> overlay/full-scene composers`, with `scene-plan.json` and `compiled-scene-plan.json` persisted per project.
+- Result: overlay and full-scene rendering now compile from the same block-based plan, template capabilities are resolved before planning, and saved block-scene decisions survive rerenders until transcript/EDL invalidation.
+- Follow-up: server-side end-to-end render fixtures still need real media fixtures if we want artifact-level validation beyond planner/compiler coverage.
+
+### 2026-06-15 — Block-level review now edits scene decisions instead of planner chips
+
+- Problem: review only exposed a shallow planner summary (`beats.slice(0, 10)`), so users could not adjust generated scenes per semantic block without falling back to template switching or text edits.
+- Decision: add `BlockReviewPanel`, `SceneRecipePicker`, and `/api/projects/[id]/scene-blocks`, with block-scoped actions for regenerate/change/simplify/strengthen/layer disable/speaker show-hide/safe mode. Persist changes into `scene-plan.json` and invalidate derived render assets before rerender.
+- Result: review UI now works on stable `blockId` / `layerId` scene decisions rather than raw timing edits, matching the target architecture from the spec.
+- Follow-up: add visual thumbnails/clips per block once the project has a stable fragment preview cache.
+
+### 2026-06-15 — Validation status after scene-pipeline migration
+
+- Problem: the spec requires `pnpm typecheck`, `pnpm lint`, and `pnpm build`, but full-repo lint currently fails on long-standing files outside the migrated scene pipeline.
+- Decision: run full validation commands anyway, then isolate the blocker by linting all new and touched scene-pipeline files separately.
+- Result: `pnpm typecheck` passed, `pnpm build` passed, fixture-level planner/compiler validation passed, and all new/touched scene-pipeline files lint clean. Full `pnpm lint` still fails because of unrelated legacy errors in template-builder preview files, HyperFrames AIS renderers, old visual planner/director modules, and `patch_*.js`.
+- Follow-up: repo-wide lint cleanup is still required before the final Definition of Done checkbox `All validation checks pass` can be marked complete.
+
 ### 2026-06-05 — Template builder preview pinned above scrolling controls
 
 - Problem: `/templates/new` could clip the preview area and the sticky behavior was unstable because the preview lived inside the same constrained grid flow as the rest of the controls.
@@ -101,3 +122,10 @@ How to use:
 - Decision: add `@uiw/react-color`, move color picking into a dedicated `TemplateColorPicker` component, render the picker as a portal-backed bottom sheet, and expose three tabs: grid, spectrum, and sliders. Keep recent swatches and live preview updates while editing.
 - Result: the builder now opens a mobile-first color sheet with `Сетка / Спектр / Слайдеры`, recent colors, alpha-aware values, and immediate preview updates for text/accent/surface colors.
 - Follow-up: later persist recent colors per user/template instead of browser-local storage only, and localize the remaining `Hue / Saturation / Brightness / Opacity` labels if the builder becomes fully Russian-only.
+
+### 2026-06-15 — Scene composition engine reached spec-complete validation state
+
+- Problem: the new block-based scene pipeline was implemented, but the task could not be marked complete while repo-wide lint still failed on legacy template-builder and AIS renderer files outside the migrated path.
+- Decision: finish the scene architecture migration, then remove the remaining lint/type contract debt in the shared template-builder, AIS renderer, and visual planner boundaries instead of treating those failures as out-of-scope.
+- Result: the app now validates cleanly with `pnpm lint`, `pnpm build`, and `pnpm typecheck`; the spec checklist is fully closed, and the scene composition engine runs through template-backed semantic blocks, constrained AI scene plans, deterministic compilation, overlay composition, full-scene composition, and block-level review.
+- Follow-up: deploy this branch to `/opt/montazhor` and run the server-side release checklist if production verification is required in the same cycle.

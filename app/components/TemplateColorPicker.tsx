@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alpha,
   EditableInputRGBA,
@@ -65,6 +65,25 @@ export function TemplateColorPicker({
     });
   }, []);
 
+  function openPicker() {
+    initialValueRef.current = value;
+    setDraft(parseColor(value));
+    window.setTimeout(() => setIsOpen(true), 0);
+  }
+
+  const closePicker = useCallback((commit: boolean) => {
+    if (!commit) {
+      onChange(initialValueRef.current);
+      setDraft(parseColor(initialValueRef.current));
+    } else {
+      const committed = serializeColor(draft);
+      const nextRecent = [committed, ...recentColors.filter((item) => item.toLowerCase() !== committed.toLowerCase())].slice(0, 8);
+      setRecentColors(nextRecent);
+      window.localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(nextRecent));
+    }
+    setIsOpen(false);
+  }, [draft, onChange, recentColors]);
+
   useEffect(() => {
     if (!isOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -81,26 +100,7 @@ export function TemplateColorPicker({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, value]);
-
-  function openPicker() {
-    initialValueRef.current = value;
-    setDraft(parseColor(value));
-    window.setTimeout(() => setIsOpen(true), 0);
-  }
-
-  function closePicker(commit: boolean) {
-    if (!commit) {
-      onChange(initialValueRef.current);
-      setDraft(parseColor(initialValueRef.current));
-    } else {
-      const committed = serializeColor(draft);
-      const nextRecent = [committed, ...recentColors.filter((item) => item.toLowerCase() !== committed.toLowerCase())].slice(0, 8);
-      setRecentColors(nextRecent);
-      window.localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(nextRecent));
-    }
-    setIsOpen(false);
-  }
+  }, [closePicker, isOpen]);
 
   function updateDraft(nextColor: HsvaColor) {
     setDraft(nextColor);

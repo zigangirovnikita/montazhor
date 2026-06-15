@@ -71,6 +71,8 @@ export interface VisualTemplateData {
   blocks: Record<TemplateBlockId, TemplateBlockBase & Record<string, unknown>>;
 }
 
+export type VisualTemplateBlockData = TemplateBlockBase & Record<string, unknown>;
+
 export interface StoredTemplate {
   id: string;
   name: string;
@@ -280,7 +282,7 @@ export function sanitizeTemplateData(value: unknown, fallbackName = "Мой ша
   const fallback = createDefaultTemplate(fallbackName);
   if (!value || typeof value !== "object") return fallback;
   const raw = value as Partial<VisualTemplateData>;
-  const rawBlocks = (raw.blocks || {}) as Record<string, Partial<TemplateBlockBase>>;
+  const rawBlocks = (raw.blocks || {}) as Record<string, Partial<VisualTemplateBlockData>>;
   const mergedBlocks = Object.keys(fallback.blocks).reduce((acc, key) => {
     const blockId = key as TemplateBlockId;
     const fbBlock = fallback.blocks[blockId];
@@ -289,7 +291,7 @@ export function sanitizeTemplateData(value: unknown, fallbackName = "Мой ша
       ...fbBlock,
       ...rawBlock,
       position: { ...(fbBlock.position ?? {}), ...(rawBlock.position ?? {}) }
-    } as any;
+    } as VisualTemplateBlockData;
     return acc;
   }, {} as VisualTemplateData["blocks"]);
 

@@ -1,8 +1,9 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderBeforeAfter(slots: Record<string, any>, width: number, height: number): string {
-  const before = slots.before || "BEFORE";
-  const after = slots.after || "AFTER";
+export function renderBeforeAfter(slots: SlotMap, width: number, height: number): string {
+  const before = slotString(slots, "before", "BEFORE");
+  const after = slotString(slots, "after", "AFTER");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; background-color: ${aisTokens.colors.background}; display: flex; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

@@ -1,8 +1,10 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderCtaFlash(slots: Record<string, any>, width: number, height: number): string {
-  const action = slots.action || "SUBSCRIBE";
-  const target = slots.target ? `<div class="gsap-target" style="font-size: ${aisTokens.typography.body.fontSize}; color: ${aisTokens.colors.textSecondary}; margin-top: ${aisTokens.spacing.sm};">${escapeHtml(slots.target)}</div>` : "";
+export function renderCtaFlash(slots: SlotMap, width: number, height: number): string {
+  const action = slotString(slots, "action", "SUBSCRIBE");
+  const targetValue = slotString(slots, "target", "");
+  const target = targetValue ? `<div class="gsap-target" style="font-size: ${aisTokens.typography.body.fontSize}; color: ${aisTokens.colors.textSecondary}; margin-top: ${aisTokens.spacing.sm};">${escapeHtml(targetValue)}</div>` : "";
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; background-color: ${aisTokens.colors.background}; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: ${aisTokens.typography.fontFamily}; text-align: center; box-sizing: border-box;">

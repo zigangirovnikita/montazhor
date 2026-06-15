@@ -12,6 +12,8 @@ function numberValue(val: unknown, fallback: number): number {
   return fallback;
 }
 
+type TweenVars = Record<string, string | number>;
+
 export function Preview({
   block,
   theme,
@@ -81,40 +83,40 @@ export function Preview({
       const durationFactor = Math.max(0.24, 1.3 - animSpeed * 0.95);
       const animationIn = block.animationIn ?? "glass_slide";
 
-      let enterFrom = { opacity: 0, y: 28, scale: 0.56 };
-      let enterTo = { opacity: 1, y: 0, scale: 0.58, ease: "power3.out" };
+      let enterFrom: TweenVars = { opacity: 0, y: 28, scale: 0.56 };
+      let enterTo: TweenVars = { opacity: 1, y: 0, scale: 0.58, ease: "power3.out" };
       let enterDuration = 0.38 * durationFactor;
 
       if (animationIn === "depth_zoom") {
-        enterFrom = { opacity: 0, scale: 0.55, y: 14 } as any;
-        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "expo.out" } as any;
+        enterFrom = { opacity: 0, scale: 0.55, y: 14 };
+        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "expo.out" };
       } else if (animationIn === "calm_fade") {
-        enterFrom = { opacity: 0, y: 14, scale: 0.58 } as any;
-        enterTo = { opacity: 1, y: 0, scale: 0.58, ease: "power2.out" } as any;
+        enterFrom = { opacity: 0, y: 14, scale: 0.58 };
+        enterTo = { opacity: 1, y: 0, scale: 0.58, ease: "power2.out" };
       } else if (animationIn === "word_slam") {
-        enterFrom = { opacity: 0, scale: 0.62, y: 0 } as any;
-        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "back.out(1.35)" } as any;
+        enterFrom = { opacity: 0, scale: 0.62, y: 0 };
+        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "back.out(1.35)" };
       } else if (animationIn === "soft_pop") {
-        enterFrom = { opacity: 0, scale: 0.44, y: 0 } as any;
-        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "back.out(1.2)" } as any;
+        enterFrom = { opacity: 0, scale: 0.44, y: 0 };
+        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "back.out(1.2)" };
       } else if (animationIn === "slide-right") {
-        enterFrom = { opacity: 0, x: -48, scale: 0.58 } as any;
-        enterTo = { opacity: 1, x: 0, scale: 0.58, ease: "power2.out" } as any;
+        enterFrom = { opacity: 0, x: -48, scale: 0.58 };
+        enterTo = { opacity: 1, x: 0, scale: 0.58, ease: "power2.out" };
       } else if (animationIn === "fade") {
-        enterFrom = { opacity: 0, scale: 0.58 } as any;
-        enterTo = { opacity: 1, scale: 0.58, ease: "power1.out" } as any;
+        enterFrom = { opacity: 0, scale: 0.58 };
+        enterTo = { opacity: 1, scale: 0.58, ease: "power1.out" };
       } else if (animationIn === "scale") {
-        enterFrom = { opacity: 0, scale: 0.22, y: 0 } as any;
-        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "power2.out" } as any;
+        enterFrom = { opacity: 0, scale: 0.22, y: 0 };
+        enterTo = { opacity: 1, scale: 0.58, y: 0, ease: "power2.out" };
       } else if (animationIn === "glass_slide" || animationIn === "slide-up") {
-        enterFrom = { opacity: 0, y: 28, scale: 0.58 } as any;
-        enterTo = { opacity: 1, y: 0, scale: 0.58, ease: "power3.out" } as any;
+        enterFrom = { opacity: 0, y: 28, scale: 0.58 };
+        enterTo = { opacity: 1, y: 0, scale: 0.58, ease: "power3.out" };
       } else if (animationIn === "word-by-word") {
-        enterFrom = { opacity: 0, scale: 0.58 } as any;
-        enterTo = { opacity: 1, scale: 0.58, ease: "power1.out" } as any;
+        enterFrom = { opacity: 0, scale: 0.58 };
+        enterTo = { opacity: 1, scale: 0.58, ease: "power1.out" };
       } else if (animationIn === "none") {
-        enterFrom = { opacity: 0, scale: 0.58 } as any;
-        enterTo = { opacity: 1, scale: 0.58, ease: "none" } as any;
+        enterFrom = { opacity: 0, scale: 0.58 };
+        enterTo = { opacity: 1, scale: 0.58, ease: "none" };
         enterDuration = 0.01;
       }
 
@@ -438,21 +440,21 @@ export function Preview({
 
       // Exit animation
       const animationOut = block.animationOut ?? "slide-up";
-      let exitVars = { opacity: 0, y: "-=18", scale: 0.58, ease: "power2.in", duration: 0.24 };
+      let exitVars: TweenVars = { opacity: 0, y: "-=18", scale: 0.58, ease: "power2.in", duration: 0.24 };
       if (animationOut === "fade") {
-        exitVars = { opacity: 0, scale: 0.58, ease: "power2.in", duration: 0.24 } as any;
+        exitVars = { opacity: 0, scale: 0.58, ease: "power2.in", duration: 0.24 };
       } else if (animationOut === "slide-down") {
-        exitVars = { opacity: 0, y: "+=18", scale: 0.58, ease: "power2.in", duration: 0.24 } as any;
+        exitVars = { opacity: 0, y: "+=18", scale: 0.58, ease: "power2.in", duration: 0.24 };
       } else if (animationOut === "scale-down") {
-        exitVars = { opacity: 0, scale: 0.44, ease: "power2.in", duration: 0.24 } as any;
+        exitVars = { opacity: 0, scale: 0.44, ease: "power2.in", duration: 0.24 };
       } else if (animationOut === "none") {
-        exitVars = { opacity: 0, ease: "none", duration: 0.01 } as any;
+        exitVars = { opacity: 0, ease: "none", duration: 0.01 };
       }
       tl.to(el, exitVars, "+=1.5");
     }, el);
 
     return () => ctx.revert();
-  }, [animationTrigger, block.font, block.surface, block.shadow, block.animationSpeed, block.animationIn, block.animationOut, kind, block.layoutPreset, block.colorAccent, block.colorText, theme?.colorPrimary]);
+  }, [animationTrigger, block.font, block.surface, block.shadow, block.animationSpeed, block.animationIn, block.animationOut, kind, block.layoutPreset, block.colorAccent, block.colorText, theme?.colorPrimary, theme?.defaultAnimationSpeed]);
 
   return (
     <div className={`${styles.stage} ${styles.aspect_portrait}`} ref={stageRef}>

@@ -79,7 +79,7 @@ export function DraftReviewTicker({
       viewport.scrollTo({ top: Math.max(0, targetTop), behavior: videoRef.current?.paused ? "smooth" : "auto" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeSegment?.id]);
+  }, [activeSegment, activeSegment?.id]);
 
   function handleTimeUpdate() {
     const video = videoRef.current;

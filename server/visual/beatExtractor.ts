@@ -5,7 +5,6 @@ import { cleanText } from "@/server/ai/visualPayload";
 const NUMBER_RE = /(\d+[.,]?\d*)\s?(%|к|k|тыс|млн|x|раз|₽|\$)?/gi;
 const WARNING_RE = /\b(ошибка|миф|нельзя|опасно|стоп|проблема|wrong|mistake|myth|premature|risk)\b/i;
 const LIST_RE = /\b(первое|второе|третье|шаг|пункт|причина|когда|как|сколько|when|how|charge|first|second|third)\b/i;
-const TRUST_RE = /\b(довер|trust|источник|source|earned|inherited|relationship|аудит|audit)\b/i;
 const CTA_RE = /\b(подпиш|сохрани|забирай|переходи|смотри|читай|subscribe|follow|save|download|join)\b/i;
 const QUOTE_RE = /["«»]/;
 const COMPARE_RE = /\b(против|вместо|или|versus|vs|but|instead|before|after|до|после)\b/i;
@@ -14,8 +13,9 @@ const TIMELINE_RE = /\b(сначала|потом|затем|после|first|th
 export function extractVisualBeats(
   transcript: TranscriptJson,
   edl: EditDecisionList,
-  contentPlan: ContentPlan
+  _contentPlan: ContentPlan
 ): VisualBeat[] {
+  void _contentPlan;
   const keptWords = extractKeptWords(transcript, edl);
   if (keptWords.length === 0) return [];
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 let code = fs.readFileSync('/Users/nikitazigangirov/Projects/montazhor/app/components/TemplateBuilder.tsx', 'utf-8');
 

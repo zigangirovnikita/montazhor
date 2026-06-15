@@ -1,6 +1,7 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { type SlotMap } from "./slotTypes";
 
-export function renderStepsCards(slots: Record<string, any>, width: number, height: number): string {
+export function renderStepsCards(slots: SlotMap, width: number, height: number): string {
   const steps = Array.isArray(slots.steps) ? slots.steps : ["Step 1", "Step 2", "Step 3"];
 
   const stepHtml = steps.map((step, idx) => `

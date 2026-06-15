@@ -15,7 +15,6 @@ const outDir = path.join(process.cwd(), "storage", "fixtures", "cinematic-scenes
 async function main() {
   await mkdir(outDir, { recursive: true });
   const cleanVideoPath = path.join(outDir, "clean-fixture.mp4");
-  const sceneLayerPath = path.join(outDir, "cinematic-scenes.mp4");
   const outputPath = path.join(outDir, "cinematic-preview.mp4");
   await renderCleanFixture(cleanVideoPath);
 

@@ -1,8 +1,9 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderStatMeter(slots: Record<string, any>, width: number, height: number): string {
-  const value = slots.value || "100";
-  const label = slots.label || "STAT";
+export function renderStatMeter(slots: SlotMap, width: number, height: number): string {
+  const value = slotString(slots, "value", "100");
+  const label = slotString(slots, "label", "STAT");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: ${aisTokens.spacing.xl}; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

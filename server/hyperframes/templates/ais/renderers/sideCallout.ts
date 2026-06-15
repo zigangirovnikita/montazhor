@@ -1,7 +1,8 @@
 import { aisTokens, escapeHtml } from "../designTokens";
+import { slotString, type SlotMap } from "./slotTypes";
 
-export function renderSideCallout(slots: Record<string, any>, width: number, height: number): string {
-  const text = slots.text || "CALLOUT";
+export function renderSideCallout(slots: SlotMap, width: number, height: number): string {
+  const text = slotString(slots, "text", "CALLOUT");
 
   return `
     <div style="position: absolute; top: 0; left: 0; width: ${width}px; height: ${height}px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; padding-right: ${aisTokens.spacing.xl}; font-family: ${aisTokens.typography.fontFamily}; box-sizing: border-box;">

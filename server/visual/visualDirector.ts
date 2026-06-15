@@ -4,9 +4,12 @@ import { recordAiUsage } from "@/server/ai/usage";
 import type { VisualBeat, TemplateInstancePlan } from "@/lib/types/visual";
 import { templateInstancePlanSchema } from "./visualPlanSchema";
 import { templateCatalog } from "@/server/hyperframes/templateCatalog";
-import { resolveAppDir } from "@/lib/runtimePaths";
+import type { z } from "zod";
 
 export const VISUAL_DIRECTOR_VERSION = "v1";
+
+type DirectorPlanSchema = z.infer<typeof templateInstancePlanSchema>;
+type DirectorInstance = DirectorPlanSchema["instances"][number];
 
 export async function buildVisualDirectorPlan(
   projectId: string,
@@ -64,7 +67,7 @@ Return a JSON object conforming strictly to the requested output schema.`;
     }
   });
 
-  let parsedResponse;
+  let parsedResponse: DirectorPlanSchema | undefined;
   let useFallback = false;
 
   try {
@@ -100,13 +103,13 @@ Return a JSON object conforming strictly to the requested output schema.`;
     captionMode: "off",
     planner: "ai",
     diagnostics: [`AI selected ${parsedResponse.instances.length} template instances from ${beats.length} beats.`],
-    instances: parsedResponse.instances.map((inst: any) => ({
+    instances: parsedResponse.instances.map((inst: DirectorInstance) => ({
       id: `inst-${Math.random().toString(36).slice(2, 8)}`,
       start: inst.start,
       duration: inst.duration,
       templateId: inst.templateId,
       variantId: inst.variantId || "standard",
-      visualWeight: inst.visualWeight as any,
+      visualWeight: inst.visualWeight,
       slots: inst.slots,
       transitionIn: inst.transitionIn || "fade",
       transitionOut: inst.transitionOut || "cut"
@@ -117,8 +120,8 @@ Return a JSON object conforming strictly to the requested output schema.`;
 function buildFallbackPlan(beats: VisualBeat[]): TemplateInstancePlan {
   const instances = beats.map((b, i) => {
     let templateId = "ais.side_callout.v1";
-    let slots: Record<string, any> = { text: b.text.slice(0, 50) };
-    let visualWeight = "callout";
+    let slots: Record<string, unknown> = { text: b.text.slice(0, 50) };
+    let visualWeight: DirectorInstance["visualWeight"] = "callout";
 
     if (b.intent === "hook") {
       templateId = "ais.hook_flash.v1";
@@ -148,7 +151,7 @@ function buildFallbackPlan(beats: VisualBeat[]): TemplateInstancePlan {
       duration: b.end - b.start,
       templateId,
       variantId: "standard",
-      visualWeight: visualWeight as any,
+      visualWeight,
       slots,
       transitionIn: "fade" as const,
       transitionOut: "cut" as const

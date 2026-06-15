@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { BlockReviewPanel } from "@/app/components/BlockReviewPanel";
 import type { ProjectPayload } from "@/app/components/projectFlowTypes";
+import type { SceneRecipeId } from "@/lib/types";
 import type { CleanupMode } from "@/lib/types";
 
 export const processingSteps = [
@@ -73,14 +75,18 @@ export function ProcessingScreen({ payload, status }: { payload: ProjectPayload;
 
 export function FinalPreview({
   payload,
+  busy,
   onApprove,
   onStyle,
-  onText
+  onText,
+  onSceneAction
 }: {
   payload: ProjectPayload;
+  busy: boolean;
   onApprove: () => void;
   onStyle: () => void;
   onText: () => void;
+  onSceneAction: (request: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode"; recipeId?: SceneRecipeId; layerId?: string }) => Promise<void>;
 }) {
   return (
     <div className="flow-stack">
@@ -92,6 +98,7 @@ export function FinalPreview({
         <video src={payload.reviewUrl ?? payload.cleanPreviewUrl ?? payload.originalUrl} controls playsInline />
       </div>
       <VisualPlanReview payload={payload} />
+      <BlockReviewPanel payload={payload} busy={busy} onApply={onSceneAction} />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
         <button className="mode-button secondary-action" type="button" onClick={onStyle}>Выбрать другой шаблон</button>
@@ -102,15 +109,21 @@ export function FinalPreview({
 }
 
 function VisualPlanReview({ payload }: { payload: ProjectPayload }) {
+  const compiledBlocks = payload.draft?.compiledScenePlan?.blocks ?? [];
   const beats = payload.draft?.visualPlan?.beats ?? [];
-  if (beats.length === 0) return null;
+  if (compiledBlocks.length === 0 && beats.length === 0) return null;
   return (
     <section className="visual-review-panel">
       <header className="section-lead">
         <h3>Что выбрал planner</h3>
       </header>
       <div className="visual-review-list">
-        {beats.slice(0, 10).map((beat) => (
+        {compiledBlocks.length > 0 ? compiledBlocks.slice(0, 10).map((block) => (
+          <article className="visual-review-chip" key={block.id}>
+            <strong>{block.recipeId}</strong>
+            <span>{block.summary}</span>
+          </article>
+        )) : beats.slice(0, 10).map((beat) => (
           <article className="visual-review-chip" key={beat.id}>
             <strong>{beat.presetId ?? beat.templateId}</strong>
             <span>{formatBeatText(beat.payload)}</span>

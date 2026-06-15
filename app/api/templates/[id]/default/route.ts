@@ -16,10 +16,11 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!existing) return NextResponse.json({ error: "Template was not found." }, { status: 404 });
   if (existing.isPreset) return NextResponse.json({ error: "Preset templates cannot be the app default directly." }, { status: 409 });
 
-  const [_, row] = await prisma.$transaction([
+  const transactionResult = await prisma.$transaction([
     prisma.template.updateMany({ data: { isDefault: false } }),
     prisma.template.update({ where: { id }, data: { isDefault: true } })
   ]);
+  const row = transactionResult[1];
 
   return NextResponse.json({
     template: serializeTemplate(row)

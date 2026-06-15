@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { createDefaultTemplate, sanitizeTemplateData, templateToVisualPlanOptions } from "@/lib/templateBuilder";
+import { createDefaultTemplate, templateToVisualPlanOptions } from "@/lib/templateBuilder";
 import type { StoredTemplate, VisualTemplateData, TemplateEditorTab, TemplateBlockBase, TemplatePosition } from "@/lib/templateBuilder";
 import type { SectionId, Status } from "../types";
 import type { ConfirmState } from "../shared/ConfirmDialog";

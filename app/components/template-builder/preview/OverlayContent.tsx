@@ -1,3 +1,4 @@
+import type { TemplateBlockBase, VisualTemplateData } from "@/lib/templateBuilder";
 import { splitTextToSpans } from "./splitTextToSpans";
 
 export function OverlayContent({ kind, accentColor, fontSize, weight, block, theme }: {
@@ -5,8 +6,8 @@ export function OverlayContent({ kind, accentColor, fontSize, weight, block, the
   accentColor: string;
   fontSize: number;
   weight: number;
-  block: any;
-  theme: any;
+  block: TemplateBlockBase & Record<string, unknown>;
+  theme: VisualTemplateData["theme"];
 }) {
   const titleStyle = { fontSize, fontWeight: weight };
   const preset = block.layoutPreset ?? "";
