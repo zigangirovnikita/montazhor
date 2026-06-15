@@ -136,3 +136,10 @@ How to use:
 - Decision: keep the new architecture intact and apply a safe server-side downgrade only to overlay fragment concurrency. Default `HYPERFRAMES_OVERLAY_FRAGMENT_CONCURRENCY` is now `1`, with env override support up to `3`.
 - Result: the failure mode moves from process-killing memory spikes to slower but stable overlay fragment rendering on constrained server memory.
 - Follow-up: if the server memory budget increases later, raise `HYPERFRAMES_OVERLAY_FRAGMENT_CONCURRENCY` explicitly instead of changing code defaults back.
+
+### 2026-06-15 — Server OOM on final overlay compose
+
+- Problem: after lowering fragment concurrency, the same project still OOM-killed the service later in the pipeline when FFmpeg tried to overlay too many pre-rendered fragment inputs in one huge `filter_complex`.
+- Decision: keep the scene/block render architecture unchanged, but downgrade only the overlay compose implementation to batched passes. The default `HYPERFRAMES_OVERLAY_COMPOSE_BATCH_SIZE` is now `6`, with env override support up to `12`.
+- Result: the final overlay compose no longer needs one memory-explosive FFmpeg graph over all fragments at once; it can progress through bounded batches on the current server.
+- Follow-up: if we later add a true streamable compositor or a much larger server memory budget, we can revisit the batch size without changing planner/compiler behavior.

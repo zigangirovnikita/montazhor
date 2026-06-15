@@ -99,20 +99,7 @@ async function overlayAlphaSemanticFragments(
   fragments: Array<{ path: string; start: number }>,
   outputPath: string
 ) {
-  await runCommand(ffmpegPath(), [
-    "-y",
-    "-i",
-    cleanVideoPath,
-    ...fragments.flatMap((fragment) => ["-i", fragment.path]),
-    "-filter_complex",
-    buildOverlayFilter(fragments, "alpha"),
-    "-map",
-    `[v${fragments.length}]`,
-    "-map",
-    "0:a:0",
-    ...standardMp4OutputArgs(),
-    outputPath
-  ]);
+  await overlaySemanticFragmentsInBatches(cleanVideoPath, fragments, outputPath, "alpha");
 }
 
 async function overlayChromaSemanticFragments(
@@ -120,20 +107,45 @@ async function overlayChromaSemanticFragments(
   fragments: Array<{ path: string; start: number }>,
   outputPath: string
 ) {
-  await runCommand(ffmpegPath(), [
-    "-y",
-    "-i",
-    cleanVideoPath,
-    ...fragments.flatMap((fragment) => ["-i", fragment.path]),
-    "-filter_complex",
-    buildOverlayFilter(fragments, "chroma"),
-    "-map",
-    `[v${fragments.length}]`,
-    "-map",
-    "0:a:0",
-    ...standardMp4OutputArgs(),
-    outputPath
-  ]);
+  await overlaySemanticFragmentsInBatches(cleanVideoPath, fragments, outputPath, "chroma");
+}
+
+async function overlaySemanticFragmentsInBatches(
+  cleanVideoPath: string,
+  fragments: Array<{ path: string; start: number }>,
+  outputPath: string,
+  mode: "alpha" | "chroma"
+) {
+  const batchSize = overlayComposeBatchSize();
+  const workDir = path.join(path.dirname(outputPath), ".overlay-compose");
+  await mkdir(workDir, { recursive: true });
+
+  let currentInput = cleanVideoPath;
+
+  for (let offset = 0; offset < fragments.length; offset += batchSize) {
+    const batch = fragments.slice(offset, offset + batchSize);
+    const isLastBatch = offset + batchSize >= fragments.length;
+    const passOutput = isLastBatch
+      ? outputPath
+      : path.join(workDir, `pass-${String(offset / batchSize).padStart(3, "0")}.mp4`);
+
+    await runCommand(ffmpegPath(), [
+      "-y",
+      "-i",
+      currentInput,
+      ...batch.flatMap((fragment) => ["-i", fragment.path]),
+      "-filter_complex",
+      buildOverlayFilter(batch, mode),
+      "-map",
+      `[v${batch.length}]`,
+      "-map",
+      "0:a:0",
+      ...standardMp4OutputArgs(),
+      passOutput
+    ]);
+
+    currentInput = passOutput;
+  }
 }
 
 function buildOverlayFilter(fragments: Array<{ path: string; start: number }>, mode: "alpha" | "chroma") {
@@ -152,6 +164,12 @@ function buildOverlayFilter(fragments: Array<{ path: string; start: number }>, m
     }
   });
   return chains.join(";");
+}
+
+function overlayComposeBatchSize() {
+  const raw = Number(process.env.HYPERFRAMES_OVERLAY_COMPOSE_BATCH_SIZE ?? "6");
+  if (!Number.isFinite(raw)) return 6;
+  return Math.max(1, Math.min(12, Math.trunc(raw)));
 }
 
 function round(value: number) {
