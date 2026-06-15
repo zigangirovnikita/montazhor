@@ -48,6 +48,13 @@ export const sceneRecipeIdSchema = z.enum([
 export const speakerModeSchema = z.enum(["full_frame", "reframed", "pip", "hidden"]);
 export const sceneIntensitySchema = z.enum(["safe", "balanced", "strong"]);
 export const sceneTransitionSchema = z.enum(["fade", "slide", "zoom", "wipe", "cut"]);
+export const planningConfidenceLevelSchema = z.enum(["high", "medium", "low"]);
+export const planningEscalationPolicySchema = z.enum(["none", "enhanced_ai", "review_queue"]);
+export const scenePrioritySchema = z.enum(["hero", "support", "ambient", "skip"]);
+export const sceneDensitySchema = z.enum(["minimal", "balanced", "dense"]);
+export const copyCompressionModeSchema = z.enum(["headline", "labelled", "bullet", "contrast", "cta"]);
+export const visualRoleSchema = z.enum(["hero_scene", "support_overlay", "micro_emphasis", "transition_scene", "none"]);
+export const holdStrategySchema = z.enum(["readable_hold", "carry_with_microbeats", "quick_punctuate", "transition_bridge"]);
 export const sceneLayerKindSchema = z.enum([
   "speaker",
   "title",
@@ -117,6 +124,104 @@ export const semanticBlockSchema = z.object({
   message: "Semantic block end must be >= start."
 });
 
+export const planningConfidenceSchema = z.object({
+  level: planningConfidenceLevelSchema,
+  score: z.number().min(0).max(1),
+  reasons: z.array(z.string()),
+  escalationPolicy: planningEscalationPolicySchema
+});
+
+export const screenCopyPayloadSchema = z.object({
+  title: z.string().optional(),
+  subtitle: z.string().optional(),
+  text: z.string().optional(),
+  left: z.string().optional(),
+  right: z.string().optional(),
+  items: z.array(z.string()).optional(),
+  label: z.string().optional(),
+  cta: z.string().optional(),
+  value: z.string().optional(),
+  caption: z.string().optional(),
+  falseText: z.string().optional(),
+  trueText: z.string().optional(),
+  quote: z.string().optional(),
+  center: z.string().optional()
+});
+
+export const directorPlanBlockSchema = z.object({
+  id: z.string().min(1),
+  blockId: z.string().min(1),
+  blockType: semanticBlockTypeSchema,
+  sceneCategory: sceneCategorySchema,
+  recipeId: sceneRecipeIdSchema,
+  variantId: z.string().optional(),
+  speakerMode: speakerModeSchema,
+  intensity: sceneIntensitySchema,
+  scenePriority: scenePrioritySchema,
+  sceneDensity: sceneDensitySchema,
+  visualRole: visualRoleSchema,
+  holdStrategy: holdStrategySchema,
+  transitionIn: sceneTransitionSchema,
+  transitionOut: sceneTransitionSchema,
+  start: z.number().min(0),
+  end: z.number().min(0),
+  rationale: z.string().optional(),
+  fallbackRecipeId: sceneRecipeIdSchema.optional(),
+  safeMode: z.boolean().optional(),
+  disabled: z.boolean().optional(),
+  allowedRecipeIds: z.array(sceneRecipeIdSchema).optional(),
+  recommendedRecipeId: sceneRecipeIdSchema.optional(),
+  planningConfidence: planningConfidenceSchema
+}).refine((value) => value.end >= value.start, {
+  message: "Director plan block end must be >= start."
+});
+
+export const directorPlanSchema = z.object({
+  version: z.string().min(1),
+  templateId: z.string().optional(),
+  templateName: z.string().optional(),
+  styleProfileId: z.string().min(1),
+  planner: z.enum(["deterministic", "ai"]),
+  semanticBlocks: z.array(semanticBlockSchema),
+  blocks: z.array(directorPlanBlockSchema),
+  diagnostics: z.array(z.string()).optional()
+});
+
+export const screenCopyBlockSchema = z.object({
+  id: z.string().min(1),
+  blockId: z.string().min(1),
+  recipeId: sceneRecipeIdSchema,
+  copyCompressionMode: copyCompressionModeSchema,
+  payload: screenCopyPayloadSchema,
+  editableFields: z.array(z.enum([
+    "title",
+    "subtitle",
+    "text",
+    "left",
+    "right",
+    "items",
+    "label",
+    "cta",
+    "value",
+    "caption",
+    "falseText",
+    "trueText",
+    "quote",
+    "center"
+  ])),
+  planningConfidence: planningConfidenceSchema,
+  rationale: z.string().optional()
+});
+
+export const screenCopyPlanSchema = z.object({
+  version: z.string().min(1),
+  templateId: z.string().optional(),
+  styleProfileId: z.string().min(1),
+  planner: z.enum(["deterministic", "ai"]),
+  blocks: z.array(screenCopyBlockSchema),
+  diagnostics: z.array(z.string()).optional()
+});
+
 export const scenePlanBlockSchema = z.object({
   id: z.string().min(1),
   blockId: z.string().min(1),
@@ -136,7 +241,12 @@ export const scenePlanBlockSchema = z.object({
   fallbackRecipeId: sceneRecipeIdSchema.optional(),
   safeMode: z.boolean().optional(),
   allowedRecipeIds: z.array(sceneRecipeIdSchema).optional(),
-  recommendedRecipeId: sceneRecipeIdSchema.optional()
+  recommendedRecipeId: sceneRecipeIdSchema.optional(),
+  planningConfidence: planningConfidenceSchema.optional(),
+  scenePriority: scenePrioritySchema.optional(),
+  sceneDensity: sceneDensitySchema.optional(),
+  visualRole: visualRoleSchema.optional(),
+  holdStrategy: holdStrategySchema.optional()
 }).refine((value) => value.end >= value.start, {
   message: "Scene plan block end must be >= start."
 });

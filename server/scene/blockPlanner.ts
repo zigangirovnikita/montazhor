@@ -1,13 +1,14 @@
 import type { ContentPlan, SemanticBlock, SemanticBlockType, SubtitleDraft, TranscriptWord } from "@/lib/types";
 
-const CTA_RE = /\b(подпиш|сохрани|переходи|забирай|пиши|subscribe|follow|save|download|join)\b/i;
-const TIMELINE_RE = /\b(сначала|потом|затем|после|first|then|next|finally|year|год|лет)\b/i;
-const WARNING_RE = /\b(опасно|ошибка|нельзя|стоп|миф|wrong|mistake|risk|danger)\b/i;
-const DEFINITION_RE = /\b(это|значит|называется|is|means|definition)\b/i;
-const LIST_RE = /\b(первое|второе|третье|шаг|пункт|список|first|second|third|step)\b/i;
-const COMPARE_RE = /\b(или|против|vs|versus|вместо|до|после|better|хуже|лучше)\b/i;
-const PROOF_RE = /\b(\d+[.,]?\d*%?|\$|₽|x|раз|пример|результат|кейс|case)\b/i;
-const TRANSITION_RE = /\b(дальше|теперь|тогда|переходим|next|now|moving on)\b/i;
+const CTA_RE = /\b(подпиш|сохрани|переходи|забирай|пиши|скачай|subscribe|follow|save|download|join)\b/i;
+const TIMELINE_RE = /\b(сначала|потом|затем|после|этап|шаг|first|then|next|finally|year|год|лет)\b/i;
+const WARNING_RE = /\b(опасно|ошибка|нельзя|стоп|миф|wrong|mistake|risk|danger|warning)\b/i;
+const DEFINITION_RE = /\b(это|значит|называется|по сути|is|means|definition)\b/i;
+const LIST_RE = /\b(первое|второе|третье|шаг|пункт|список|причин|first|second|third|step)\b/i;
+const COMPARE_RE = /\b(или|против|vs|versus|вместо|до|после|better|хуже|лучше|с одной стороны|с другой)\b/i;
+const PROOF_RE = /\b(\d+[.,]?\d*%?|\$|₽|x|раз|пример|результат|кейс|case|цифр|статистика)\b/i;
+const TRANSITION_RE = /\b(дальше|теперь|тогда|переходим|короче дальше|next|now|moving on)\b/i;
+const THESIS_RE = /\b(главное|суть|итог|поэтому|вывод|main point|bottom line)\b/i;
 
 interface BlockWord extends TranscriptWord {
   sourceIndex: number;
@@ -85,6 +86,8 @@ function shouldExtendBlock(words: BlockWord[], startIndex: number, nextIndex: nu
   if (duration > 6.5) return false;
   if (count >= 32) return false;
   if (gap > 0.55) return false;
+  if (gap > 0.35 && /[.!?]$/.test(previous.word)) return false;
+  if (count >= 18 && /[,:;]$/.test(previous.word)) return false;
   if (duration > 3.6 && /[.!?]$/.test(previous.word)) return false;
   return true;
 }
@@ -95,14 +98,16 @@ function inferBlockType(text: string, index: number, contentPlan: ContentPlan): 
   if (TRANSITION_RE.test(text)) return "transition";
   if (TIMELINE_RE.test(text)) return "timeline";
   if (WARNING_RE.test(text) && COMPARE_RE.test(text)) return "myth_vs_truth";
+  if (THESIS_RE.test(text)) return "thesis";
   if (COMPARE_RE.test(text)) return "comparison";
   if (LIST_RE.test(text)) return "list";
   if (WARNING_RE.test(text)) return "warning";
   if (DEFINITION_RE.test(text)) return "definition";
   if (PROOF_RE.test(text)) return "proof";
   if (contentPlan.hook && normalizeText(contentPlan.hook) === normalizeText(text)) return "thesis";
-  if (text.includes(":")) return "explanation";
-  return "example";
+  if (text.includes(":") || text.split(" ").length > 16) return "explanation";
+  if (/[«"”]/.test(text)) return "example";
+  return "explanation";
 }
 
 function summarizeBlock(text: string) {

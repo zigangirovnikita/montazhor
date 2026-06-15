@@ -47,6 +47,8 @@ export function pathsForProject(projectId: string) {
     reviewCandidates: path.join(project, "review-candidates.json"),
     contentPlan: path.join(project, "content-plan.json"),
     semanticBlocks: path.join(project, "semantic-blocks.json"),
+    directorPlan: path.join(project, "director-plan.json"),
+    screenCopyPlan: path.join(project, "screen-copy-plan.json"),
     scenePlan: path.join(project, "scene-plan.json"),
     compiledScenePlan: path.join(project, "compiled-scene-plan.json"),
     visualPlan: path.join(project, "visual-plan.json"),

@@ -1,83 +1,163 @@
 import type {
   CompiledSceneBlock,
   CompiledScenePlan,
+  DirectorPlan,
+  DirectorPlanBlock,
+  SceneLayerPlan,
+  SceneMicroBeat,
   ScenePlan,
-  ScenePlanBlock,
+  ScreenCopyBlock,
+  ScreenCopyPlan,
+  SemanticBlock,
   VisualBeat,
+  VisualFrameProfile,
+  VisualPlanOptions,
   VisualScene
 } from "@/lib/types";
-import type { VisualFrameProfile, VisualPlanOptions } from "@/lib/types";
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
+import { buildMicroBeatsForBlock } from "@/server/scene/microBeatPlanner";
 
-export const SCENE_COMPILER_VERSION = "v1";
+export const SCENE_COMPILER_VERSION = "v2";
 
 export function compileScenePlan(
-  scenePlan: ScenePlan,
+  directorPlan: DirectorPlan,
+  screenCopyPlan: ScreenCopyPlan,
   frame: VisualFrameProfile,
   styleOptions?: VisualPlanOptions
 ): CompiledScenePlan {
-  const blocks = scenePlan.blocks.map((block) => compileSceneBlock(block, scenePlan, frame, styleOptions));
+  const blocks = directorPlan.blocks
+    .filter((block) => block.disabled !== true)
+    .map((block) => compileSceneBlock(block, directorPlan.semanticBlocks, screenCopyPlan, frame, styleOptions));
   return {
     version: SCENE_COMPILER_VERSION,
-    templateId: scenePlan.templateId,
-    styleProfileId: scenePlan.styleProfileId,
-    planner: scenePlan.planner,
+    templateId: directorPlan.templateId,
+    styleProfileId: directorPlan.styleProfileId,
+    planner: directorPlan.planner,
     blocks,
-    diagnostics: scenePlan.diagnostics
+    diagnostics: [...(directorPlan.diagnostics ?? []), ...(screenCopyPlan.diagnostics ?? [])]
+  };
+}
+
+export function buildReviewScenePlan(directorPlan: DirectorPlan, screenCopyPlan: ScreenCopyPlan): ScenePlan {
+  return {
+    version: directorPlan.version,
+    templateId: directorPlan.templateId,
+    templateName: directorPlan.templateName,
+    styleProfileId: directorPlan.styleProfileId,
+    planner: directorPlan.planner,
+    semanticBlocks: directorPlan.semanticBlocks,
+    blocks: directorPlan.blocks.map((block) => {
+      const copyBlock = screenCopyPlan.blocks.find((entry) => entry.blockId === block.blockId);
+      return {
+        id: block.id,
+        blockId: block.blockId,
+        blockType: block.blockType,
+        sceneCategory: block.sceneCategory,
+        recipeId: block.recipeId,
+        variantId: block.variantId,
+        speakerMode: block.speakerMode,
+        layerPlan: buildLayerPlan(block, copyBlock),
+        microBeats: [],
+        intensity: block.intensity,
+        transitionIn: block.transitionIn,
+        transitionOut: block.transitionOut,
+        start: block.start,
+        end: block.end,
+        rationale: block.rationale,
+        fallbackRecipeId: block.fallbackRecipeId,
+        safeMode: block.safeMode,
+        allowedRecipeIds: block.allowedRecipeIds,
+        recommendedRecipeId: block.recommendedRecipeId,
+        planningConfidence: block.planningConfidence,
+        scenePriority: block.scenePriority,
+        sceneDensity: block.sceneDensity,
+        visualRole: block.visualRole,
+        holdStrategy: block.holdStrategy
+      };
+    }),
+    diagnostics: directorPlan.diagnostics
   };
 }
 
 function compileSceneBlock(
-  block: ScenePlanBlock,
-  scenePlan: ScenePlan,
+  block: DirectorPlanBlock,
+  semanticBlocks: SemanticBlock[],
+  screenCopyPlan: ScreenCopyPlan,
   frame: VisualFrameProfile,
   styleOptions?: VisualPlanOptions
 ): CompiledSceneBlock {
-  const semanticBlock = scenePlan.semanticBlocks.find((entry) => entry.id === block.blockId);
+  const semanticBlock = semanticBlocks.find((entry) => entry.id === block.blockId);
   if (!semanticBlock) {
-    throw new Error(`Missing semantic block for scene block ${block.id}`);
+    throw new Error(`Missing semantic block for director block ${block.id}`);
+  }
+  const copyBlock = screenCopyPlan.blocks.find((entry) => entry.blockId === block.blockId);
+  if (!copyBlock) {
+    throw new Error(`Missing screen copy block for semantic block ${block.blockId}`);
   }
 
   const recipeDef = getSceneRecipe(block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId);
-  const fallbackApplied = block.safeMode === true || block.microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3;
+  const microBeats = compileMicroBeats(block, semanticBlock);
+  const fallbackApplied = block.safeMode === true || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
-    ? compileOverlayBeats(block, recipeDef.id, frame, styleOptions, fallbackApplied)
+    ? compileOverlayBeats(block, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
     : [];
   const fullScene = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? undefined
-    : compileFullScene(block, recipeDef.id, semanticBlock.summary);
+    : compileFullScene(block, copyBlock, semanticBlock.summary);
 
   return {
     id: `compiled-${block.id}`,
     blockId: block.blockId,
     sceneId: block.id,
     blockType: block.blockType,
-    sceneCategory: block.sceneCategory,
+    sceneCategory: recipeDef.category,
     recipeId: recipeDef.id,
     speakerMode: block.speakerMode,
     start: semanticBlock.start,
     end: semanticBlock.end,
     duration: round(Math.max(0.8, semanticBlock.end - semanticBlock.start)),
     renderPath: fullScene ? "full_scene" : "overlay",
-    activeLayerIds: block.layerPlan.filter((layer) => layer.enabled).map((layer) => layer.id),
+    activeLayerIds: buildLayerPlan(block, copyBlock).filter((layer) => layer.enabled).map((layer) => layer.id),
     summary: semanticBlock.summary,
+    screenCopy: copyBlock.payload,
     overlayBeats,
     fullScene,
-    microBeats: block.microBeats,
-    fallbackApplied
+    microBeats,
+    fallbackApplied,
+    planningConfidence: copyBlock.planningConfidence,
+    scenePriority: block.scenePriority,
+    sceneDensity: block.sceneDensity,
+    visualRole: block.visualRole,
+    holdStrategy: block.holdStrategy
   };
 }
 
+function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBlock) {
+  const words = semanticBlock.text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index, all) => {
+      const slice = (semanticBlock.end - semanticBlock.start) / Math.max(all.length, 1);
+      const start = semanticBlock.start + (slice * index);
+      return {
+        word,
+        start,
+        end: Math.min(semanticBlock.end, start + Math.max(0.18, slice * 0.9))
+      };
+    });
+  return buildMicroBeatsForBlock(semanticBlock, words, block.recipeId);
+}
+
 function compileOverlayBeats(
-  block: ScenePlanBlock,
-  recipeId: ScenePlanBlock["recipeId"],
+  block: DirectorPlanBlock,
+  copyBlock: ScreenCopyBlock,
+  beats: SceneMicroBeat[],
   frame: VisualFrameProfile,
   styleOptions: VisualPlanOptions | undefined,
   fallbackApplied: boolean
 ) {
-  const recipeDef = getSceneRecipe(recipeId);
-  const layers = block.layerPlan.filter((layer) => layer.enabled);
-  const basePayload = Object.assign({}, ...layers.map((layer) => layer.payload));
+  const recipeDef = getSceneRecipe(block.recipeId);
+  const basePayload = copyBlock.payload as Record<string, unknown>;
   const layout = chooseLayout(recipeDef.allowedLayouts, frame.orientation);
   const templateId = (recipeDef.visualMapping.overlayTemplateId ?? "kinetic_text") as VisualBeat["templateId"];
   const presetId = recipeDef.visualMapping.overlayPresetId ?? fallbackPresetForTemplate(templateId);
@@ -86,20 +166,11 @@ function compileOverlayBeats(
     : styleOptions?.motionIntensity === "calm"
       ? "calm_fade"
       : "glass_slide";
-
-  const beats = block.microBeats.length > 0 ? block.microBeats : [{
-    id: `${block.id}-fallback`,
-    start: block.start,
-    end: Math.min(block.end, block.start + 0.8),
-    type: "subtitle_emphasis" as const,
-    anchorText: block.layerPlan.find((layer) => layer.kind === "title")?.payload.text as string | undefined
-  }];
-
   const supportBeats = buildSupportingSpeechBeats(block, beats, motionId);
   const primaryStart = round(Math.max(block.start, beats[0]?.start ?? block.start));
   const primaryEnd = supportBeats[0]
     ? round(Math.max(primaryStart + 0.6, Math.min(block.end, supportBeats[0].start - 0.08)))
-    : round(Math.min(block.end, primaryStart + primaryOverlayDuration(block, recipeDef.id)));
+    : round(Math.min(block.end, primaryStart + primaryOverlayDuration(block.recipeId, block.end - block.start)));
 
   const primaryBeat: VisualBeat = {
     id: `${block.id}-overlay-primary`,
@@ -111,40 +182,34 @@ function compileOverlayBeats(
     layout,
     payload: decoratePayloadForBeat(basePayload, beats[0]?.anchorText, fallbackApplied),
     sourceMomentId: block.blockId,
-    role: layers.some((layer) => layer.kind === "cta") ? "cta" : "semantic_accent",
-    variant: fallbackApplied ? "safe" : block.intensity === "strong" ? "hero" : "standard"
+    role: block.recipeId === "cta_finish" ? "cta" : "semantic_accent",
+    variant: fallbackApplied ? "safe" : block.scenePriority === "hero" ? "hero" : "standard"
   };
 
   return [primaryBeat, ...supportBeats];
 }
 
-function compileFullScene(block: ScenePlanBlock, recipeId: ScenePlanBlock["recipeId"], summary: string): VisualScene {
-  const recipeDef = getSceneRecipe(recipeId);
-  const payload = buildFullScenePayload(block, recipeDef.id, summary);
+function compileFullScene(block: DirectorPlanBlock, copyBlock: ScreenCopyBlock, summary: string): VisualScene {
+  const recipeDef = getSceneRecipe(block.recipeId);
   return {
     id: `${block.id}-full`,
     start: round(block.start),
     duration: round(Math.max(recipeDef.duration.min, Math.min(recipeDef.duration.max, block.end - block.start))),
     sceneType: (recipeDef.visualMapping.fullSceneType ?? "pip_slide") as VisualScene["sceneType"],
-    presetId: recipeId,
+    presetId: block.recipeId,
     layoutMode: recipeDef.visualMapping.layoutMode ?? "overlay",
     speakerMode: block.speakerMode,
     sourceText: summary,
-    payload,
+    payload: buildFullScenePayload(block.recipeId, copyBlock.payload, summary) as Record<string, unknown>,
     safeRegionPolicy: block.speakerMode === "hidden" ? "full_frame" : block.speakerMode === "pip" ? "pip_safe" : "avoid_speaker",
     transitionIn: block.transitionIn === "wipe" ? "slide" : block.transitionIn === "cut" ? "fade" : block.transitionIn,
     transitionOut: block.transitionOut === "zoom" || block.transitionOut === "wipe" ? "slide" : block.transitionOut
   };
 }
 
-function buildFullScenePayload(
-  block: ScenePlanBlock,
-  recipeId: ScenePlanBlock["recipeId"],
-  summary: string
-) {
-  const payload = Object.assign({}, ...block.layerPlan.filter((layer) => layer.enabled).map((layer) => layer.payload));
+function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload: ScreenCopyBlock["payload"], summary: string) {
   const title = readText(payload.title ?? payload.text) ?? summary;
-  const subtitle = readText(payload.subtitle);
+  const subtitle = readText(payload.subtitle ?? payload.caption);
   const items = normalizeItems(payload.items, summary);
   const [left, right] = splitPair(readText(payload.left), readText(payload.right), summary);
 
@@ -193,32 +258,19 @@ function buildFullScenePayload(
       subtitle
     };
   }
-
-  return payload;
-}
-
-function decoratePayloadForBeat(basePayload: Record<string, unknown>, anchorText: string | undefined, fallbackApplied: boolean) {
-  const payload = { ...basePayload };
-  if (!payload.text && anchorText) payload.text = anchorText;
-  if (!payload.title && typeof payload.text === "string") payload.title = payload.text;
-  if (fallbackApplied) payload.subtext = payload.subtext ?? "safe mode";
   return payload;
 }
 
 function buildSupportingSpeechBeats(
-  block: ScenePlanBlock,
-  beats: ScenePlanBlock["microBeats"],
+  block: DirectorPlanBlock,
+  beats: SceneMicroBeat[],
   motionId: VisualBeat["motionId"]
 ): VisualBeat[] {
   if (block.recipeId === "cta_finish" || block.recipeId === "clean_section_transition") return [];
-
   const selected = beats
-    .filter((beat) => beat.start >= block.start + 1.1)
-    .filter((beat, index) => index % 2 === 0)
-    .slice(0, block.end - block.start >= 5 ? 3 : 2);
-
+    .filter((beat) => beat.start >= block.start + 0.9)
+    .slice(0, block.scenePriority === "hero" ? 2 : 1);
   let lastEnd = block.start;
-
   return selected.map((beat, index) => {
     const start = Math.max(lastEnd + 0.08, beat.start);
     const end = Math.min(block.end, Math.max(start + 0.42, beat.end));
@@ -243,10 +295,100 @@ function buildSupportingSpeechBeats(
   });
 }
 
-function primaryOverlayDuration(block: ScenePlanBlock, recipeId: ScenePlanBlock["recipeId"]) {
+function buildLayerPlan(block: DirectorPlanBlock, copyBlock: ScreenCopyBlock | undefined): SceneLayerPlan[] {
+  const payload = copyBlock?.payload ?? {};
+  const layers: SceneLayerPlan[] = [];
+  if (payload.title || payload.text) {
+    layers.push({
+      id: `${block.blockId}-title`,
+      kind: "title",
+      emphasis: "primary",
+      enabled: true,
+      payload: { text: payload.title ?? payload.text }
+    });
+  }
+  if (payload.subtitle || payload.caption) {
+    layers.push({
+      id: `${block.blockId}-subtitle`,
+      kind: "subtitle",
+      emphasis: "support",
+      enabled: true,
+      payload: { text: payload.subtitle ?? payload.caption }
+    });
+  }
+  if (payload.value) {
+    layers.push({
+      id: `${block.blockId}-number`,
+      kind: "number",
+      emphasis: "dominant",
+      enabled: true,
+      payload: { value: payload.value, label: payload.label ?? payload.title }
+    });
+  }
+  if (payload.items?.length) {
+    layers.push({
+      id: `${block.blockId}-checklist`,
+      kind: "checklist",
+      emphasis: "dominant",
+      enabled: true,
+      payload: { items: payload.items }
+    });
+  }
+  if (payload.left || payload.right || payload.falseText || payload.trueText) {
+    layers.push({
+      id: `${block.blockId}-comparison`,
+      kind: "comparison",
+      emphasis: "dominant",
+      enabled: true,
+      payload: {
+        left: payload.left ?? payload.falseText,
+        right: payload.right ?? payload.trueText,
+        caption: payload.caption ?? payload.label
+      }
+    });
+  }
+  if (payload.quote) {
+    layers.push({
+      id: `${block.blockId}-quote`,
+      kind: "quote",
+      emphasis: "dominant",
+      enabled: true,
+      payload: { quote: payload.quote, label: payload.label }
+    });
+  }
+  if (payload.cta) {
+    layers.push({
+      id: `${block.blockId}-cta`,
+      kind: "cta",
+      emphasis: "dominant",
+      enabled: true,
+      payload: { text: payload.cta, label: payload.label ?? payload.title }
+    });
+  }
+  if (layers.length === 0) {
+    layers.push({
+      id: `${block.blockId}-fallback`,
+      kind: "supporting_text",
+      emphasis: "support",
+      enabled: true,
+      payload: { text: payload.title ?? payload.text ?? "" }
+    });
+  }
+  return layers;
+}
+
+function decoratePayloadForBeat(basePayload: Record<string, unknown>, anchorText: string | undefined, fallbackApplied: boolean) {
+  const payload = { ...basePayload };
+  if (!payload.text && anchorText) payload.text = anchorText;
+  if (!payload.title && typeof payload.text === "string") payload.title = payload.text;
+  if (fallbackApplied) payload.subtext = payload.subtext ?? "safe mode";
+  return payload;
+}
+
+function primaryOverlayDuration(recipeId: DirectorPlanBlock["recipeId"], duration: number) {
   if (recipeId === "cta_finish") return 1.8;
   if (recipeId === "clean_section_transition") return 1.1;
-  return Math.min(1.6, Math.max(0.95, (block.end - block.start) * 0.38));
+  return Math.min(1.8, Math.max(0.95, duration * 0.42));
 }
 
 function chooseLayout(layouts: Array<"left" | "right" | "center" | "lower_third" | "full_frame">, orientation: VisualFrameProfile["orientation"]) {
@@ -259,43 +401,27 @@ function chooseLayout(layouts: Array<"left" | "right" | "center" | "lower_third"
 function fallbackPresetForTemplate(templateId: VisualBeat["templateId"]) {
   if (templateId === "lesson_title") return "lesson_title_block";
   if (templateId === "big_number") return "big_number_callout";
-  if (templateId === "stat_panel") return "hud_ratio_panel";
-  if (templateId === "bullet_cards") return "definition_card";
   if (templateId === "checklist") return "checklist_steps";
+  if (templateId === "myth_strike") return "myth_strike_redline";
   if (templateId === "cta_plate") return "cta_finish_clean";
-  return "kinetic_phrase_safe";
-}
-
-function round(value: number) {
-  return Math.round(value * 1000) / 1000;
-}
-
-function normalizeItems(value: unknown, summary: string) {
-  const rawItems = Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : [];
-  const normalized = rawItems.slice(0, 3).map((item, index) => ({
-    index: String(index + 1).padStart(2, "0"),
-    title: item.split(/\s+/).slice(0, 4).join(" "),
-    text: item
-  }));
-
-  if (normalized.length > 0) return normalized;
-
-  const fallback = summary.split(/\s+/).slice(0, 9).join(" ");
-  return [{
-    index: "01",
-    title: fallback,
-    text: fallback
-  }];
+  return "kinetic_phrase_clean";
 }
 
 function readText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function normalizeItems(items: unknown, summary: string) {
+  if (!Array.isArray(items) || items.length === 0) return [summary];
+  return items.map((item) => String(item)).filter(Boolean).slice(0, 4);
+}
+
 function splitPair(left: string | undefined, right: string | undefined, summary: string) {
   if (left && right) return [left, right] as const;
-  const fallback = summary.split(/[,:;]| и | and /i).map((item) => item.trim()).filter(Boolean);
-  return [left ?? fallback[0] ?? summary, right ?? fallback[1] ?? fallback[0] ?? summary] as const;
+  const parts = summary.split(/\s+/);
+  return [left ?? parts.slice(0, 2).join(" "), right ?? (parts.slice(2).join(" ") || summary)] as const;
+}
+
+function round(value: number) {
+  return Math.round(value * 1000) / 1000;
 }

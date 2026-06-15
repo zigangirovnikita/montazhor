@@ -8,6 +8,8 @@ export async function cleanupProjectArtifacts(projectId: string) {
   await Promise.all([
     safeRm(paths.audio),
     safeRm(paths.semanticBlocks),
+    safeRm(paths.directorPlan),
+    safeRm(paths.screenCopyPlan),
     safeRm(paths.scenePlan),
     safeRm(paths.compiledScenePlan),
     safeRm(paths.visualPlan),

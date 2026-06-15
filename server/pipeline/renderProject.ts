@@ -200,7 +200,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
 
   if (presentationMode === "cinematic_scenes" || presentationMode === "subtitles_infographics") {
     try {
-      const { semanticBlocks, scenePlan, compiledScenePlan, videoPath } = await renderScenePipeline({
+      const { semanticBlocks, directorPlan, screenCopyPlan, scenePlan, compiledScenePlan, videoPath } = await renderScenePipeline({
         projectId,
         paths,
         transcript,
@@ -223,6 +223,22 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
         summary: `Semantic block planner produced ${semanticBlocks.length} blocks.`,
         metadata: { path: paths.semanticBlocks },
         payload: semanticBlocks,
+      });
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "director_plan",
+        kind: "result",
+        summary: `Director planner produced ${directorPlan.blocks.length} cinematic decisions.`,
+        metadata: { path: paths.directorPlan },
+        payload: directorPlan,
+      });
+      await auditProjectEvent(projectId, {
+        phase: "render_preview",
+        step: "screen_copy_plan",
+        kind: "result",
+        summary: `Screen copy planner produced ${screenCopyPlan.blocks.length} copy payloads.`,
+        metadata: { path: paths.screenCopyPlan },
+        payload: screenCopyPlan,
       });
       await auditProjectEvent(projectId, {
         phase: "render_preview",

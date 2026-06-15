@@ -1,7 +1,9 @@
 import type {
   CompiledScenePlan,
+  DirectorPlan,
   PresentationMode,
   ScenePlan,
+  ScreenCopyPlan,
   SemanticBlock,
   StylePreset,
   TranscriptJson,
@@ -31,6 +33,8 @@ export interface ProjectPayload {
     contentPlan?: { hook: string; description: string; hashtags: string[] };
     visualPlan?: VisualOverlayPlan | null;
     semanticBlocks?: SemanticBlock[] | null;
+    directorPlan?: DirectorPlan | null;
+    screenCopyPlan?: ScreenCopyPlan | null;
     scenePlan?: ScenePlan | null;
     compiledScenePlan?: CompiledScenePlan | null;
   } | null;

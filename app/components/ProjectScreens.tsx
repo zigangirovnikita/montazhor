@@ -4,8 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BlockReviewPanel } from "@/app/components/BlockReviewPanel";
 import type { ProjectPayload } from "@/app/components/projectFlowTypes";
-import type { SceneRecipeId } from "@/lib/types";
-import type { CleanupMode } from "@/lib/types";
+import type { CleanupMode, SceneRecipeId, ScreenCopyPayload } from "@/lib/types";
 
 export const processingSteps = [
   ["extracting_audio", "Распознаем звук"],
@@ -86,7 +85,7 @@ export function FinalPreview({
   onApprove: () => void;
   onStyle: () => void;
   onText: () => void;
-  onSceneAction: (request: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode"; recipeId?: SceneRecipeId; layerId?: string }) => Promise<void>;
+  onSceneAction: (request: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode" | "disable_insert" | "edit_copy"; recipeId?: SceneRecipeId; layerId?: string; copyPatch?: Partial<ScreenCopyPayload> }) => Promise<void>;
 }) {
   return (
     <div className="flow-stack">

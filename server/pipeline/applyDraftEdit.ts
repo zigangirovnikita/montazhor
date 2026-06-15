@@ -69,6 +69,8 @@ export async function applyDraftEdit(projectId: string, input: DraftEditInput) {
   await safeUnlink(paths.subtitlesOverlayMp4);
   await safeUnlink(paths.semanticOverlayMp4);
   await safeUnlink(paths.semanticBlocks);
+  await safeUnlink(paths.directorPlan);
+  await safeUnlink(paths.screenCopyPlan);
   await safeUnlink(paths.scenePlan);
   await safeUnlink(paths.compiledScenePlan);
   await safeUnlink(paths.visualPlan);
@@ -302,6 +304,8 @@ async function invalidateRenderedReviewArtifacts(projectId: string, includeClean
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticBlocks);
+  await safeUnlink(paths.directorPlan);
+  await safeUnlink(paths.screenCopyPlan);
   await safeUnlink(paths.scenePlan);
   await safeUnlink(paths.compiledScenePlan);
   await safeUnlink(paths.visualPlan);

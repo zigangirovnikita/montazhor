@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-16 — Cinematic Scene Engine V2 switched to director/copy source of truth
+
+- Problem: the cinematic path still mixed semantic intent, scene choice, and raw on-screen text inside one `scenePlan`, which kept pushing the planner back toward generic fallback cards and made block review too shallow.
+- Decision: split the main path into `semantic-blocks -> director-plan -> screen-copy-plan -> compiled-scene-plan`, keep authored recipes as the only renderer source of truth, move review actions to `director/screenCopy` artifacts, and rebuild the legacy `scenePlan` only as a review projection for compatibility.
+- Result: the render path now persists `director-plan.json` and `screen-copy-plan.json`, the compiler consumes copy payloads instead of transcript-shaped layer data, micro-beats filter weak tokens and prefer phrase-level support, and block review can now swap recipe, disable insert, and edit screen copy per block.
+- Follow-up: validate the new path on the remote `/opt/montazhor` runtime with a real talking-head project and tune any recipe-specific copy density issues from server renders rather than broad planner rewrites.
+
 ### 2026-06-15 — Visual pipeline migrated to scene-plan source of truth
 
 - Problem: the visual pipeline had three competing contracts: beat-based overlay planning, cinematic template instances, and template-builder theme overrides. That prevented template restrictions, block planning, and full-scene composition from sharing one deterministic source of truth.

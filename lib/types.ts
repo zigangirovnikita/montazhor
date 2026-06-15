@@ -358,6 +358,13 @@ export type SceneRecipeId =
 export type SpeakerMode = "full_frame" | "reframed" | "pip" | "hidden";
 export type SceneIntensity = "safe" | "balanced" | "strong";
 export type SceneTransition = "fade" | "slide" | "zoom" | "wipe" | "cut";
+export type PlanningConfidenceLevel = "high" | "medium" | "low";
+export type PlanningEscalationPolicy = "none" | "enhanced_ai" | "review_queue";
+export type ScenePriority = "hero" | "support" | "ambient" | "skip";
+export type SceneDensity = "minimal" | "balanced" | "dense";
+export type CopyCompressionMode = "headline" | "labelled" | "bullet" | "contrast" | "cta";
+export type VisualRole = "hero_scene" | "support_overlay" | "micro_emphasis" | "transition_scene" | "none";
+export type HoldStrategy = "readable_hold" | "carry_with_microbeats" | "quick_punctuate" | "transition_bridge";
 export type MicroBeatType =
   | "number_emphasis"
   | "keyword_highlight"
@@ -397,6 +404,87 @@ export interface SemanticBlock {
   wordCount: number;
   contextBefore?: string;
   contextAfter?: string;
+}
+
+export interface PlanningConfidence {
+  level: PlanningConfidenceLevel;
+  score: number;
+  reasons: string[];
+  escalationPolicy: PlanningEscalationPolicy;
+}
+
+export interface ScreenCopyPayload {
+  title?: string;
+  subtitle?: string;
+  text?: string;
+  left?: string;
+  right?: string;
+  items?: string[];
+  label?: string;
+  cta?: string;
+  value?: string;
+  caption?: string;
+  falseText?: string;
+  trueText?: string;
+  quote?: string;
+  center?: string;
+}
+
+export interface DirectorPlanBlock {
+  id: string;
+  blockId: string;
+  blockType: SemanticBlockType;
+  sceneCategory: SceneCategory;
+  recipeId: SceneRecipeId;
+  variantId?: string;
+  speakerMode: SpeakerMode;
+  intensity: SceneIntensity;
+  scenePriority: ScenePriority;
+  sceneDensity: SceneDensity;
+  visualRole: VisualRole;
+  holdStrategy: HoldStrategy;
+  transitionIn: SceneTransition;
+  transitionOut: SceneTransition;
+  start: number;
+  end: number;
+  rationale?: string;
+  fallbackRecipeId?: SceneRecipeId;
+  safeMode?: boolean;
+  disabled?: boolean;
+  allowedRecipeIds?: SceneRecipeId[];
+  recommendedRecipeId?: SceneRecipeId;
+  planningConfidence: PlanningConfidence;
+}
+
+export interface DirectorPlan {
+  version: string;
+  templateId?: string;
+  templateName?: string;
+  styleProfileId: StylePreset;
+  planner: "deterministic" | "ai";
+  semanticBlocks: SemanticBlock[];
+  blocks: DirectorPlanBlock[];
+  diagnostics?: string[];
+}
+
+export interface ScreenCopyBlock {
+  id: string;
+  blockId: string;
+  recipeId: SceneRecipeId;
+  copyCompressionMode: CopyCompressionMode;
+  payload: ScreenCopyPayload;
+  editableFields: Array<keyof ScreenCopyPayload>;
+  planningConfidence: PlanningConfidence;
+  rationale?: string;
+}
+
+export interface ScreenCopyPlan {
+  version: string;
+  templateId?: string;
+  styleProfileId: StylePreset;
+  planner: "deterministic" | "ai";
+  blocks: ScreenCopyBlock[];
+  diagnostics?: string[];
 }
 
 export interface SceneLayerPlan {
@@ -440,6 +528,11 @@ export interface ScenePlanBlock {
   safeMode?: boolean;
   allowedRecipeIds?: SceneRecipeId[];
   recommendedRecipeId?: SceneRecipeId;
+  planningConfidence?: PlanningConfidence;
+  scenePriority?: ScenePriority;
+  sceneDensity?: SceneDensity;
+  visualRole?: VisualRole;
+  holdStrategy?: HoldStrategy;
 }
 
 export interface ScenePlan {
@@ -467,10 +560,16 @@ export interface CompiledSceneBlock {
   renderPath: "overlay" | "full_scene";
   activeLayerIds: string[];
   summary: string;
+  screenCopy: ScreenCopyPayload;
   overlayBeats: VisualBeat[];
   fullScene?: VisualScene;
   microBeats: SceneMicroBeat[];
   fallbackApplied?: boolean;
+  planningConfidence?: PlanningConfidence;
+  scenePriority?: ScenePriority;
+  sceneDensity?: SceneDensity;
+  visualRole?: VisualRole;
+  holdStrategy?: HoldStrategy;
 }
 
 export interface CompiledScenePlan {

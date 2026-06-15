@@ -2,8 +2,10 @@ import { readFile, unlink } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
-import type { ScenePlan, SceneRecipeId } from "@/lib/types";
+import type { DirectorPlan, SceneRecipeId, ScreenCopyPayload, ScreenCopyPlan } from "@/lib/types";
+import { buildReviewScenePlan } from "@/server/scene/sceneCompiler";
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
+import { buildScreenCopyBlock } from "@/server/scene/screenCopyPlanner";
 
 export const runtime = "nodejs";
 
@@ -17,7 +19,9 @@ type SceneBlockAction =
   | "disable_layer"
   | "bring_speaker_back"
   | "hide_speaker_for_block"
-  | "switch_to_safe_mode";
+  | "switch_to_safe_mode"
+  | "disable_insert"
+  | "edit_copy";
 
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -26,6 +30,7 @@ export async function POST(request: Request, context: RouteContext) {
     action?: SceneBlockAction;
     recipeId?: SceneRecipeId;
     layerId?: string;
+    copyPatch?: Partial<ScreenCopyPayload>;
   } | null;
 
   if (!body?.blockId || !body.action) {
@@ -38,54 +43,59 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const paths = pathsForProject(id);
-  let scenePlan: ScenePlan;
+  let directorPlan: DirectorPlan;
+  let screenCopyPlan: ScreenCopyPlan;
   try {
-    scenePlan = JSON.parse(await readFile(paths.scenePlan, "utf8")) as ScenePlan;
+    directorPlan = JSON.parse(await readFile(paths.directorPlan, "utf8")) as DirectorPlan;
+    screenCopyPlan = JSON.parse(await readFile(paths.screenCopyPlan, "utf8")) as ScreenCopyPlan;
   } catch {
-    return NextResponse.json({ error: "Scene plan is not ready yet." }, { status: 404 });
+    return NextResponse.json({ error: "Director plan is not ready yet." }, { status: 404 });
   }
 
-  const block = scenePlan.blocks.find((entry) => entry.blockId === body.blockId);
-  if (!block) {
+  const block = directorPlan.blocks.find((entry) => entry.blockId === body.blockId);
+  const semanticBlock = directorPlan.semanticBlocks.find((entry) => entry.id === body.blockId);
+  const copyBlock = screenCopyPlan.blocks.find((entry) => entry.blockId === body.blockId);
+  if (!block || !semanticBlock || !copyBlock) {
     return NextResponse.json({ error: "Scene block was not found." }, { status: 404 });
   }
 
   switch (body.action) {
-    case "regenerate_block":
+    case "regenerate_block": {
       block.recipeId = block.recommendedRecipeId ?? block.recipeId;
+      block.sceneCategory = getSceneRecipe(block.recipeId).category;
       block.safeMode = false;
+      block.disabled = false;
       block.intensity = "balanced";
-      block.layerPlan.forEach((layer) => { layer.enabled = true; });
+      const regenerated = buildScreenCopyBlock(semanticBlock, block.recipeId, block.planningConfidence);
+      Object.assign(copyBlock, regenerated);
       break;
-    case "change_scene":
+    }
+    case "change_scene": {
       if (!body.recipeId || !(block.allowedRecipeIds ?? []).includes(body.recipeId)) {
         return NextResponse.json({ error: "Recipe is not allowed for this block." }, { status: 400 });
       }
       block.recipeId = body.recipeId;
       block.sceneCategory = getSceneRecipe(body.recipeId).category;
       block.safeMode = false;
+      block.disabled = false;
+      const regenerated = buildScreenCopyBlock(semanticBlock, block.recipeId, block.planningConfidence);
+      Object.assign(copyBlock, regenerated);
       break;
+    }
     case "simplify_scene":
       block.intensity = "safe";
       block.safeMode = true;
-      block.layerPlan.forEach((layer, index) => {
-        if (index > 0 && layer.kind !== "speaker") layer.enabled = false;
-      });
+      block.scenePriority = "support";
+      block.sceneDensity = "minimal";
       break;
     case "make_stronger":
       block.intensity = "strong";
       block.safeMode = false;
+      block.disabled = false;
+      block.scenePriority = "hero";
       break;
     case "disable_layer":
-      if (!body.layerId) {
-        return NextResponse.json({ error: "layerId is required for disable_layer." }, { status: 400 });
-      }
-      const layer = block.layerPlan.find((entry) => entry.id === body.layerId);
-      if (!layer) {
-        return NextResponse.json({ error: "Layer was not found." }, { status: 404 });
-      }
-      layer.enabled = false;
-      break;
+      return NextResponse.json({ error: "Layer disabling is no longer supported directly; simplify or edit copy instead." }, { status: 400 });
     case "bring_speaker_back":
       block.speakerMode = "full_frame";
       break;
@@ -97,12 +107,29 @@ export async function POST(request: Request, context: RouteContext) {
       if (block.fallbackRecipeId) {
         block.recipeId = block.fallbackRecipeId;
         block.sceneCategory = getSceneRecipe(block.recipeId).category;
+        const regenerated = buildScreenCopyBlock(semanticBlock, block.recipeId, block.planningConfidence);
+        Object.assign(copyBlock, regenerated);
       }
       block.intensity = "safe";
+      block.sceneDensity = "minimal";
+      break;
+    case "disable_insert":
+      block.disabled = true;
+      block.scenePriority = "skip";
+      block.visualRole = "none";
+      break;
+    case "edit_copy":
+      if (!body.copyPatch || typeof body.copyPatch !== "object") {
+        return NextResponse.json({ error: "copyPatch is required for edit_copy." }, { status: 400 });
+      }
+      copyBlock.payload = mergeCopyPatch(copyBlock.payload, body.copyPatch);
       break;
   }
 
-  await writeJsonFile(paths.scenePlan, scenePlan);
+  const reviewScenePlan = buildReviewScenePlan(directorPlan, screenCopyPlan);
+  await writeJsonFile(paths.directorPlan, directorPlan);
+  await writeJsonFile(paths.screenCopyPlan, screenCopyPlan);
+  await writeJsonFile(paths.scenePlan, reviewScenePlan);
   await safeUnlink(paths.compiledScenePlan);
   await safeUnlink(paths.semanticOverlayMp4);
   await safeUnlink(paths.subtitledVideo);
@@ -125,7 +152,19 @@ export async function POST(request: Request, context: RouteContext) {
     }
   });
 
-  return NextResponse.json({ ok: true, scenePlan });
+  return NextResponse.json({ ok: true, directorPlan, screenCopyPlan, scenePlan: reviewScenePlan });
+}
+
+function mergeCopyPatch(current: ScreenCopyPayload, patch: Partial<ScreenCopyPayload>) {
+  const next: ScreenCopyPayload = { ...current };
+  for (const [key, value] of Object.entries(patch) as Array<[keyof ScreenCopyPayload, ScreenCopyPayload[keyof ScreenCopyPayload]]>) {
+    if (Array.isArray(value)) {
+      next[key] = value.map(String).filter(Boolean) as never;
+    } else if (typeof value === "string") {
+      next[key] = value.trim() as never;
+    }
+  }
+  return next;
 }
 
 async function safeUnlink(filePath: string) {

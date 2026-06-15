@@ -250,17 +250,19 @@ async function detectVadForTimingNormalization(audioPath: string, projectId: str
 
 export async function readDraftProposal(projectId: string) {
   const paths = pathsForProject(projectId);
-  const [transcript, edl, subtitles, contentPlan, visualPlan, semanticBlocks, scenePlan, compiledScenePlan] = await Promise.all([
+  const [transcript, edl, subtitles, contentPlan, visualPlan, semanticBlocks, directorPlan, screenCopyPlan, scenePlan, compiledScenePlan] = await Promise.all([
     readJson(paths.transcript),
     readJson(paths.edl),
     readJson(paths.subtitlesDraft),
     readJson(paths.contentPlan),
     readJson(paths.visualPlan).catch(() => null),
     readJson(paths.semanticBlocks).catch(() => null),
+    readJson(paths.directorPlan).catch(() => null),
+    readJson(paths.screenCopyPlan).catch(() => null),
     readJson(paths.scenePlan).catch(() => null),
     readJson(paths.compiledScenePlan).catch(() => null)
   ]);
-  return { projectId, transcript, edl, subtitles, contentPlan, visualPlan, semanticBlocks, scenePlan, compiledScenePlan };
+  return { projectId, transcript, edl, subtitles, contentPlan, visualPlan, semanticBlocks, directorPlan, screenCopyPlan, scenePlan, compiledScenePlan };
 }
 
 async function readJson(filePath: string) {
