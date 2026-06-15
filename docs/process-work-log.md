@@ -150,3 +150,10 @@ How to use:
 - Decision: change the overlay compiler so each block gets one primary semantic insert plus limited speech-support beats instead of repeated identical cards; skip standalone subtitle burn when scene composition already owns the spoken text layer; copy audio through intermediate overlay-compose passes instead of re-encoding it every time.
 - Result: the visual direction is closer to editorial montage instead of duplicated cards, and the audio path removes the most obvious source of hiss accumulation.
 - Follow-up: if some recipes still feel too static after this, tune recipe-specific support-beat behavior rather than reintroducing generic repeated panel triggers.
+
+### 2026-06-15 — Deterministic montage rebalancing between adjacent scene blocks
+
+- Problem: even after removing within-block duplicates, the block planner could still assign the same recipe to neighboring semantic blocks, which made the montage feel like the same card was being replayed with only different text.
+- Decision: add a deterministic rebalance pass in `scenePlanner` that swaps adjacent repeated recipes to a compatible alternative from the shared scene library whenever the template allows it, including safe fallback-recipe alternation for tightly repeated endings and list/proof runs.
+- Result: scene plans now keep the same semantic intent while varying neighboring mise-en-scene instead of stacking identical checklist/CTA/comparison treatments back to back.
+- Follow-up: if needed later, add recipe-specific layout alternation on top of this so repeated fallback-only cases can still vary position and framing without changing block semantics.

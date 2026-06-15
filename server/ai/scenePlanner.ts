@@ -55,7 +55,8 @@ export async function buildScenePlan(
 }
 
 export function buildDeterministicScenePlan(input: BuildScenePlanInput): ScenePlan {
-  const blocks = input.semanticBlocks.map((block, index) => buildPlanBlock(block, index, input));
+  const initialBlocks = input.semanticBlocks.map((block, index) => buildPlanBlock(block, index, input));
+  const { blocks, changedCount } = rebalanceMontageRecipes(initialBlocks, input);
   return {
     version: SCENE_PLAN_VERSION,
     templateId: input.capabilities.templateId,
@@ -66,7 +67,8 @@ export function buildDeterministicScenePlan(input: BuildScenePlanInput): ScenePl
     blocks,
     diagnostics: [
       `Built ${input.semanticBlocks.length} semantic blocks.`,
-      `Allowed recipes: ${input.capabilities.allowedRecipeIds.join(", ")}`
+      `Allowed recipes: ${input.capabilities.allowedRecipeIds.join(", ")}`,
+      `Montage rebalance swapped ${changedCount} adjacent repeated recipes.`
     ]
   };
 }
@@ -213,10 +215,66 @@ function parseAiScenePlan(raw: string, input: BuildScenePlanInput, fallbackPlan:
   const scenePlan = {
     ...fallbackPlan,
     planner: "ai" as const,
-    blocks: mergedBlocks
+    blocks: rebalanceMontageRecipes(mergedBlocks, input).blocks
   };
   scenePlanSchema.parse(scenePlan);
   return scenePlan;
+}
+
+function rebalanceMontageRecipes(blocks: ScenePlanBlock[], input: BuildScenePlanInput) {
+  let changedCount = 0;
+  const rebalanced = blocks.map((block, index) => {
+    const previous = index > 0 ? blocks[index - 1] : undefined;
+    if (!previous || previous.recipeId !== block.recipeId) return block;
+
+    const semanticBlock = input.semanticBlocks.find((entry) => entry.id === block.blockId);
+    if (!semanticBlock) return block;
+
+    const alternativeRecipeId = pickAlternativeRecipeId(block, previous, input);
+    if (!alternativeRecipeId || alternativeRecipeId === block.recipeId) return block;
+
+    const alternativeRecipe = getSceneRecipe(alternativeRecipeId);
+    changedCount += 1;
+
+    return {
+      ...block,
+      recipeId: alternativeRecipe.id,
+      sceneCategory: alternativeRecipe.category,
+      layerPlan: buildLayerPlan(semanticBlock, alternativeRecipe.id),
+      speakerMode: defaultSpeakerMode(alternativeRecipe.allowedSpeakerModes),
+      fallbackRecipeId: alternativeRecipe.fallbackRecipeId,
+      recommendedRecipeId: alternativeRecipe.id,
+      rationale: `${block.rationale} Rebalanced from ${block.recipeId} to ${alternativeRecipe.id} to avoid adjacent repeated scene recipes.`
+    };
+  });
+
+  return { blocks: rebalanced, changedCount };
+}
+
+function pickAlternativeRecipeId(
+  block: ScenePlanBlock,
+  previous: ScenePlanBlock,
+  input: BuildScenePlanInput
+) {
+  const preferredCandidates = [
+    block.fallbackRecipeId,
+    ...(block.allowedRecipeIds ?? [])
+  ].filter((recipeId): recipeId is ScenePlanBlock["recipeId"] => Boolean(recipeId));
+
+  for (const recipeId of preferredCandidates) {
+    if (recipeId === block.recipeId || recipeId === previous.recipeId) continue;
+    if (!input.capabilities.allowedRecipeIds.includes(recipeId)) continue;
+    return recipeId;
+  }
+
+  const semanticBlock = input.semanticBlocks.find((entry) => entry.id === block.blockId);
+  if (!semanticBlock) return undefined;
+
+  const fallbackCandidates = listSceneRecipesForBlockType(semanticBlock.type)
+    .map((recipeDef) => recipeDef.id)
+    .filter((recipeId) => input.capabilities.allowedRecipeIds.includes(recipeId));
+
+  return fallbackCandidates.find((recipeId) => recipeId !== block.recipeId && recipeId !== previous.recipeId);
 }
 
 function parseTransition(value: unknown, fallback: ScenePlanBlock["transitionIn"]) {
