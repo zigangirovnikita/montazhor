@@ -297,6 +297,64 @@ function renderHtmlShell(scenes: string, timeline: string, duration: number, pro
         text-transform: uppercase;
         box-shadow: 0 0 34px rgba(255, 180, 71, 0.24);
       }
+      .slot-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .slot-chip {
+        width: max-content;
+        max-width: 100%;
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(123, 211, 255, 0.34);
+        background: rgba(8, 28, 49, 0.76);
+        color: #eef7ff;
+        font-family: "HF Golos Text", monospace;
+        font-size: 18px;
+        letter-spacing: 0.04em;
+      }
+      .slot-chip.accent { color: #ffb447; border-color: rgba(255, 180, 71, 0.5); background: rgba(65, 36, 10, 0.65); }
+      .slot-chip.danger { color: #ff8b7b; border-color: rgba(255, 93, 72, 0.52); background: rgba(63, 18, 12, 0.72); text-decoration: line-through; }
+      .slot-chip.success { color: #89f3c2; border-color: rgba(96, 235, 165, 0.44); background: rgba(10, 54, 37, 0.72); }
+      .slot-chip.chip { color: #0b1524; border-color: rgba(255, 180, 71, 0.74); background: linear-gradient(135deg, #ffcf78, #ffb447); font-weight: 800; }
+      .support-visuals {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .support-visual {
+        width: max-content;
+        padding: 10px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(123, 211, 255, 0.24);
+        background: rgba(6, 20, 38, 0.72);
+        color: #d6ebff;
+        font-family: "HF Golos Text", monospace;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .support-visual.hotkey_keys, .support-visual.keyboard { border-color: rgba(255, 180, 71, 0.45); color: #ffcf78; }
+      .support-visual.cursor, .support-visual.mouse { border-color: rgba(123, 211, 255, 0.36); color: #8ad8ff; }
+      .support-visual.warning_mark { border-color: rgba(255, 93, 72, 0.5); color: #ff8b7b; }
+      .support-visual.checkmark { border-color: rgba(96, 235, 165, 0.5); color: #89f3c2; }
+      .inline-hotkey {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: 14px;
+        padding: 10px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 180, 71, 0.7);
+        background: rgba(255, 180, 71, 0.16);
+        color: #ffcf78;
+        font-family: "HF Golos Text", monospace;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+      }
       .dialogue { display: grid; gap: 22px; max-width: 1020px; }
       .dialogue-row {
         padding: 26px 30px;
@@ -401,11 +459,12 @@ function shell(scene: VisualScenePlan["scenes"][number], index: number, mode: st
 }
 
 function lessonTitle(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="title anim">${text(payload.title, "KEY IDEA")}</div><div class="subtitle anim">${text(payload.subtitle ?? payload.sourceText, "")}</div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="title anim">${text(payload.title, "KEY IDEA")}</div><div class="subtitle anim">${text(payload.subtitle ?? payload.sourceText, "")}</div>${slotRow(payload, ["keyword_accent", "command_hotkey"], "anim")}`;
 }
 
 function statHud(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="huge anim">${text(payload.value, "01")}</div><div class="title anim">${text(payload.label, "SYSTEM")}</div><div class="caption anim">${text(payload.caption ?? payload.sourceText, "")}</div>`;
+  const hotkey = firstSlotByRole(payload, "command_hotkey");
+  return `${eyebrow(payload.eyebrow)}<div class="huge anim">${text(payload.value, "01")}</div><div class="title anim">${text(payload.label, "SYSTEM")}${hotkey ? `<span class="inline-hotkey anim">${text(hotkey.shortText ?? hotkey.text, "CMD")}</span>` : ""}</div><div class="caption anim">${text(payload.caption ?? payload.sourceText, "")}</div>${supportVisualRow(payload)}`;
 }
 
 function ratioStack(payload: Record<string, unknown>) {
@@ -414,7 +473,7 @@ function ratioStack(payload: Record<string, unknown>) {
 }
 
 function mythStrike(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="strike-stack"><div class="strike-word anim">${text(payload.falseText, "MYTH")}</div><div class="title anim accent">${text(payload.trueText, "")}</div></div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="strike-stack"><div class="strike-word anim">${text(payload.falseText, "MYTH")}</div><div class="title anim accent">${text(payload.trueText, "")}</div>${supportVisualRow(payload)}</div>`;
 }
 
 function trustMap(payload: Record<string, unknown>) {
@@ -423,20 +482,20 @@ function trustMap(payload: Record<string, unknown>) {
 
 function threeCards(payload: Record<string, unknown>) {
   const items = arrayPayload(payload.items).slice(0, 3);
-  return `${eyebrow(payload.eyebrow)}<div class="cards anim">${items.map((item, index) => `<div class="card"><div class="card-index">${text(item.index, String(index + 1).padStart(2, "0"))}</div><div class="card-title">${text(item.title, "POINT")}</div><div class="card-text">${text(item.text, "")}</div></div>`).join("")}</div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="cards anim">${items.map((item, index) => `<div class="card"><div class="card-index">${text(item.index, String(index + 1).padStart(2, "0"))}</div><div class="card-title">${text(item.title, "POINT")}</div><div class="card-text">${text(item.text, "")}</div></div>`).join("")}</div>${slotRow(payload, ["keyword_accent"], "anim")}`;
 }
 
 function warningDialogue(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="cta-button-visual anim">${text(payload.label, "PREMATURE")}</div><div class="dialogue"><div class="dialogue-row wrong anim"><div class="dialogue-label">WRONG MOVE</div><div class="subtitle">${text(payload.wrong, "")}</div></div><div class="dialogue-row right anim"><div class="dialogue-label">BETTER</div><div class="subtitle">${text(payload.right, "")}</div></div></div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="cta-button-visual anim">${text(payload.label, "PREMATURE")}</div><div class="dialogue"><div class="dialogue-row wrong anim"><div class="dialogue-label">WRONG MOVE</div><div class="subtitle">${text(payload.wrong, "")}</div></div><div class="dialogue-row right anim"><div class="dialogue-label">BETTER</div><div class="subtitle">${text(payload.right, "")}</div></div></div>${supportVisualRow(payload)}`;
 }
 
 function compareSplit(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="compare anim"><div class="card"><div class="card-index">A</div><div class="card-title warn">${text(payload.left, "BEFORE")}</div></div><div class="card"><div class="card-index">B</div><div class="card-title accent">${text(payload.right, "AFTER")}</div></div></div><div class="caption anim">${text(payload.caption ?? payload.sourceText, "")}</div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="compare anim"><div class="card"><div class="card-index">A</div><div class="card-title warn">${text(payload.left, "BEFORE")}</div></div><div class="card"><div class="card-index">B</div><div class="card-title accent">${text(payload.right, "AFTER")}</div></div></div><div class="caption anim">${text(payload.caption ?? payload.sourceText, "")}</div>${supportVisualRow(payload)}`;
 }
 
 function timelineSteps(payload: Record<string, unknown>) {
   const items = arrayPayload(payload.items).slice(0, 3);
-  return `${eyebrow(payload.eyebrow)}<div class="title anim">${text(payload.title, "SEQUENCE")}</div><div class="timeline anim">${items.map((item, index) => `<div class="card"><div class="card-index">${text(item.index, String(index + 1).padStart(2, "0"))}</div><div class="card-title accent">${text(item.title, "STEP")}</div><div class="card-text">${text(item.text, "")}</div></div>`).join("")}</div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="title anim">${text(payload.title, "SEQUENCE")}</div><div class="timeline anim">${items.map((item, index) => `<div class="card"><div class="card-index">${text(item.index, String(index + 1).padStart(2, "0"))}</div><div class="card-title accent">${text(item.title, "STEP")}</div><div class="card-text">${text(item.text, "")}</div></div>`).join("")}</div>${slotRow(payload, ["step_index", "step_label", "command_hotkey"], "anim")}`;
 }
 
 function quoteFocus(payload: Record<string, unknown>) {
@@ -444,7 +503,7 @@ function quoteFocus(payload: Record<string, unknown>) {
 }
 
 function ctaPlate(payload: Record<string, unknown>) {
-  return `${eyebrow(payload.eyebrow)}<div class="cta-shell"><div class="title anim">${text(payload.text, "NEXT STEP")}</div><div class="cta-button-visual anim">${text(payload.label, "ACTION")}</div></div>`;
+  return `${eyebrow(payload.eyebrow)}<div class="cta-shell"><div class="title anim">${text(payload.text, "NEXT STEP")}</div><div class="cta-button-visual anim">${text(payload.label, "ACTION")}</div>${slotRow(payload, ["command_hotkey", "cta_phrase"], "anim")}${supportVisualRow(payload)}</div>`;
 }
 
 function eyebrow(value: unknown) {
@@ -453,6 +512,55 @@ function eyebrow(value: unknown) {
 
 function arrayPayload(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item))) : [];
+}
+
+function semanticSlots(payload: Record<string, unknown>) {
+  return arrayPayload(payload.semanticSlots ?? payload.slots);
+}
+
+function supportVisuals(payload: Record<string, unknown>) {
+  return arrayPayload(payload.supportVisuals);
+}
+
+function firstSlotByRole(payload: Record<string, unknown>, role: string) {
+  return semanticSlots(payload).find((slot) => text(slot.role, "") === role);
+}
+
+function slotRow(payload: Record<string, unknown>, roles: string[], extraClass = "") {
+  const chips = semanticSlots(payload)
+    .filter((slot) => roles.includes(text(slot.role, "")))
+    .map((slot) => `<div class="slot-chip ${text(slot.style, "primary")} ${extraClass}">${text(slot.shortText ?? slot.text, "")}</div>`)
+    .join("");
+  return chips ? `<div class="slot-row">${chips}</div>` : "";
+}
+
+function supportVisualRow(payload: Record<string, unknown>) {
+  const visuals = supportVisuals(payload)
+    .slice(0, 4)
+    .map((visual) => `<div class="support-visual ${text(visual.kind, "")} anim">${supportGlyph(text(visual.kind, ""))}${text(visual.label, fallbackSupportLabel(text(visual.kind, "")))}</div>`)
+    .join("");
+  return visuals ? `<div class="support-visuals">${visuals}</div>` : "";
+}
+
+function supportGlyph(kind: string) {
+  if (kind === "cursor") return "[CURSOR] ";
+  if (kind === "mouse") return "[MOUSE] ";
+  if (kind === "keyboard" || kind === "hotkey_keys") return "[KEY] ";
+  if (kind === "warning_mark") return "[WARN] ";
+  if (kind === "checkmark") return "[OK] ";
+  if (kind === "number_badge") return "[#] ";
+  if (kind === "timeline_tick") return "[TIME] ";
+  if (kind === "chart_pulse") return "[DATA] ";
+  return "";
+}
+
+function fallbackSupportLabel(kind: string) {
+  if (kind === "hotkey_keys") return "HOTKEY";
+  if (kind === "warning_mark") return "WARNING";
+  if (kind === "checkmark") return "FIX";
+  if (kind === "timeline_tick") return "TIMING";
+  if (kind === "chart_pulse") return "DATA";
+  return kind.toUpperCase();
 }
 
 function text(value: unknown, fallback: string) {

@@ -3,9 +3,11 @@ import type {
   CompiledScenePlan,
   DirectorPlan,
   DirectorPlanBlock,
+  LayerActionBeat,
   SceneLayerPlan,
   SceneMicroBeat,
   ScenePlan,
+  ScreenCopyPayload,
   ScreenCopyBlock,
   ScreenCopyPlan,
   SemanticBlock,
@@ -96,7 +98,10 @@ function compileSceneBlock(
   }
 
   const recipeDef = getSceneRecipe(block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId);
-  const microBeats = compileMicroBeats(block, semanticBlock);
+  const microBeats = [
+    ...compileMicroBeats(block, semanticBlock),
+    ...compileActionMicroBeats(copyBlock.payload.layerActions ?? [])
+  ].sort((left, right) => left.start - right.start);
   const fallbackApplied = block.safeMode === true || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? compileOverlayBeats(block, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
@@ -133,19 +138,40 @@ function compileSceneBlock(
 }
 
 function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBlock) {
-  const words = semanticBlock.text
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word, index, all) => {
-      const slice = (semanticBlock.end - semanticBlock.start) / Math.max(all.length, 1);
-      const start = semanticBlock.start + (slice * index);
-      return {
-        word,
-        start,
-        end: Math.min(semanticBlock.end, start + Math.max(0.18, slice * 0.9))
-      };
-    });
+  const words = semanticBlock.words.length > 0
+    ? semanticBlock.words
+    : semanticBlock.text
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word, index, all) => {
+          const slice = (semanticBlock.end - semanticBlock.start) / Math.max(all.length, 1);
+          const start = semanticBlock.start + (slice * index);
+          return {
+            word,
+            start,
+            end: Math.min(semanticBlock.end, start + Math.max(0.18, slice * 0.9))
+          };
+        });
   return buildMicroBeatsForBlock(semanticBlock, words, block.recipeId);
+}
+
+function compileActionMicroBeats(actions: LayerActionBeat[]): SceneMicroBeat[] {
+  return actions.map((action) => ({
+    id: action.id,
+    type: mapActionTypeToMicroBeat(action.type),
+    start: action.start,
+    end: action.end,
+    anchorText: typeof action.payload?.label === "string"
+      ? action.payload.label
+      : typeof action.payload?.kind === "string"
+        ? action.payload.kind
+        : undefined,
+    payload: {
+      ...action.payload,
+      targetSlotId: action.targetSlotId,
+      supportVisualId: action.supportVisualId
+    }
+  }));
 }
 
 function compileOverlayBeats(
@@ -158,6 +184,7 @@ function compileOverlayBeats(
 ) {
   const recipeDef = getSceneRecipe(block.recipeId);
   const basePayload = copyBlock.payload as Record<string, unknown>;
+  const supportVisuals = copyBlock.payload.supportVisuals ?? [];
   const layout = chooseLayout(recipeDef.allowedLayouts, frame.orientation);
   const templateId = (recipeDef.visualMapping.overlayTemplateId ?? "kinetic_text") as VisualBeat["templateId"];
   const presetId = recipeDef.visualMapping.overlayPresetId ?? fallbackPresetForTemplate(templateId);
@@ -166,7 +193,7 @@ function compileOverlayBeats(
     : styleOptions?.motionIntensity === "calm"
       ? "calm_fade"
       : "glass_slide";
-  const supportBeats = buildSupportingSpeechBeats(block, beats, motionId);
+  const supportBeats = buildSupportingSpeechBeats(block, beats, motionId, supportVisuals);
   const primaryStart = round(Math.max(block.start, beats[0]?.start ?? block.start));
   const primaryEnd = supportBeats[0]
     ? round(Math.max(primaryStart + 0.6, Math.min(block.end, supportBeats[0].start - 0.08)))
@@ -212,20 +239,27 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
   const subtitle = readText(payload.subtitle ?? payload.caption);
   const items = normalizeItems(payload.items, summary);
   const [left, right] = splitPair(readText(payload.left), readText(payload.right), summary);
+  const semanticSlots = payload.slots ?? [];
+  const supportVisuals = payload.supportVisuals ?? [];
+  const layerActions = payload.layerActions ?? [];
 
   if (recipeId === "comparison_split") {
     return {
       eyebrow: "COMPARE",
       left,
       right,
-      caption: readText(payload.caption)
+      caption: readText(payload.caption),
+      semanticSlots,
+      supportVisuals
     };
   }
   if (recipeId === "speaker_lower_half_top_visual") {
     return {
       eyebrow: "SEQUENCE",
       title,
-      items
+      items,
+      semanticSlots,
+      layerActions
     };
   }
   if (recipeId === "speaker_right_panel_left_infographic") {
@@ -233,7 +267,9 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
       eyebrow: "SYSTEM",
       value: readText(payload.value) ?? "01",
       label: readText(payload.label) ?? title,
-      caption: subtitle
+      caption: subtitle,
+      semanticSlots,
+      supportVisuals
     };
   }
   if (recipeId === "trust_diagram") {
@@ -242,29 +278,38 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
       title,
       center: readText(payload.center) ?? "TRUST",
       left,
-      right
+      right,
+      supportVisuals
     };
   }
   if (recipeId === "voiceover_full_graphic") {
     return {
       eyebrow: "KEY POINTS",
-      items
+      items,
+      semanticSlots
     };
   }
   if (recipeId === "camera_punch_in") {
     return {
       eyebrow: "KEY IDEA",
       title,
-      subtitle
+      subtitle,
+      layerActions
     };
   }
-  return payload;
+  return {
+    ...payload,
+    semanticSlots,
+    supportVisuals,
+    layerActions
+  };
 }
 
 function buildSupportingSpeechBeats(
   block: DirectorPlanBlock,
   beats: SceneMicroBeat[],
-  motionId: VisualBeat["motionId"]
+  motionId: VisualBeat["motionId"],
+  supportVisuals: NonNullable<ScreenCopyPayload["supportVisuals"]>
 ): VisualBeat[] {
   if (block.recipeId === "cta_finish" || block.recipeId === "clean_section_transition") return [];
   const selected = beats
@@ -286,7 +331,8 @@ function buildSupportingSpeechBeats(
       payload: {
         text: beat.anchorText ?? "",
         sourceText: beat.anchorText ?? "",
-        emphasis: beat.anchorText ?? ""
+        emphasis: beat.anchorText ?? "",
+        supportVisuals: supportVisuals.filter((visual) => visual.start <= end && visual.end >= start)
       },
       sourceMomentId: block.blockId,
       role: "speech_text",
@@ -297,6 +343,8 @@ function buildSupportingSpeechBeats(
 
 function buildLayerPlan(block: DirectorPlanBlock, copyBlock: ScreenCopyBlock | undefined): SceneLayerPlan[] {
   const payload = copyBlock?.payload ?? {};
+  const semanticLayers = buildLayersFromSemanticSlots(block, payload);
+  if (semanticLayers.length > 0) return semanticLayers;
   const layers: SceneLayerPlan[] = [];
   if (payload.title || payload.text) {
     layers.push({
@@ -381,6 +429,9 @@ function decoratePayloadForBeat(basePayload: Record<string, unknown>, anchorText
   const payload = { ...basePayload };
   if (!payload.text && anchorText) payload.text = anchorText;
   if (!payload.title && typeof payload.text === "string") payload.title = payload.text;
+  if (Array.isArray(payload.slots) && anchorText) {
+    payload.activeSlot = payload.slots.find((slot) => typeof slot === "object" && slot && (slot as { text?: string }).text?.includes(anchorText));
+  }
   if (fallbackApplied) payload.subtext = payload.subtext ?? "safe mode";
   return payload;
 }
@@ -409,6 +460,47 @@ function fallbackPresetForTemplate(templateId: VisualBeat["templateId"]) {
 
 function readText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function mapActionTypeToMicroBeat(type: LayerActionBeat["type"]): SceneMicroBeat["type"] {
+  if (type === "grow_number") return "number_emphasis";
+  if (type === "highlight_slot" || type === "show_hotkey") return "keyword_highlight";
+  if (type === "strike_slot" || type === "swap_to_correct") return "strike_through";
+  if (type === "reveal_step") return "checklist_row";
+  if (type === "pop_support_visual") return "icon_pop";
+  if (type === "camera_push") return "camera_push";
+  return "label_reveal";
+}
+
+function buildLayersFromSemanticSlots(block: DirectorPlanBlock, payload: ScreenCopyPayload): SceneLayerPlan[] {
+  const slots = payload.slots ?? [];
+  if (slots.length === 0) return [];
+
+  const layers: SceneLayerPlan[] = [];
+  const push = (kind: SceneLayerPlan["kind"], slotRoles: string[], emphasis: SceneLayerPlan["emphasis"] = "primary") => {
+    const selected = slots.filter((slot) => slotRoles.includes(slot.role));
+    if (selected.length === 0) return;
+    layers.push({
+      id: `${block.blockId}-${kind}`,
+      kind,
+      emphasis,
+      enabled: true,
+      payload: {
+        slots: selected,
+        text: selected.map((slot) => slot.shortText ?? slot.text).join(" "),
+        supportVisuals: (payload.supportVisuals ?? []).filter((visual) => selected.some((slot) => slot.id === visual.anchorSlotId))
+      }
+    });
+  };
+
+  push("title", ["headline", "step_label"], "primary");
+  push("number", ["hero_number", "step_index"], "dominant");
+  push("comparison", ["wrong_phrase", "correct_phrase", "comparison_left", "comparison_right"], "dominant");
+  push("quote", ["quote_pull"], "dominant");
+  push("cta", ["cta_phrase", "command_hotkey"], "dominant");
+  push("supporting_text", ["keyword_accent", "supporting_context", "command_hotkey"], "support");
+
+  return layers;
 }
 
 function normalizeItems(items: unknown, summary: string) {

@@ -339,8 +339,12 @@ export type SceneCategory =
 export type SceneRecipeId =
   | "hook_title_left"
   | "hook_title_center"
+  | "headline_with_accent_number"
+  | "step_number_callout"
   | "big_number_grow"
   | "big_number_plus_text_plate"
+  | "warning_strike_fix"
+  | "hotkey_command_tip"
   | "myth_vs_truth"
   | "definition_card"
   | "comparison_split"
@@ -397,6 +401,7 @@ export interface SemanticBlock {
   end: number;
   text: string;
   summary: string;
+  words: TranscriptWord[];
   transcriptWordRange: {
     startIndex: number;
     endIndex: number;
@@ -428,6 +433,83 @@ export interface ScreenCopyPayload {
   trueText?: string;
   quote?: string;
   center?: string;
+  slots?: SemanticSlot[];
+  supportVisuals?: SupportVisualIntent[];
+  layerActions?: LayerActionBeat[];
+}
+
+export type SemanticSlotRole =
+  | "headline"
+  | "hero_number"
+  | "step_index"
+  | "step_label"
+  | "wrong_phrase"
+  | "correct_phrase"
+  | "command_hotkey"
+  | "keyword_accent"
+  | "supporting_context"
+  | "cta_phrase"
+  | "comparison_left"
+  | "comparison_right"
+  | "quote_pull";
+
+export type SemanticSlotStyle = "accent" | "primary" | "muted" | "success" | "danger" | "chip";
+
+export type SupportVisualKind =
+  | "cursor"
+  | "mouse"
+  | "keyboard"
+  | "hotkey_keys"
+  | "warning_mark"
+  | "number_badge"
+  | "checkmark"
+  | "timeline_tick"
+  | "chart_pulse";
+
+export type LayerActionType =
+  | "show_layer"
+  | "hide_layer"
+  | "highlight_slot"
+  | "strike_slot"
+  | "swap_to_correct"
+  | "grow_number"
+  | "reveal_step"
+  | "show_hotkey"
+  | "pop_support_visual"
+  | "camera_push";
+
+export interface SemanticSlot {
+  id: string;
+  role: SemanticSlotRole;
+  text: string;
+  shortText?: string;
+  style: SemanticSlotStyle;
+  start: number;
+  end: number;
+  wordRange?: {
+    startIndex: number;
+    endIndex: number;
+  };
+}
+
+export interface SupportVisualIntent {
+  id: string;
+  kind: SupportVisualKind;
+  start: number;
+  end: number;
+  label?: string;
+  anchorSlotId?: string;
+}
+
+export interface LayerActionBeat {
+  id: string;
+  type: LayerActionType;
+  start: number;
+  end: number;
+  targetLayerId?: string;
+  targetSlotId?: string;
+  supportVisualId?: string;
+  payload?: Record<string, unknown>;
 }
 
 export interface DirectorPlanBlock {

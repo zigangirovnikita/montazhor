@@ -37,6 +37,7 @@ export function buildSemanticBlocks(subtitles: SubtitleDraft[], contentPlan: Con
         end: round(Math.min(duration, blockWords.at(-1)!.end)),
         text,
         summary: summarizeBlock(text),
+        words: blockWords.map(({ sourceIndex, ...word }) => word),
         transcriptWordRange: {
           startIndex: blockWords[0]!.sourceIndex,
           endIndex: blockWords.at(-1)!.sourceIndex

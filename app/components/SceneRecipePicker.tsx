@@ -5,8 +5,12 @@ import type { SceneRecipeId } from "@/lib/types";
 const labels: Record<SceneRecipeId, string> = {
   hook_title_left: "Hook слева",
   hook_title_center: "Hook по центру",
+  headline_with_accent_number: "Заголовок + акцентная цифра",
+  step_number_callout: "Шаг с номером",
   big_number_grow: "Крупная цифра",
   big_number_plus_text_plate: "Цифра + плашка",
+  warning_strike_fix: "Ошибка -> исправление",
+  hotkey_command_tip: "Горячая клавиша",
   myth_vs_truth: "Миф vs факт",
   definition_card: "Карточка определения",
   comparison_split: "Сравнение",

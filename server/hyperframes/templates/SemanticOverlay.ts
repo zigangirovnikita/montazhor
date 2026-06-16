@@ -412,6 +412,73 @@ export function semanticOverlayTemplate(
           color: #ffffff;
           text-shadow: 0 0 30px rgba(115, 200, 255, 0.48);
         }
+        .slot-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 18px;
+        }
+        .slot-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          background: rgba(10, 18, 32, 0.72);
+          color: #eef7ff;
+          font-size: 18px;
+          line-height: 1;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+        .slot-chip.style-accent { color: var(--accent); border-color: rgba(255, 180, 71, 0.48); background: rgba(64, 35, 10, 0.62); }
+        .slot-chip.style-primary { color: #ffffff; }
+        .slot-chip.style-muted { color: var(--muted); }
+        .slot-chip.style-success { color: #9df0c6; border-color: rgba(96, 235, 165, 0.42); background: rgba(10, 51, 35, 0.64); }
+        .slot-chip.style-danger { color: #ff8a80; border-color: rgba(255, 93, 77, 0.42); background: rgba(69, 17, 15, 0.64); text-decoration: line-through; }
+        .slot-chip.style-chip { color: #0d1624; border-color: rgba(255, 180, 71, 0.72); background: linear-gradient(135deg, #ffd27f, #ffb447); font-weight: 900; }
+        .support-visuals {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 18px;
+        }
+        .support-visual {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(115, 200, 255, 0.2);
+          background: rgba(7, 18, 33, 0.72);
+          color: #d9ecff;
+          font-size: 17px;
+          line-height: 1;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+        }
+        .support-visual.kind-hotkey_keys,
+        .support-visual.kind-keyboard { color: #ffcf78; border-color: rgba(255, 180, 71, 0.45); }
+        .support-visual.kind-cursor,
+        .support-visual.kind-mouse { color: #87dbff; border-color: rgba(115, 200, 255, 0.42); }
+        .support-visual.kind-warning_mark { color: #ff8a80; border-color: rgba(255, 93, 77, 0.48); }
+        .support-visual.kind-checkmark { color: #9df0c6; border-color: rgba(96, 235, 165, 0.42); }
+        .inline-hotkey {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 16px;
+          padding: 12px 16px;
+          border-radius: 14px;
+          border: 1px solid rgba(255, 180, 71, 0.72);
+          background: rgba(255, 180, 71, 0.14);
+          color: #ffcf78;
+          font-size: 20px;
+          line-height: 1;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+        }
         .stat-list {
           display: grid;
           gap: 18px;
@@ -801,6 +868,7 @@ export function semanticOverlayTemplate(
                 + '<div class="eyebrow">' + esc(String(beat.payload.eyebrow || "LESSON")) + '</div>'
                 + '<div class="lesson-title">' + esc(String(beat.payload.title || beat.payload.sourceText || "")) + '</div>'
                 + '<p class="lesson-subtext">' + esc(String(beat.payload.subtext || "")) + '</p>'
+                + renderSlotRow(beat.payload, ["keyword_accent", "command_hotkey"])
                 + '</div>';
               return wrap;
             }
@@ -811,6 +879,7 @@ export function semanticOverlayTemplate(
                 + '<div class="eyebrow">' + esc(String(beat.payload.eyebrow || "MYTH")) + '</div>'
                 + '<div class="myth-word">' + esc(String(beat.payload.falseText || "")) + '</div>'
                 + '<div class="truth-word">' + esc(String(beat.payload.trueText || "")) + '</div>'
+                + renderSupportVisuals(beat.payload)
                 + '</div>';
               return wrap;
             }
@@ -827,7 +896,9 @@ export function semanticOverlayTemplate(
                 '<div class="stat-card">'
                 + '<div class="eyebrow">' + esc(String(beat.payload.eyebrow || "SYSTEM VIEW")) + '</div>'
                 + '<div class="chart-title">' + esc(String(beat.payload.title || "")) + '</div>'
+                + renderInlineHotkey(beat.payload)
                 + '<div class="stat-list">' + rows + '</div>'
+                + renderSupportVisuals(beat.payload)
                 + '</div>';
               return wrap;
             }
@@ -847,7 +918,7 @@ export function semanticOverlayTemplate(
             }
 
             if (beat.templateId === "cta_plate") {
-              wrap.innerHTML = '<div class="cta-card"><p class="eyebrow">' + esc(String(beat.payload.label || "next step")) + '</p><div class="cta-text">' + esc(String(beat.payload.text || "")) + '</div><p class="cta-copy">' + esc(String(beat.payload.copy || "Смысл зафиксирован, можно идти дальше.")) + '</p></div>';
+              wrap.innerHTML = '<div class="cta-card"><p class="eyebrow">' + esc(String(beat.payload.label || "next step")) + '</p><div class="cta-text">' + esc(String(beat.payload.text || "")) + '</div><p class="cta-copy">' + esc(String(beat.payload.copy || "Смысл зафиксирован, можно идти дальше.")) + '</p>' + renderSlotRow(beat.payload, ["command_hotkey", "cta_phrase"]) + renderSupportVisuals(beat.payload) + '</div>';
               return wrap;
             }
 
@@ -869,7 +940,7 @@ export function semanticOverlayTemplate(
           }
 
           function fitBeat(node) {
-            const targets = node.querySelectorAll(".phrase-word, .keyword, .number-value, .bullet-title, .checklist-title, .chart-title, .cta-text, .bullet-text, .check-item, .chart-label, .cta-copy, .lesson-title, .lesson-subtext, .myth-word, .truth-word, .stat-value, .stat-label, .concept-center, .concept-node");
+            const targets = node.querySelectorAll(".phrase-word, .keyword, .number-value, .bullet-title, .checklist-title, .chart-title, .cta-text, .bullet-text, .check-item, .chart-label, .cta-copy, .lesson-title, .lesson-subtext, .myth-word, .truth-word, .stat-value, .stat-label, .concept-center, .concept-node, .slot-chip, .support-visual, .inline-hotkey");
             if (!targets.length) return;
             const minSize = node.classList.contains("template-kinetic_text") ? ${linePolicies.kinetic_text.minFontSize} : ${linePolicies.checklist.minFontSize};
             for (let step = 0; step < 22 && isOverflowing(node); step++) {
@@ -1067,7 +1138,7 @@ export function semanticOverlayTemplate(
               timeline.fromTo(node.querySelectorAll(".concept-node"), { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.34, stagger: 0.14, ease: "${motionCurves.active}" }, start + 0.34);
               return;
             }
-            const children = node.querySelectorAll(".bullet-card, .check-item, .bar-wrap, .keyword-line, .keyword-muted");
+            const children = node.querySelectorAll(".bullet-card, .check-item, .bar-wrap, .keyword-line, .keyword-muted, .slot-chip, .support-visual, .inline-hotkey");
             if (!children.length) return;
             if (beat.templateId === "metric_chart") {
               timeline.fromTo(
@@ -1117,6 +1188,57 @@ export function semanticOverlayTemplate(
               }
               return { value: "", label: String(item || "") };
             }).filter((item) => item.value || item.label);
+          }
+
+          function semanticSlots(payload) {
+            return Array.isArray(payload.slots) ? payload.slots.filter((item) => item && typeof item === "object") : [];
+          }
+
+          function supportVisuals(payload) {
+            return Array.isArray(payload.supportVisuals) ? payload.supportVisuals.filter((item) => item && typeof item === "object") : [];
+          }
+
+          function renderSlotRow(payload, roles) {
+            var html = semanticSlots(payload)
+              .filter((slot) => roles.includes(String(slot.role || "")))
+              .map((slot) => '<span class="slot-chip style-' + safeClass(String(slot.style || "primary")) + '">' + esc(String(slot.shortText || slot.text || "")) + '</span>')
+              .join("");
+            return html ? '<div class="slot-row">' + html + '</div>' : "";
+          }
+
+          function renderInlineHotkey(payload) {
+            var hotkey = semanticSlots(payload).find((slot) => String(slot.role || "") === "command_hotkey");
+            if (!hotkey) return "";
+            return '<div class="inline-hotkey">' + supportGlyph("hotkey_keys") + esc(String(hotkey.shortText || hotkey.text || "")) + '</div>';
+          }
+
+          function renderSupportVisuals(payload) {
+            var html = supportVisuals(payload)
+              .slice(0, 4)
+              .map((visual) => '<span class="support-visual kind-' + safeClass(String(visual.kind || "")) + '">' + supportGlyph(String(visual.kind || "")) + esc(String(visual.label || fallbackSupportLabel(String(visual.kind || "")))) + '</span>')
+              .join("");
+            return html ? '<div class="support-visuals">' + html + '</div>' : "";
+          }
+
+          function supportGlyph(kind) {
+            if (kind === "cursor") return "[CURSOR] ";
+            if (kind === "mouse") return "[MOUSE] ";
+            if (kind === "keyboard" || kind === "hotkey_keys") return "[KEY] ";
+            if (kind === "warning_mark") return "[WARN] ";
+            if (kind === "checkmark") return "[OK] ";
+            if (kind === "number_badge") return "[#] ";
+            if (kind === "timeline_tick") return "[TIME] ";
+            if (kind === "chart_pulse") return "[DATA] ";
+            return "";
+          }
+
+          function fallbackSupportLabel(kind) {
+            if (kind === "hotkey_keys") return "HOTKEY";
+            if (kind === "warning_mark") return "WARNING";
+            if (kind === "checkmark") return "FIX";
+            if (kind === "timeline_tick") return "TIMING";
+            if (kind === "chart_pulse") return "DATA";
+            return String(kind || "").replaceAll("_", " ").toUpperCase();
           }
 
           function splitWords(value) {

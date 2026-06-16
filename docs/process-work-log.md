@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-16 — Scene planner shifted from copy compression to semantic slot planning
+
+- Problem: the cinematic scene path still decided visuals mainly as `block -> recipe -> compressed text`, so it thought in terms of montage variety instead of sentence meaning like `number + headline`, `wrong phrase -> fix`, `hotkey chip`, and timed support visuals.
+- Decision: add a slot-based semantic payload layer inside the scene pipeline. `SemanticBlock` now carries exact block words/timings, screen copy planning now builds `slots + supportVisuals + layerActions`, recipe vocabulary was expanded with focused editor-style recipes (`headline_with_accent_number`, `step_number_callout`, `warning_strike_fix`, `hotkey_command_tip`), and the compiler now projects those slots/actions into layers and micro-beats.
+- Result: the planner can now reason in montage terms such as phrase role, exact phrase timing, strike/correct actions, hotkey emphasis, and support icon intent instead of only generic subtitle compression. Typecheck passes and fixture checks confirm slot extraction for `wrong -> fix + hotkey` and `headline + number` cases.
+- Follow-up: next real-server verification should tune recipe-specific text fitting and renderer visuals per recipe rather than broad planner rewrites.
+
 ### 2026-06-16 — Cinematic Scene Engine V2 switched to director/copy source of truth
 
 - Problem: the cinematic path still mixed semantic intent, scene choice, and raw on-screen text inside one `scenePlan`, which kept pushing the planner back toward generic fallback cards and made block review too shallow.

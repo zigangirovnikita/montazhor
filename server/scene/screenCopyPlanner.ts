@@ -11,11 +11,11 @@ import type {
 import { getAiConfigForTask } from "@/lib/config";
 import { callChatCompletion } from "@/server/ai/openRouterClient";
 import { buildScreenCopyPlannerSystemPrompt, buildScreenCopyPlannerUserPrompt } from "@/server/ai/screenCopyPlannerPrompts";
+import { buildSemanticScreenPayload } from "@/server/scene/semanticSlotPlanner";
 import { recordAiUsage } from "@/server/ai/usage";
 import { screenCopyPlanSchema } from "@/server/scene/scenePlanSchema";
 
-export const SCREEN_COPY_PLAN_VERSION = "v1";
-const NUMBER_RE = /(\d+[.,]?\d*)\s?(%|к|k|тыс|млн|x|раз|₽|\$)?/iu;
+export const SCREEN_COPY_PLAN_VERSION = "v2";
 
 interface BuildScreenCopyPlanInput {
   semanticBlocks: SemanticBlock[];
@@ -87,7 +87,7 @@ export function buildScreenCopyBlock(
   directorConfidence: PlanningConfidence,
   preferredTitle?: string
 ): ScreenCopyBlock {
-  const payload = buildPayloadForRecipe(block, recipeId, preferredTitle);
+  const { payload, confidence } = buildSemanticScreenPayload(block, recipeId, directorConfidence, preferredTitle);
   const editableFields = Object.keys(payload).filter((key) => payload[key as keyof ScreenCopyPayload] !== undefined) as Array<keyof ScreenCopyPayload>;
   return {
     id: `copy-${block.id}`,
@@ -96,84 +96,17 @@ export function buildScreenCopyBlock(
     copyCompressionMode: chooseCompressionMode(recipeId),
     payload,
     editableFields: editableFields.length > 0 ? editableFields : ["title"],
-    planningConfidence: mergeCopyConfidence(directorConfidence, payload),
-    rationale: `Deterministic copy payload for ${recipeId}.`
+    planningConfidence: confidence,
+    rationale: `Semantic slot payload for ${recipeId}.`
   };
-}
-
-function buildPayloadForRecipe(block: SemanticBlock, recipeId: SceneRecipeId, preferredTitle?: string): ScreenCopyPayload {
-  const headline = compressHeadline(preferredTitle && block.type === "hook" ? preferredTitle : block.summary);
-  const detail = compressDetail(block.text, 68);
-  const items = splitItems(block.text);
-  const pair = buildContrastPair(block.text);
-  const number = extractFirstNumber(block.text);
-
-  switch (recipeId) {
-    case "comparison_split":
-      return { left: pair.left, right: pair.right, caption: headline };
-    case "myth_vs_truth":
-      return { falseText: pair.left, trueText: pair.right, label: headline };
-    case "checklist_reveal":
-      return { title: headline, items: items.slice(0, 4) };
-    case "timeline_year_callout":
-      return { title: headline, items: items.slice(0, 4) };
-    case "trust_diagram":
-      return { title: headline, center: number ?? "TRUST", left: pair.left, right: pair.right, caption: detail };
-    case "quote_emphasis":
-      return { quote: compressDetail(block.text, 44), label: headline };
-    case "cta_finish":
-      return { text: headline, cta: compressHeadline(block.text), label: "CTA" };
-    case "speaker_right_panel_left_infographic":
-      return { title: headline, label: detail, value: number ?? "01", items: items.slice(0, 3) };
-    case "speaker_lower_half_top_visual":
-    case "voiceover_full_graphic":
-      return { title: headline, subtitle: detail, items: items.slice(0, 4) };
-    case "big_number_grow":
-    case "big_number_plus_text_plate":
-      return { value: number ?? "1", label: headline, text: detail };
-    case "definition_card":
-      return { title: headline, subtitle: detail, items: items.slice(0, 3) };
-    case "camera_punch_in":
-      return { title: headline, text: compressDetail(block.text, 36) };
-    case "clean_section_transition":
-      return { title: headline };
-    default:
-      return { title: headline, subtitle: detail };
-  }
 }
 
 function chooseCompressionMode(recipeId: SceneRecipeId): ScreenCopyBlock["copyCompressionMode"] {
-  if (recipeId === "checklist_reveal" || recipeId === "timeline_year_callout") return "bullet";
-  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth") return "contrast";
+  if (recipeId === "checklist_reveal" || recipeId === "timeline_year_callout" || recipeId === "step_number_callout") return "bullet";
+  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth" || recipeId === "warning_strike_fix") return "contrast";
   if (recipeId === "cta_finish") return "cta";
-  if (recipeId === "big_number_grow" || recipeId === "big_number_plus_text_plate") return "labelled";
+  if (recipeId === "big_number_grow" || recipeId === "big_number_plus_text_plate" || recipeId === "headline_with_accent_number" || recipeId === "hotkey_command_tip") return "labelled";
   return "headline";
-}
-
-function mergeCopyConfidence(directorConfidence: PlanningConfidence, payload: ScreenCopyPayload): PlanningConfidence {
-  const reasons = [...directorConfidence.reasons];
-  let score = directorConfidence.score;
-
-  if (payload.items && payload.items.some((item) => item.length > 34)) {
-    reasons.push("dense list copy");
-    score -= 0.08;
-  }
-  if (payload.title && payload.title.length > 32) {
-    reasons.push("title too long");
-    score -= 0.08;
-  }
-  if (!payload.title && !payload.quote && !payload.value && !payload.left) {
-    reasons.push("weak slot fill");
-    score -= 0.12;
-  }
-
-  const normalized = Math.max(0.2, Number(score.toFixed(2)));
-  return {
-    level: normalized >= 0.8 ? "high" : normalized >= 0.58 ? "medium" : "low",
-    score: normalized,
-    reasons,
-    escalationPolicy: normalized < 0.58 ? "enhanced_ai" : directorConfidence.escalationPolicy
-  };
 }
 
 function parseAiScreenCopyPlan(raw: string, input: BuildScreenCopyPlanInput, fallbackPlan: ScreenCopyPlan): ScreenCopyPlan {
@@ -192,7 +125,11 @@ function parseAiScreenCopyPlan(raw: string, input: BuildScreenCopyPlanInput, fal
       copyCompressionMode: parseCompressionMode(item.copyCompressionMode, fallbackBlock.copyCompressionMode),
       payload: mergedPayload,
       editableFields: (Object.keys(mergedPayload) as Array<keyof ScreenCopyPayload>),
-      planningConfidence: mergeCopyConfidence(directorBlock.planningConfidence, mergedPayload),
+      planningConfidence: buildSemanticScreenPayload(
+        input.semanticBlocks.find((entry) => entry.id === fallbackBlock.blockId) ?? input.semanticBlocks[0]!,
+        fallbackBlock.recipeId,
+        directorBlock.planningConfidence
+      ).confidence,
       rationale: typeof item.rationale === "string" ? item.rationale : fallbackBlock.rationale
     };
   });
@@ -223,7 +160,56 @@ function sanitizePayload(payload: unknown): ScreenCopyPayload {
     falseText: readString(record.falseText),
     trueText: readString(record.trueText),
     quote: readString(record.quote),
-    center: readString(record.center)
+    center: readString(record.center),
+    slots: Array.isArray(record.slots)
+      ? record.slots
+          .filter((item) => item && typeof item === "object")
+          .map((item, index) => {
+            const slot = item as Record<string, unknown>;
+            return {
+              id: readString(slot.id) ?? `ai-slot-${index + 1}`,
+              role: readString(slot.role) as NonNullable<ScreenCopyPayload["slots"]>[number]["role"],
+              text: readString(slot.text) ?? "",
+              shortText: readString(slot.shortText),
+              style: (readString(slot.style) as NonNullable<ScreenCopyPayload["slots"]>[number]["style"]) ?? "primary",
+              start: typeof slot.start === "number" ? slot.start : 0,
+              end: typeof slot.end === "number" ? slot.end : 0
+            };
+          })
+          .filter((slot) => slot.text && slot.end >= slot.start)
+      : undefined,
+    supportVisuals: Array.isArray(record.supportVisuals)
+      ? record.supportVisuals
+          .filter((item) => item && typeof item === "object")
+          .map((item, index) => {
+            const visual = item as Record<string, unknown>;
+            return {
+              id: readString(visual.id) ?? `ai-visual-${index + 1}`,
+              kind: (readString(visual.kind) as NonNullable<ScreenCopyPayload["supportVisuals"]>[number]["kind"]) ?? "cursor",
+              start: typeof visual.start === "number" ? visual.start : 0,
+              end: typeof visual.end === "number" ? visual.end : 0,
+              label: readString(visual.label),
+              anchorSlotId: readString(visual.anchorSlotId)
+            };
+          })
+          .filter((visual) => visual.end >= visual.start)
+      : undefined,
+    layerActions: Array.isArray(record.layerActions)
+      ? record.layerActions
+          .filter((item) => item && typeof item === "object")
+          .map((item, index) => {
+            const action = item as Record<string, unknown>;
+            return {
+              id: readString(action.id) ?? `ai-action-${index + 1}`,
+              type: (readString(action.type) as NonNullable<ScreenCopyPayload["layerActions"]>[number]["type"]) ?? "show_layer",
+              start: typeof action.start === "number" ? action.start : 0,
+              end: typeof action.end === "number" ? action.end : 0,
+              targetSlotId: readString(action.targetSlotId),
+              supportVisualId: readString(action.supportVisualId)
+            };
+          })
+          .filter((action) => action.end >= action.start)
+      : undefined
   };
 }
 
@@ -231,61 +217,6 @@ function parseCompressionMode(value: unknown, fallback: ScreenCopyBlock["copyCom
   return value === "headline" || value === "labelled" || value === "bullet" || value === "contrast" || value === "cta"
     ? value
     : fallback;
-}
-
-function compressHeadline(text: string) {
-  return trimSentence(text)
-    .split(/\s+/)
-    .slice(0, 5)
-    .join(" ")
-    .slice(0, 32)
-    .trim();
-}
-
-function compressDetail(text: string, maxChars: number) {
-  const cleaned = trimSentence(text);
-  if (cleaned.length <= maxChars) return cleaned;
-  const words = cleaned.split(/\s+/);
-  let result = "";
-  for (const word of words) {
-    const next = result ? `${result} ${word}` : word;
-    if (next.length > maxChars) break;
-    result = next;
-  }
-  return result || cleaned.slice(0, maxChars).trim();
-}
-
-function splitItems(text: string) {
-  const raw = text
-    .split(/[,:;]|(?:\s+-\s+)|(?:\.\s+)/)
-    .map((item) => trimSentence(item))
-    .filter((item) => item.length >= 3);
-  return raw.length >= 2 ? raw.slice(0, 4).map((item) => compressDetail(item, 28)) : [compressDetail(text, 28)];
-}
-
-function buildContrastPair(text: string) {
-  const separators = [" vs ", " VS ", " versus ", " против ", " вместо ", " до ", " after ", " before ", " после "];
-  for (const separator of separators) {
-    if (!text.includes(separator)) continue;
-    const [left, right] = text.split(separator, 2);
-    return {
-      left: compressDetail(left, 24),
-      right: compressDetail(right, 24)
-    };
-  }
-  const items = splitItems(text);
-  return {
-    left: items[0] ?? "До",
-    right: items[1] ?? items[0] ?? "После"
-  };
-}
-
-function extractFirstNumber(text: string) {
-  return text.match(NUMBER_RE)?.[0]?.trim();
-}
-
-function trimSentence(text: string) {
-  return text.replace(/\s+/g, " ").replace(/^[-:;,.\s]+|[-:;,.\s]+$/g, "").trim();
 }
 
 function readString(value: unknown) {

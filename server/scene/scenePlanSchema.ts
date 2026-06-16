@@ -28,8 +28,12 @@ export const sceneCategorySchema = z.enum([
 export const sceneRecipeIdSchema = z.enum([
   "hook_title_left",
   "hook_title_center",
+  "headline_with_accent_number",
+  "step_number_callout",
   "big_number_grow",
   "big_number_plus_text_plate",
+  "warning_strike_fix",
+  "hotkey_command_tip",
   "myth_vs_truth",
   "definition_card",
   "comparison_split",
@@ -55,6 +59,45 @@ export const sceneDensitySchema = z.enum(["minimal", "balanced", "dense"]);
 export const copyCompressionModeSchema = z.enum(["headline", "labelled", "bullet", "contrast", "cta"]);
 export const visualRoleSchema = z.enum(["hero_scene", "support_overlay", "micro_emphasis", "transition_scene", "none"]);
 export const holdStrategySchema = z.enum(["readable_hold", "carry_with_microbeats", "quick_punctuate", "transition_bridge"]);
+export const semanticSlotRoleSchema = z.enum([
+  "headline",
+  "hero_number",
+  "step_index",
+  "step_label",
+  "wrong_phrase",
+  "correct_phrase",
+  "command_hotkey",
+  "keyword_accent",
+  "supporting_context",
+  "cta_phrase",
+  "comparison_left",
+  "comparison_right",
+  "quote_pull"
+]);
+export const semanticSlotStyleSchema = z.enum(["accent", "primary", "muted", "success", "danger", "chip"]);
+export const supportVisualKindSchema = z.enum([
+  "cursor",
+  "mouse",
+  "keyboard",
+  "hotkey_keys",
+  "warning_mark",
+  "number_badge",
+  "checkmark",
+  "timeline_tick",
+  "chart_pulse"
+]);
+export const layerActionTypeSchema = z.enum([
+  "show_layer",
+  "hide_layer",
+  "highlight_slot",
+  "strike_slot",
+  "swap_to_correct",
+  "grow_number",
+  "reveal_step",
+  "show_hotkey",
+  "pop_support_visual",
+  "camera_push"
+]);
 export const sceneLayerKindSchema = z.enum([
   "speaker",
   "title",
@@ -113,6 +156,13 @@ export const semanticBlockSchema = z.object({
   end: z.number().min(0),
   text: z.string(),
   summary: z.string(),
+  words: z.array(z.object({
+    word: z.string(),
+    start: z.number().min(0),
+    end: z.number().min(0),
+    speaker: z.string().optional(),
+    confidence: z.number().optional()
+  })),
   transcriptWordRange: z.object({
     startIndex: z.number().int().min(0),
     endIndex: z.number().int().min(0)
@@ -145,7 +195,44 @@ export const screenCopyPayloadSchema = z.object({
   falseText: z.string().optional(),
   trueText: z.string().optional(),
   quote: z.string().optional(),
-  center: z.string().optional()
+  center: z.string().optional(),
+  slots: z.array(z.object({
+    id: z.string().min(1),
+    role: semanticSlotRoleSchema,
+    text: z.string(),
+    shortText: z.string().optional(),
+    style: semanticSlotStyleSchema,
+    start: z.number().min(0),
+    end: z.number().min(0),
+    wordRange: z.object({
+      startIndex: z.number().int().min(0),
+      endIndex: z.number().int().min(0)
+    }).optional()
+  }).refine((value) => value.end >= value.start, {
+    message: "Semantic slot end must be >= start."
+  })).optional(),
+  supportVisuals: z.array(z.object({
+    id: z.string().min(1),
+    kind: supportVisualKindSchema,
+    start: z.number().min(0),
+    end: z.number().min(0),
+    label: z.string().optional(),
+    anchorSlotId: z.string().optional()
+  }).refine((value) => value.end >= value.start, {
+    message: "Support visual end must be >= start."
+  })).optional(),
+  layerActions: z.array(z.object({
+    id: z.string().min(1),
+    type: layerActionTypeSchema,
+    start: z.number().min(0),
+    end: z.number().min(0),
+    targetLayerId: z.string().optional(),
+    targetSlotId: z.string().optional(),
+    supportVisualId: z.string().optional(),
+    payload: z.record(z.string(), z.unknown()).optional()
+  }).refine((value) => value.end >= value.start, {
+    message: "Layer action end must be >= start."
+  })).optional()
 });
 
 export const directorPlanBlockSchema = z.object({
@@ -207,7 +294,10 @@ export const screenCopyBlockSchema = z.object({
     "falseText",
     "trueText",
     "quote",
-    "center"
+    "center",
+    "slots",
+    "supportVisuals",
+    "layerActions"
   ])),
   planningConfidence: planningConfidenceSchema,
   rationale: z.string().optional()

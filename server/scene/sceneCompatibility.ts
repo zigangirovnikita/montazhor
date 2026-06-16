@@ -19,8 +19,12 @@ type TemplateBlockKey = keyof VisualTemplateData["blocks"];
 const recipeBlockOwnership: Record<SceneRecipeId, TemplateBlockKey[]> = {
   hook_title_left: ["headline", "subtitle"],
   hook_title_center: ["headline", "subtitle"],
+  headline_with_accent_number: ["headline", "stat", "accent"],
+  step_number_callout: ["list", "stat", "headline"],
   big_number_grow: ["stat"],
   big_number_plus_text_plate: ["stat", "accent"],
+  warning_strike_fix: ["comparison", "accent"],
+  hotkey_command_tip: ["cta", "accent", "headline"],
   myth_vs_truth: ["comparison"],
   definition_card: ["headline", "list", "subtitle"],
   comparison_split: ["comparison", "list"],

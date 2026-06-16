@@ -153,6 +153,38 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
       }
     ];
   }
+  if (recipeId === "warning_strike_fix") {
+    return [
+      ...baseLayers,
+      {
+        id: `${block.id}-comparison`,
+        kind: "comparison",
+        emphasis: "dominant",
+        enabled: true,
+        payload: {
+          left: splitItems(block.text)[0] ?? conciseTitle(block.summary),
+          right: splitItems(block.text)[1] ?? subtitleText(block) ?? block.text,
+          caption: conciseTitle(block.summary)
+        }
+      }
+    ];
+  }
+  if (recipeId === "headline_with_accent_number" || recipeId === "step_number_callout" || recipeId === "hotkey_command_tip") {
+    return [
+      ...baseLayers,
+      {
+        id: `${block.id}-number`,
+        kind: "number",
+        emphasis: "dominant",
+        enabled: Boolean(firstNumber(block.text)),
+        payload: {
+          value: firstNumber(block.text) ?? "1",
+          label: conciseTitle(block.summary),
+          text: subtitleText(block) ?? block.text
+        }
+      }
+    ];
+  }
   if (recipeId === "big_number_grow" || recipeId === "big_number_plus_text_plate") {
     return [
       ...baseLayers,
