@@ -46,7 +46,9 @@ export function buildScenePlannerUserPrompt(
       category: recipeDef.category,
       blockTypes: recipeDef.blockTypes,
       allowedSpeakerModes: recipeDef.allowedSpeakerModes,
-      allowedLayerKinds: recipeDef.allowedLayerKinds
+      allowedLayerKinds: recipeDef.allowedLayerKinds,
+      requiredSlotRoles: recipeDef.requiredSlotRoles,
+      optionalSlotRoles: recipeDef.optionalSlotRoles
     })),
     semantic_blocks: blocks.map((block) => ({
       id: block.id,

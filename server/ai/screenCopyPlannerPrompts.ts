@@ -88,6 +88,8 @@ export function buildScreenCopyPlannerUserPrompt(
         recipeCategory: recipe.category,
         allowedSpeakerModes: recipe.allowedSpeakerModes,
         allowedLayerKinds: recipe.allowedLayerKinds,
+        requiredSlotRoles: recipe.requiredSlotRoles,
+        optionalSlotRoles: recipe.optionalSlotRoles,
         transcript: semanticBlock?.text ?? "",
         summary: semanticBlock?.summary ?? "",
         words: semanticBlock?.words ?? [],

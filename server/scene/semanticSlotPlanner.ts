@@ -257,6 +257,14 @@ function buildRecipePayload(
   if (recipeId === "comparison_split") {
     return { ...base, left: comparisonLeft ?? wrongPhrase ?? compressHeadline(block.text), right: comparisonRight ?? correctPhrase ?? compressDetail(block.text, 24), caption: headline };
   }
+  if (recipeId === "before_after_phrase_swap") {
+    return {
+      ...base,
+      left: comparisonLeft ?? wrongPhrase ?? compressHeadline(block.text),
+      right: comparisonRight ?? correctPhrase ?? compressDetail(block.text, 24),
+      caption: hotkey ?? headline
+    };
+  }
   if (recipeId === "myth_vs_truth") {
     return { ...base, falseText: wrongPhrase ?? comparisonLeft ?? compressHeadline(block.text), trueText: correctPhrase ?? comparisonRight ?? compressDetail(block.text, 28), label: headline };
   }
@@ -298,6 +306,23 @@ function buildRecipePayload(
   }
   if (recipeId === "checklist_reveal" || recipeId === "timeline_year_callout") {
     return { ...base, title: headline, items: buildChecklistItems(slots, block.text) };
+  }
+  if (recipeId === "list_progression") {
+    return {
+      ...base,
+      title: headline,
+      items: buildChecklistItems(slots, block.text),
+      label: stepLabel ?? headline
+    };
+  }
+  if (recipeId === "rule_card") {
+    return {
+      ...base,
+      title: headline,
+      subtitle: correctPhrase ?? compressDetail(block.text, 42),
+      text: correctPhrase ?? compressDetail(block.text, 42),
+      value: heroNumber
+    };
   }
   if (recipeId === "speaker_right_panel_left_infographic") {
     return { ...base, title: headline, label: correctPhrase ?? stepLabel ?? compressDetail(block.text, 32), value: heroNumber ?? stepIndex ?? "01" };
@@ -399,7 +424,17 @@ function extractInstructionFixPair(text: string) {
 
 function extractComparison(text: string) {
   if (!COMPARISON_RE.test(text)) return null;
-  const parts = trimSentence(text).split(/\b(?:вместо|или|vs|versus|против|до|после)\b/iu).map((part) => part.trim()).filter(Boolean);
+  const normalized = trimSentence(text);
+  const beforeAfter = normalized.match(/\b(?:до|before)\b\s+(.+?)[,;]?\s+\b(?:после|after)\b\s+(.+)$/iu);
+  if (beforeAfter) {
+    return {
+      left: trimSentence(beforeAfter[1] ?? ""),
+      right: trimSentence(beforeAfter[2] ?? ""),
+      leftRange: { text: trimSentence(beforeAfter[1] ?? ""), startHint: beforeAfter.index ?? 0 },
+      rightRange: { text: trimSentence(beforeAfter[2] ?? ""), startHint: normalized.indexOf(beforeAfter[2] ?? "") }
+    };
+  }
+  const parts = normalized.split(/\b(?:вместо|или|vs|versus|против|до|после)\b/iu).map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) return null;
   return {
     left: parts[0]!,

@@ -39,7 +39,7 @@ export function choosePreferredRecipe(
     );
   }
   if (block.type === "comparison" || COMPARE_RE.test(text)) {
-    preferredCandidates.push("comparison_split", "myth_vs_truth");
+    preferredCandidates.push("before_after_phrase_swap", "comparison_split", "myth_vs_truth");
   }
   if (NEGATION_RE.test(text) && FIX_RE.test(text)) {
     preferredCandidates.push("warning_strike_fix", "myth_vs_truth");
@@ -56,6 +56,7 @@ export function choosePreferredRecipe(
   if (block.type === "list" || LIST_RE.test(text)) {
     preferredCandidates.push(
       numberCount > 0 ? "step_number_callout" : capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "checklist_reveal",
+      "list_progression",
       capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "checklist_reveal",
       "checklist_reveal"
     );
@@ -78,6 +79,7 @@ export function choosePreferredRecipe(
   }
   if (block.type === "definition") {
     preferredCandidates.push(
+      "rule_card",
       capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "definition_card",
       "definition_card"
     );
@@ -107,13 +109,13 @@ export function defaultSpeakerModeForRecipe(allowed: SpeakerMode[]) {
 function defaultCandidatesForBlock(block: SemanticBlock, capabilities: TemplateSceneCapabilities): SceneRecipeId[] {
   if (block.type === "hook") return [capabilities.preferredHookRecipeId, "hook_title_left"];
   if (block.type === "cta") return [capabilities.preferredCtaRecipeId];
-  if (block.type === "list") return ["checklist_reveal", "definition_card"];
+  if (block.type === "list") return ["list_progression", "checklist_reveal", "definition_card"];
   if (HOTKEY_RE.test(block.text)) return ["hotkey_command_tip", "warning_strike_fix", "cta_finish"];
-  if (block.type === "comparison" || block.type === "myth_vs_truth") return ["comparison_split", "myth_vs_truth"];
+  if (block.type === "comparison" || block.type === "myth_vs_truth") return ["before_after_phrase_swap", "comparison_split", "myth_vs_truth"];
   if (block.type === "warning") return ["camera_punch_in", "big_number_plus_text_plate"];
   if (block.type === "proof") return [capabilities.fullSceneEnabled ? "speaker_right_panel_left_infographic" : "big_number_grow"];
   if (block.type === "transition") return ["clean_section_transition"];
-  if (block.type === "definition") return [capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "definition_card"];
+  if (block.type === "definition") return ["rule_card", capabilities.fullSceneEnabled ? "voiceover_full_graphic" : "definition_card"];
   if (block.type === "timeline") return [capabilities.fullSceneEnabled ? "speaker_lower_half_top_visual" : "timeline_year_callout"];
   return [capabilities.fullSceneEnabled ? "speaker_lower_half_top_visual" : "hook_title_left"];
 }

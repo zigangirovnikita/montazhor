@@ -18,6 +18,13 @@ How to use:
 - Result: the planner can now reason in montage terms such as phrase role, exact phrase timing, strike/correct actions, hotkey emphasis, and support icon intent instead of only generic subtitle compression. Typecheck passes and fixture checks confirm slot extraction for `wrong -> fix + hotkey` and `headline + number` cases.
 - Follow-up: next real-server verification should tune recipe-specific text fitting and renderer visuals per recipe rather than broad planner rewrites.
 
+### 2026-06-16 — Slot contracts hardened and legacy beat fallback demoted
+
+- Problem: after the first slot-planner pass, some scene recipes were still looser than intended, and `microBeatPlanner` still fundamentally thought in word-heuristics with semantic actions appended later.
+- Decision: extend the scene library with explicit slot-contract metadata (`requiredSlotRoles`, `optionalSlotRoles`), add the remaining first-wave editorial recipes (`before_after_phrase_swap`, `rule_card`, `list_progression`), make compiler fallback depend on slot-contract satisfaction, and move `microBeatPlanner` to `payload.slots + payload.layerActions` as the primary source with word heuristics only as fallback.
+- Result: the scene engine now validates whether a recipe has the roles it needs before rendering, generates micro-beats from semantic actions instead of mostly raw word guesses, and covers more editorial structures without returning to generic subtitle-card logic.
+- Follow-up: real talking-head render verification should now focus on quality tuning per recipe, not on another architectural shift in planner ownership.
+
 ### 2026-06-16 — Cinematic Scene Engine V2 switched to director/copy source of truth
 
 - Problem: the cinematic path still mixed semantic intent, scene choice, and raw on-screen text inside one `scenePlan`, which kept pushing the planner back toward generic fallback cards and made block review too shallow.

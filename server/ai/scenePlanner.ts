@@ -17,7 +17,7 @@ import type { TemplateSceneCapabilities } from "@/server/scene/sceneCompatibilit
 import { getSceneRecipe, listSceneRecipesForBlockType } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock } from "@/server/scene/microBeatPlanner";
 
-export const SCENE_PLAN_VERSION = "v3";
+export const SCENE_PLAN_VERSION = "v4";
 
 interface BuildScenePlanInput {
   semanticBlocks: SemanticBlock[];
@@ -124,7 +124,7 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
     }
   ];
 
-  if (recipeId === "checklist_reveal") {
+  if (recipeId === "checklist_reveal" || recipeId === "list_progression") {
     return [
       ...baseLayers,
       {
@@ -136,7 +136,7 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
       }
     ];
   }
-  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth") {
+  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth" || recipeId === "before_after_phrase_swap") {
     const [left, right] = splitItems(block.text);
     return [
       ...baseLayers,
@@ -180,6 +180,20 @@ function buildLayerPlan(block: SemanticBlock, recipeId: ScenePlanBlock["recipeId
         payload: {
           value: firstNumber(block.text) ?? "1",
           label: conciseTitle(block.summary),
+          text: subtitleText(block) ?? block.text
+        }
+      }
+    ];
+  }
+  if (recipeId === "rule_card") {
+    return [
+      ...baseLayers,
+      {
+        id: `${block.id}-support`,
+        kind: "supporting_text",
+        emphasis: "support",
+        enabled: true,
+        payload: {
           text: subtitleText(block) ?? block.text
         }
       }

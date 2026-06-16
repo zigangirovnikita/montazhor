@@ -3,7 +3,6 @@ import type {
   CompiledScenePlan,
   DirectorPlan,
   DirectorPlanBlock,
-  LayerActionBeat,
   SceneLayerPlan,
   SceneMicroBeat,
   ScenePlan,
@@ -17,9 +16,9 @@ import type {
   VisualScene
 } from "@/lib/types";
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
-import { buildMicroBeatsForBlock } from "@/server/scene/microBeatPlanner";
+import { buildMicroBeatsForBlock, buildMicroBeatsFromSemanticPayload } from "@/server/scene/microBeatPlanner";
 
-export const SCENE_COMPILER_VERSION = "v2";
+export const SCENE_COMPILER_VERSION = "v3";
 
 export function compileScenePlan(
   directorPlan: DirectorPlan,
@@ -97,12 +96,11 @@ function compileSceneBlock(
     throw new Error(`Missing screen copy block for semantic block ${block.blockId}`);
   }
 
-  const recipeDef = getSceneRecipe(block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId);
-  const microBeats = [
-    ...compileMicroBeats(block, semanticBlock),
-    ...compileActionMicroBeats(copyBlock.payload.layerActions ?? [])
-  ].sort((left, right) => left.start - right.start);
-  const fallbackApplied = block.safeMode === true || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
+  const initialRecipeId = block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId;
+  const validatedRecipeId = resolveRecipeForPayload(initialRecipeId, copyBlock.payload, block.fallbackRecipeId);
+  const recipeDef = getSceneRecipe(validatedRecipeId);
+  const microBeats = compileMicroBeats(block, semanticBlock, copyBlock.payload);
+  const fallbackApplied = block.safeMode === true || validatedRecipeId !== initialRecipeId || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? compileOverlayBeats(block, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
     : [];
@@ -137,7 +135,9 @@ function compileSceneBlock(
   };
 }
 
-function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBlock) {
+function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBlock, payload: ScreenCopyPayload) {
+  const semanticBeats = buildMicroBeatsFromSemanticPayload(semanticBlock, payload, block.recipeId);
+  if (semanticBeats.length > 0) return semanticBeats;
   const words = semanticBlock.words.length > 0
     ? semanticBlock.words
     : semanticBlock.text
@@ -153,25 +153,6 @@ function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBloc
           };
         });
   return buildMicroBeatsForBlock(semanticBlock, words, block.recipeId);
-}
-
-function compileActionMicroBeats(actions: LayerActionBeat[]): SceneMicroBeat[] {
-  return actions.map((action) => ({
-    id: action.id,
-    type: mapActionTypeToMicroBeat(action.type),
-    start: action.start,
-    end: action.end,
-    anchorText: typeof action.payload?.label === "string"
-      ? action.payload.label
-      : typeof action.payload?.kind === "string"
-        ? action.payload.kind
-        : undefined,
-    payload: {
-      ...action.payload,
-      targetSlotId: action.targetSlotId,
-      supportVisualId: action.supportVisualId
-    }
-  }));
 }
 
 function compileOverlayBeats(
@@ -462,15 +443,6 @@ function readText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function mapActionTypeToMicroBeat(type: LayerActionBeat["type"]): SceneMicroBeat["type"] {
-  if (type === "grow_number") return "number_emphasis";
-  if (type === "highlight_slot" || type === "show_hotkey") return "keyword_highlight";
-  if (type === "strike_slot" || type === "swap_to_correct") return "strike_through";
-  if (type === "reveal_step") return "checklist_row";
-  if (type === "pop_support_visual") return "icon_pop";
-  if (type === "camera_push") return "camera_push";
-  return "label_reveal";
-}
 
 function buildLayersFromSemanticSlots(block: DirectorPlanBlock, payload: ScreenCopyPayload): SceneLayerPlan[] {
   const slots = payload.slots ?? [];
@@ -501,6 +473,14 @@ function buildLayersFromSemanticSlots(block: DirectorPlanBlock, payload: ScreenC
   push("supporting_text", ["keyword_accent", "supporting_context", "command_hotkey"], "support");
 
   return layers;
+}
+
+function resolveRecipeForPayload(recipeId: DirectorPlanBlock["recipeId"], payload: ScreenCopyPayload, fallbackRecipeId?: DirectorPlanBlock["recipeId"]) {
+  const recipe = getSceneRecipe(recipeId);
+  const slotRoles = new Set((payload.slots ?? []).map((slot) => slot.role));
+  const satisfies = recipe.requiredSlotRoles.every((role) => slotRoles.has(role));
+  if (satisfies) return recipeId;
+  return fallbackRecipeId ?? recipe.fallbackRecipeId ?? recipeId;
 }
 
 function normalizeItems(items: unknown, summary: string) {

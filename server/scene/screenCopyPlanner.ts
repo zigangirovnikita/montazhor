@@ -102,8 +102,8 @@ export function buildScreenCopyBlock(
 }
 
 function chooseCompressionMode(recipeId: SceneRecipeId): ScreenCopyBlock["copyCompressionMode"] {
-  if (recipeId === "checklist_reveal" || recipeId === "timeline_year_callout" || recipeId === "step_number_callout") return "bullet";
-  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth" || recipeId === "warning_strike_fix") return "contrast";
+  if (recipeId === "checklist_reveal" || recipeId === "timeline_year_callout" || recipeId === "step_number_callout" || recipeId === "list_progression") return "bullet";
+  if (recipeId === "comparison_split" || recipeId === "myth_vs_truth" || recipeId === "warning_strike_fix" || recipeId === "before_after_phrase_swap") return "contrast";
   if (recipeId === "cta_finish") return "cta";
   if (recipeId === "big_number_grow" || recipeId === "big_number_plus_text_plate" || recipeId === "headline_with_accent_number" || recipeId === "hotkey_command_tip") return "labelled";
   return "headline";
