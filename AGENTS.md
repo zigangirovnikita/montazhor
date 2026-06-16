@@ -1,5 +1,36 @@
 # AGENTS.md
 
+## Правила работы агента
+
+Твоя задача не просто что-то дописать, а доводить решение до рабочего стабильного состояния без поломки уже существующих частей проекта.
+
+Основные правила:
+
+- Не делай вид, что задача завершена, если реализована только часть логики.
+- Если для задачи уже есть ТЗ, spec или архитектурный файл в `docs/`, работай по нему как по главному контракту и сверяйся с ним до конца реализации.
+- Если в проекте есть старая логика, которая конфликтует с новой архитектурой, не наслаивай поверх нее временные костыли. Приводи код к одному понятному источнику правды.
+- Не переписывай большие куски проекта без необходимости. Сначала найди точное место, где находится причина проблемы, и исправляй именно его.
+- Если проблема повторяется или исправление не помогает, значит нужен более глубокий разбор связей, мертвого кода, дублирования и архитектурных конфликтов, а не очередной поверхностный патч.
+- Любое изменение должно быть совместимо с уже работающими частями приложения. Нельзя чинить одно, ломая другое.
+- Если для безопасной реализации нужно делать fallback, downgrade или временный упрощенный режим, делай это явно и предсказуемо, а не скрыто.
+- Если задача касается визуального пайплайна, HyperFrames, scene planning, template system или block review, опирайся на актуальную архитектуру проекта, а не на устаревшую beat-only логику.
+
+Правила по структуре файлов:
+
+- Не раздувай файлы в монолиты.
+- Если файл приближается к `400` строкам кода, разбивай его на более мелкие модули по ответственности.
+- Не складывай в один файл и UI, и бизнес-логику, и схемы данных, и рендер-код одновременно.
+- При дроблении файлов связи между ними должны быть прозрачными и корректными: общие типы, интерфейсы, контракты и shared helpers должны лежать в понятных местах, а не дублироваться.
+- Если меняется один компонент или одна подсистема, не надо переписывать соседние рабочие модули только потому, что они рядом.
+- Предпочтительна такая структура, при которой точечное изменение одного элемента не вызывает каскадную перезапись уже решенных частей проекта.
+
+Правила завершения задачи:
+
+- Задача считается завершенной только тогда, когда реализованы все обязательные части решения, а не только первый шаг.
+- Перед завершением проверь, что код действительно собран в целостную рабочую цепочку, а не состоит из недоведенных заготовок.
+- Если работа шла по checklist/spec, обнови статус выполненных пунктов.
+- Если что-то не удалось довести до конца, не маскируй это. Четко зафиксируй, что именно осталось, что мешает завершению и какой следующий шаг нужен.
+
 ## Project
 
 This is an AI autopilot for short-form talking-head videos.
@@ -176,6 +207,19 @@ Avoid adding heavy infrastructure before the local MVP works.
   /fillerWords.ts
   /profanity.ts
   /openRouterClient.ts
+  /scenePlanner.ts
+  /scenePlannerPrompts.ts
+
+/server/scene
+  /scenePlanSchema.ts
+  /sceneLibrary.ts
+  /sceneCompiler.ts
+  /sceneCompatibility.ts
+  /blockPlanner.ts
+  /microBeatPlanner.ts
+  /overlayComposer.ts
+  /fullSceneComposer.ts
+  /renderModes.ts
 
 /server/hyperframes
   /renderer.ts
@@ -188,6 +232,10 @@ Avoid adding heavy infrastructure before the local MVP works.
   /renderProject.ts
   /steps
 
+/app/components
+  /BlockReviewPanel.tsx
+  /SceneRecipePicker.tsx
+
 ## Architecture Rules
 
 * Keep API routes thin.
@@ -198,9 +246,13 @@ Avoid adding heavy infrastructure before the local MVP works.
 * Centralize shared word boundary / token normalization in `server/ai/wordBoundaries.ts`. Do not duplicate these functions.
 * Use provider interfaces for replaceable systems.
 * Prefer small files and focused modules.
+* Files must not grow into large monoliths. When a file gets close to `400` lines, split it into smaller focused modules by responsibility.
+* When changing one component or subsystem, prefer editing only the files that actually own that behavior. Do not rewrite neighboring solved logic just because it is nearby.
+* When splitting files, keep the connections explicit and correct: shared types, compiler/planner contracts, and render interfaces must stay centralized instead of being duplicated ad hoc.
 * Do not rewrite large parts of the project unless asked.
 * When re-running analysis on an existing project, always clean up stale DB records (Transcript, EditDecision, RenderAsset) and delete old `clean.mp4` first. This prevents data from a previous run leaking into the new result.
 * Always re-render `clean.mp4` in the final render phase — never reuse a cached file from the analysis phase, because the EDL may have changed.
+* The active target architecture for the visual pipeline is described in `docs/scene-composition-engine-spec.md`. When implementing visual generation, scene planning, template usage, or HyperFrames rendering, follow that spec and do not regress back to beat-only overlay logic.
 
 ## Provider Interfaces
 
@@ -422,50 +474,48 @@ Style presets:
 
 ## HyperFrames
 
-Use HyperFrames for the continuous semantic visual layer. Do not treat HyperFrames as occasional decorative cards only.
+Use HyperFrames as the main scene composition engine for visual presentation after cleanup. Do not treat it as occasional decorative cards only.
 
-MVP templates:
+MVP scene capabilities:
 
-* hook title card;
-* key point card;
-* CTA end card;
-* kinetic_text (continuous typography);
-* PIP metric cards (numbers, charts, checklists).
-* lesson_title, myth_strike, stat_panel, and concept_map for full-frame/HUD-style visual explanations inspired by viral course/reels references.
+* overlay scenes over the talking-head video;
+* split scenes with speaker + visual area;
+* PIP scenes with speaker as an inset;
+* full-graphic voiceover scenes without visible speaker video;
+* transition scenes between visual states;
+* kinetic text and contextual data/definition/comparison/CTA scenes inside those categories.
 
-Continuous Semantic Overlay:
-* The visual planner (`visualPlanner.ts`) runs continuously over the final transcript after the clean cut.
-* The base unit for visual planning is no longer a subtitle chunk. Use `server/ai/timedVisualSegments.ts` to split cleaned speech into short word-timed visual moments from real `TranscriptWord.start/end` values.
-* The deterministic planner must cover the spoken text first with word-timed visual beats. AI may upgrade already-covered moments, but it must not return a sparse plan that leaves ordinary speech with no visual text.
-* AI should think like a viral reels editor: one hand on the spoken words/timings, the other on the allowed HyperFrames preset registry. It may choose titles, kinetic words, big numbers, HUD panels, checklists, myth/strike frames, concept maps, icons, graph-like panels, and CTA plates when they visually reinforce what the author says.
-* Give AI creative freedom inside the registry, but keep guardrails against real failure modes: no invented facts/numbers/names/offers, no unknown templates/presets/motions, no 300-insert-per-second spam, no visible text that drifts away from the spoken meaning, and no payloads too large to fit.
-* AI should preserve `sourceMomentId`; server-side preflight preserves deterministic start/duration for continuous plans. Do not let preflight shift visual beats into a queue, because that breaks synchronization with the author's words.
-* Regular speech is mapped to `kinetic_text`; numbers, warnings, lists, definitions, comparisons, growth/progress phrases, insights, and CTAs should be upgraded into validated preset instances when useful.
-* Current reusable semantic overlay templates include `kinetic_text`, `big_number`, `metric_chart`, `checklist`, `bullet_cards`, `keyword_slam`, `lesson_title`, `myth_strike`, `stat_panel`, `concept_map`, and `cta_plate`.
-* Current registry presets include local-library-inspired caption/effect styles such as `caption_kinetic_slam`, `caption_emoji_pop`, `caption_gradient_fill`, `caption_highlight`, `caption_neon_glow`, `caption_glitch_rgb`, `caption_matrix_decode`, `caption_editorial_emphasis`, `caption_particle_burst`, `caption_clip_wipe`, plus larger course/HUD presets such as `hud_ratio_panel`, `golden_ratio_panel`, `lesson_title_block`, `lesson_title_cinematic`, `myth_strike_redline`, and `concept_orbit_map`.
-* Visible overlay text must not be shortened with ellipses. If a non-kinetic card cannot fit the full phrase safely, preflight should fall back to full-source `kinetic_text` instead of clipping the wording.
+Scene composition architecture:
+* The visual pipeline must be `template -> semantic blocks -> AI scene plan -> deterministic scene compiler -> HyperFrames render`.
+* The base planning unit is a `semantic block`, not an isolated subtitle chunk and not a free-form frame-by-frame layout.
+* AI must choose from a constrained shared scene library and return `scene plan`, not exact coordinates or handcrafted design from scratch.
+* Inside each semantic block, the system must still produce word-linked or phrase-linked `micro-beats` so spoken meaning gets continuous visual confirmation.
+* The scene library is shared across templates. Templates define the style system, allowed recipes, allowed variants, and scene compatibility rules for the current author style.
+* AI may combine `2-3` compatible layers in one scene only through explicit composition rules in the scene library.
+* Regular speech should still get visual support through kinetic text or another safe template-backed scene variant. Do not allow sparse AI plans that leave long spoken passages visually dead.
+* Visible text must not be shortened with ellipses. If a scene cannot fit the full phrase safely, degrade to a safe kinetic or simpler scene variant instead of clipping meaning.
 * Do not split words in the middle. Layout must prefer full-word wrapping, font-size reduction, or beat splitting over `overflow-wrap:anywhere`, hyphenation, or character-level breaking.
-* Kinetic fallback must use the original spoken `sourceText`, not a synthetic string reconstructed from card payload fields such as `eyebrow`, `title`, or `items`.
-* The local visual preset registry is the source of truth for reusable overlay compositions. Current key modules:
-  * `server/hyperframes/visualRegistry.ts` — template/style/preset registry.
-  * `server/ai/visualPlanner.ts` — continuous semantic planner and AI merge path.
-  * `server/ai/timedVisualSegments.ts` — word-timed visual moment segmentation.
-  * `server/hyperframes/visualLayoutPreflight.ts` — pre-render layout/payload safety pass.
-  * `server/hyperframes/templates/SemanticOverlay.ts` — deterministic HyperFrames overlay template.
-  * `lib/visualStyleOptions.ts` — saved user-facing visual options parser.
-* Before rendering, run a preflight pass that normalizes payload text, splits too-long kinetic phrases, validates template/preset choices, applies disabled-template options, and falls back to `kinetic_phrase_safe` when a preset is unsafe. In continuous mode, preflight must preserve the plan's word-derived timing instead of extending or shifting beats for reading-time estimates.
-* Style controls are preset-driven. Current persisted options include `visualDensity`, `motionIntensity`, `presetPack`, and `disabledTemplates` inside `styleOptionsJson`.
-* Production semantic overlays should render HyperFrames as a graphic-only layer and then composite it over `clean.mp4` with FFmpeg while preserving clean audio. Do not render the source/clean video inside the HyperFrames HTML composition unless an alpha-capable render path is introduced and validated.
-* Current semantic overlays are graphic-only. Full reference-style scenes with source video embedded as PIP, branded background, logo, and course-layout composition require an explicit split/PIP composition path; do not fake that by placing source video inside the graphic-only overlay until the alpha/video composition path is validated.
+* Any visual state that stays effectively static for more than about `3` seconds is a planning failure. The system must inject a safe micro-state change, replan, or downgrade.
+* The visual pipeline spec in `docs/scene-composition-engine-spec.md` is the current source of truth for this architecture.
+
+Render paths:
+* `Overlay path` keeps `clean.mp4` as the base video and composites graphic scenes above it.
+* `Full-scene composition path` may move, shrink, crop, PIP, or temporarily hide the speaker video while keeping clean audio and sync.
+* Do not fake full-scene compositions inside an overlay-only architecture. Treat them as a separate render path with separate compiler/output logic.
+
+Current implementation rules:
+* Before rendering, run a preflight/compiler pass that validates recipe choice, payload size, layer compatibility, template restrictions, and timing safety.
+* Production overlay scenes should still render HyperFrames as a graphic layer and then composite it over `clean.mp4` with FFmpeg while preserving clean audio.
+* Do not render the source/clean video inside the HyperFrames HTML composition unless a dedicated source-video composition path has been introduced and validated for that scene type.
 * The renderer should attempt alpha overlay only when the produced video really contains an alpha channel. If HyperFrames WebM renders without alpha, detect that with `ffprobe` and fall back to chroma-key compositing.
 * If chroma-key compositing is used for the graphic-only layer, avoid blur filters, semi-transparent text, transparent color mixes, and key-color shadows/glows because they create colored spill around text. Prefer opaque elements and hard strokes; switch to true alpha output when HyperFrames rendering supports it reliably on the server.
 
 Rules:
 
 * HyperFrames is optional only in the sense that final export must still succeed if the visual layer fails. Product quality target is HyperFrames-first.
-* If HyperFrames fails, retry with safe kinetic-only overlay before falling back to FFmpeg/ASS subtitles.
-* Do not overuse large insert cards. The continuous text layer can be dense, but heavy cards/charts should remain contextual.
-* For a 30–60 second video, use continuous kinetic text throughout and reserve strong cards/charts for the most relevant moments.
+* If a rich scene fails, retry with a safe scene downgrade before falling back to FFmpeg/ASS subtitles.
+* Do not overuse heavy cards or full takeovers. Strong scenes should follow semantic importance and block context.
+* For a 30–60 second video, keep constant internal motion and confirmation of speech, but preserve one coherent style system throughout the entire video.
 * Do not use a local-Chromium-first render strategy. HyperFrames rendering mode must be chosen explicitly up front, not by first trying a flaky path and only then falling back.
 * Default local development render mode is Docker-backed HyperFrames rendering.
 * Production/container render mode may intentionally use direct local HyperFrames/Chrome rendering only when that environment is already provisioned for it and Docker-in-Docker or host-socket rendering would be less reliable because of filesystem/path mapping.
@@ -507,8 +557,8 @@ The visual template builder lives at `/templates/new`.
 Product intent:
 
 * It is a mobile-first style/template creation surface for the autopilot, not a manual timeline editor.
-* The user creates a reusable visual system: typography, colors, surfaces, shadows, motion, and preferred HyperFrames preset categories.
-* Persisted user templates from the database are connected to the render pipeline and AI planner constraints.
+* The user creates a reusable visual system: typography, colors, surfaces, shadows, motion, safe composition behavior, and allowed scene families.
+* Persisted user templates from the database are the primary visual source of truth for the render pipeline and AI scene-planner constraints.
 
 UX rules:
 
@@ -528,13 +578,15 @@ UX rules:
 Integration Architecture:
 
 * **Db Persistence**: Custom templates are saved to the `Template` table in the SQLite database and can be marked as default (`isDefault: true`).
-* **Style Mapping**: The default template or active custom template is read during project creation/update. Its theme properties are serialized into `styleOptionsJson` as `visualTemplateId` and `visualTemplate` alongside derived properties:
+* **Source Of Truth**: The default template or active custom template is read during project creation/update and remains the primary visual contract for generation and render decisions.
+* **Style Mapping**: The template is serialized into `styleOptionsJson` as `visualTemplateId` and `visualTemplate` alongside derived compatibility properties:
   * If the template uses the `editorial` font, `presetPack` is mapped to `premium`.
   * If `defaultAnimationSpeed` is low (e.g. `< 0.38`), `motionIntensity` is mapped to `calm`.
   * Any disabled blocks in the template are mapped to `disabledTemplates`.
-* **State Preservation**: Front-end state forms and back-end patch requests must preserve `visualTemplateId` and `visualTemplate` inside `styleOptionsJson` instead of discarding them.
-* **Rendering Path**: The visual planner uses these properties to select matching HyperFrames presets (e.g. premium glass-cards) during video generation, ensuring that the custom styling is reflected in the final output.
-* **Exit Animations**: Mapped from the block's `animationOut` field to the beat's `motionOutId` (defaults to `slide-up`). The generated semantic overlay timeline applies corresponding GSAP exit transitions (`slide-up`, `slide-down`, `fade`, `scale-down`, `none`) before the beat duration ends.
+* **State Preservation**: Front-end state forms and back-end patch requests must preserve `visualTemplateId` and `visualTemplate` inside `styleOptionsJson` instead of discarding them. Derived compatibility fields must not replace the template as the source of truth.
+* **Planner Contract**: AI scene planning may use derived compatibility fields, but it must be constrained first by the selected template capabilities and allowed scene recipes.
+* **Rendering Path**: The scene compiler and HyperFrames render path use template properties to skin shared scene recipes into the final branded output.
+* **Exit Animations**: Template block `animationOut` settings should map into deterministic scene/beat exit behavior, but they must flow through compiler-safe render contracts rather than ad hoc per-template hacks.
 
 ## Database
 
