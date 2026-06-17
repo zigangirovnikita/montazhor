@@ -3,6 +3,7 @@ import { validateTiming } from "../timingValidator";
 import { analyzeSemantics } from "../semanticAnalyzer";
 import type { Phrase, SemanticVisualPlan } from "../types";
 import type { EditRange } from "@/lib/types";
+import { describe, it, expect } from "vitest";
 
 describe("Visual Pipeline Architecture Tests", () => {
   describe("Тест 1: remap таймингов", () => {
@@ -71,8 +72,10 @@ describe("Visual Pipeline Architecture Tests", () => {
 
       const analysis = analyzeSemantics(phrases);
       expect(analysis[0].intent).toBe("do_dont");
-      expect(analysis[0].entities?.shortcut).toBe("COMMAND+B");
-      expect(analysis[0].entities?.keys).toEqual(["⌘", "B"]);
+      expect(analysis[0].entities?.shortcut?.text).toBe("Command+B");
+      expect(analysis[0].entities?.shortcut?.keys).toEqual(["⌘", "B"]);
+      expect(analysis[0].entities?.badAction?.text).toBe("нарезка мышкой");
+      expect(analysis[0].entities?.goodAction?.text).toBe("используйте Command+B");
     });
   });
 
@@ -92,6 +95,7 @@ describe("Visual Pipeline Architecture Tests", () => {
       const analysis = analyzeSemantics(phrases);
       expect(analysis[0].intent).toBe("list_title");
       expect(analysis[0].entities?.number).toBe("ТОП-3");
+      expect(analysis[0].entities?.title).toBe("способа получить классное видео");
       expect(analysis[0].entities?.tool).toBe("CapCut");
     });
   });

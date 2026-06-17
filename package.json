@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test:melism": "tsx scripts/test_melism_reconcile.ts",
     "test:elevenlabs": "tsx scripts/test_elevenlabs_transcription.ts",
+    "test:visual": "vitest run server/visual",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },
@@ -36,6 +37,7 @@
     "eslint-config-next": "^16.0.3",
     "prisma": "^6.19.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   }
 }

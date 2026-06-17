@@ -40,26 +40,29 @@ export function remapTranscriptToOutputTimeline(transcript: TranscriptJson, edl:
   }
 
   let wordIndex = 0;
-  for (const segment of transcript.segments) {
-    if (!segment.words) continue;
-    for (const word of segment.words) {
-      const outRanges = sourceRangeToOutputRange(word.start, word.end, edl.keptRanges);
-      if (outRanges.length > 0) {
-        const outputStart = outRanges[0].outputStart;
-        const outputEnd = outRanges[outRanges.length - 1].outputEnd;
+    for (const segment of transcript.segments) {
+      if (!segment.words) continue;
+      for (const word of segment.words) {
+        const outRanges = sourceRangeToOutputRange(word.start, word.end, edl.keptRanges);
+        if (outRanges.length > 0) {
+          if (outRanges.length > 1) {
+            console.warn(`[remapTranscript] Warning: Word "${word.word}" (source: ${word.start}-${word.end}) spans across an EDL cut. Splitting is not fully supported yet. Keeping only the first mapped piece to avoid silent gaps.`);
+          }
+          const outputStart = outRanges[0].outputStart;
+          const outputEnd = outRanges[0].outputEnd;
 
-        remappedWords.push({
-          id: `w${String(wordIndex).padStart(4, '0')}`,
-          text: word.word,
-          sourceStart: word.start,
-          sourceEnd: word.end,
-          outputStart,
-          outputEnd
-        });
-        wordIndex++;
+          remappedWords.push({
+            id: `w${String(wordIndex).padStart(4, '0')}`,
+            text: word.word,
+            sourceStart: word.start,
+            sourceEnd: word.end,
+            outputStart,
+            outputEnd
+          });
+          wordIndex++;
+        }
       }
     }
-  }
 
   return {
     language: transcript.language || "ru",

@@ -213,6 +213,8 @@ export async function processProjectAnalyze(projectId: string) {
     payload: subtitles,
   });
 
+  /*
+  // Legacy visual pipeline - deprecated in favor of server/scene/*
   const remappedTranscript = remapTranscriptToOutputTimeline(transcript, edl);
   await writeJsonFile(paths.remappedTranscript, remappedTranscript);
   await logProject(projectId, "info", `Visual planning: remapped ${remappedTranscript.words.length} words to output timeline.`);
@@ -242,6 +244,7 @@ export async function processProjectAnalyze(projectId: string) {
   const timingReport = validateTiming(semanticVisualPlan, phrases);
   await writeJsonFile(paths.timingReport, timingReport);
   await logProject(projectId, "info", `TimingValidator: ${timingReport.warnings.length > 0 ? (timingReport.ok ? 'WARNINGS' : 'ERRORS') : '0 errors'}, ${timingReport.warnings.length} warnings.`);
+  */
 
 
   const planner = new HeuristicContentPlanner();

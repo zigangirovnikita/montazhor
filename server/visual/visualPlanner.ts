@@ -31,16 +31,21 @@ export function buildSemanticVisualPlan(
     if (analysis.intent === "list_title") {
       component = "number_title_combo";
       props.number = analysis.entities?.number || "";
-      props.title = phrase.text;
+      props.title = analysis.entities?.title || phrase.text;
+      props.tool = analysis.entities?.tool || "";
       isHeavy = true;
     } else if (analysis.intent === "do_dont") {
       component = "strikeout_replace";
-      props.text = phrase.text;
+      props.badText = analysis.entities?.badAction?.text || "";
+      props.goodPrefix = "";
+      props.goodText = analysis.entities?.goodAction?.text || "";
+      props.accentText = analysis.entities?.shortcut?.text || "";
+      props.keys = analysis.entities?.shortcut?.keys;
       isHeavy = true;
     } else if (analysis.intent === "shortcut") {
       component = "shortcut_key";
-      props.shortcut = analysis.entities?.shortcut;
-      props.keys = analysis.entities?.keys;
+      props.shortcut = analysis.entities?.shortcut?.text;
+      props.keys = analysis.entities?.shortcut?.keys;
       isHeavy = true;
     } else if (analysis.intent === "tool") {
       component = "tool_highlight";

@@ -2,42 +2,65 @@ import type { Phrase, SemanticAnalysis, SemanticIntent } from "./types";
 
 export function analyzeSemantics(phrases: Phrase[]): SemanticAnalysis[] {
   return phrases.map(phrase => {
-    const text = phrase.text.toLowerCase();
-    let intent: SemanticIntent = "plain_explanation";
+    const text = phrase.text;
+    const lowerText = text.toLowerCase();
     const entities: Record<string, any> = {};
 
-    // 1. CTA
-    if (/(подпиши|сохрани|сохраняй|пиши|напиши|ставь|лайк)/.test(text)) {
-      intent = "cta";
+    // 1. Extract shortcut
+    const shortcutMatch = text.match(/(Command|Ctrl|Shift|Alt|Cmd)\s*\+\s*([a-z0-9])/i);
+    if (shortcutMatch) {
+      entities.shortcut = {
+        text: shortcutMatch[0],
+        keys: [shortcutMatch[1].toUpperCase() === "COMMAND" || shortcutMatch[1].toUpperCase() === "CMD" ? "⌘" : shortcutMatch[1].toUpperCase(), shortcutMatch[2].toUpperCase()]
+      };
     }
-    // 2. Lists / Steps / Titles
-    else if (/(топ-?\d+|\d+ способ|\d+ причин|\d+ ошибк|первый|второй|третий|шаг \d+)/.test(text)) {
-      intent = "list_title";
-      const match = phrase.text.match(/(ТОП-?\d+|\d+)/i);
-      if (match) {
-        entities.number = match[0].toUpperCase();
+
+    // 2. Extract tool
+    const toolMatch = text.match(/(CapCut|ChatGPT|Canva|n8n|Figma|Notion|Premiere)/i);
+    if (toolMatch) {
+      entities.tool = toolMatch[1];
+    }
+
+    // 3. Extract number
+    const numberMatch = text.match(/(ТОП-?\d+|\d+)/i);
+    if (numberMatch && /(топ-?\d+|\d+ способ|\d+ причин|\d+ ошибк|первый|второй|третий|шаг \d+)/i.test(text)) {
+      entities.number = numberMatch[0].toUpperCase();
+    }
+
+    // 4. Extract badAction & goodAction for do_dont
+    const doDontMatch = text.match(/не\s+([^,]+),\s*(?:лучше\s+)?(.+)/i);
+    if (doDontMatch) {
+      entities.badAction = { text: doDontMatch[1].trim().replace(/^режьте/i, "нарезка") };
+      entities.goodAction = { text: doDontMatch[2].trim() };
+    } else {
+      const simpleBadMatch = text.match(/(?:не делай(?:те)?|нельзя|ошибка:?|перестань(?:те)?|хватит)\s+(.+)/i);
+      if (simpleBadMatch) {
+        entities.badAction = { text: simpleBadMatch[1].trim() };
       }
     }
-    // 3. Do / Don't
-    else if (/(не делай|нельзя|ошибка|перестань|хватит)/.test(text)) {
+
+    // Determine primary intent
+    let intent: SemanticIntent = "plain_explanation";
+
+    if (entities.badAction || entities.goodAction) {
       intent = "do_dont";
-    }
-    // 4. Shortcuts
-    else if (/(command|ctrl|shift|alt|cmd)\s*\+\s*([a-z0-9])/i.test(phrase.text)) {
+    } else if (/(топ-?\d+|\d+ способ|\d+ причин|\d+ ошибк)/i.test(text)) {
+      intent = "list_title";
+      let titleText = text;
+      if (entities.number) {
+        titleText = titleText.replace(new RegExp(entities.number, "i"), "").trim();
+      }
+      if (entities.tool) {
+        titleText = titleText.replace(new RegExp(`\\s*в\\s+${entities.tool}`, "i"), "").trim();
+        titleText = titleText.replace(new RegExp(`\\s*${entities.tool}`, "i"), "").trim();
+      }
+      entities.title = titleText;
+    } else if (entities.shortcut) {
       intent = "shortcut";
-      const match = phrase.text.match(/(Command|Ctrl|Shift|Alt|Cmd)\s*\+\s*([a-z0-9])/i);
-      if (match) {
-        entities.shortcut = `${match[1]}+${match[2]}`.toUpperCase();
-        entities.keys = [match[1].toUpperCase() === "COMMAND" || match[1].toUpperCase() === "CMD" ? "⌘" : match[1].toUpperCase(), match[2].toUpperCase()];
-      }
-    }
-    // 5. Tools
-    else if (/(capcut|chatgpt|canva|n8n|figma|notion|premiere)/.test(text)) {
+    } else if (entities.tool) {
       intent = "tool";
-      const match = phrase.text.match(/(CapCut|ChatGPT|Canva|n8n|Figma|Notion|Premiere)/i);
-      if (match) {
-        entities.tool = match[1];
-      }
+    } else if (/(подпиши|сохрани|сохраняй|пиши|напиши|ставь|лайк)/i.test(text)) {
+      intent = "cta";
     }
 
     return {

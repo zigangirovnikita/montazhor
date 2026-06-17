@@ -174,11 +174,13 @@ function compileOverlayBeats(
     : styleOptions?.motionIntensity === "calm"
       ? "calm_fade"
       : "glass_slide";
-  const supportBeats = buildSupportingSpeechBeats(block, beats, motionId, supportVisuals);
-  const primaryStart = round(Math.max(block.start, beats[0]?.start ?? block.start));
+
+  const sortedBeats = [...beats].sort((a, b) => a.start - b.start);
+  const supportBeats = buildSupportingSpeechBeats(block, sortedBeats, motionId, supportVisuals);
+  const primaryStart = round(block.start);
   const primaryEnd = supportBeats[0]
     ? round(Math.max(primaryStart + 0.6, Math.min(block.end, supportBeats[0].start - 0.08)))
-    : round(Math.min(block.end, primaryStart + primaryOverlayDuration(block.recipeId, block.end - block.start)));
+    : round(block.end);
 
   const primaryBeat: VisualBeat = {
     id: `${block.id}-overlay-primary`,
@@ -188,7 +190,7 @@ function compileOverlayBeats(
     presetId,
     motionId,
     layout,
-    payload: decoratePayloadForBeat(basePayload, beats[0]?.anchorText, fallbackApplied),
+    payload: decoratePayloadForBeat(basePayload, sortedBeats[0]?.anchorText, fallbackApplied),
     sourceMomentId: block.blockId,
     role: block.recipeId === "cta_finish" ? "cta" : "semantic_accent",
     variant: fallbackApplied ? "safe" : block.scenePriority === "hero" ? "hero" : "standard"

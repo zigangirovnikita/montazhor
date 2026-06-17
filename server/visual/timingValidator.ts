@@ -16,6 +16,15 @@ export function validateTiming(plan: SemanticVisualPlan, phrases: Phrase[]): Tim
       ok = false;
     }
 
+    if ("sourceStart" in layer || "sourceEnd" in layer) {
+      warnings.push({
+        layerId: layer.id,
+        type: "negative_start", // reused type or we can add a new one, but let's just use invalid_duration to be safe
+        message: `VisualLayer must not contain sourceStart or sourceEnd. It must use the output timeline.`
+      });
+      ok = false;
+    }
+
     if (layer.outputStart < 0) {
       warnings.push({
         layerId: layer.id,
