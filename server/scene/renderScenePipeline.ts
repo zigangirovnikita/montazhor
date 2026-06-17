@@ -16,11 +16,13 @@ import { buildSemanticBlocks } from "@/server/scene/blockPlanner";
 import { buildDirectorPlan, DIRECTOR_PLAN_VERSION } from "@/server/scene/directorPlanner";
 import { resolveTemplateSceneCapabilities } from "@/server/scene/sceneCompatibility";
 import { buildReviewScenePlan, compileScenePlan } from "@/server/scene/sceneCompiler";
+import { validateCompiledSceneCoverage } from "@/server/scene/sceneCoverageValidator";
 import { composeFullSceneVideo } from "@/server/scene/fullSceneComposer";
 import { composeOverlayScenes } from "@/server/scene/overlayComposer";
 import { buildScreenCopyPlan, SCREEN_COPY_PLAN_VERSION } from "@/server/scene/screenCopyPlanner";
 import type { RenderProfile } from "@/server/video/encoding";
 import type { VideoProfile } from "@/server/video/profile";
+import { auditProjectEvent } from "@/lib/audit";
 
 type ProjectPaths = ReturnType<typeof import("@/lib/storage").pathsForProject>;
 
@@ -59,11 +61,26 @@ export async function renderScenePipeline(input: RenderScenePipelineInput) {
   const compiledScenePlan = compileScenePlan(directorPlan, screenCopyPlan, input.profile, input.styleOptions);
   const scenePlan = buildReviewScenePlan(directorPlan, screenCopyPlan);
 
+  const coverageReport = validateCompiledSceneCoverage(compiledScenePlan);
+  if (!coverageReport.ok) {
+    const totalGaps = coverageReport.blocks.reduce((acc, block) => acc + block.gaps.length, 0);
+    const msg = `Scene coverage validation found ${totalGaps} visual gaps > ${coverageReport.maxGapSeconds}s.`;
+    if (input.log) await input.log(`WARN: ${msg}`);
+    await auditProjectEvent(input.projectId, {
+      phase: "scene-pipeline",
+      step: "coverage-validation",
+      kind: "warning",
+      summary: msg,
+      payload: coverageReport
+    });
+  }
+
   await writeJsonFile(input.paths.semanticBlocks, semanticBlocks);
   await writeJsonFile(input.paths.directorPlan, directorPlan);
   await writeJsonFile(input.paths.screenCopyPlan, screenCopyPlan);
   await writeJsonFile(input.paths.scenePlan, scenePlan);
   await writeJsonFile(input.paths.compiledScenePlan, compiledScenePlan);
+  await writeJsonFile(input.paths.sceneCoverageReport, coverageReport);
 
   const sceneBasePath = input.paths.cinematicComposedVideo.replace(/\.mp4$/, `.${input.renderProfile}.mp4`);
   const overlayPath = input.paths.semanticOverlayMp4.replace(/\.mp4$/, `.${input.renderProfile}.mp4`);
