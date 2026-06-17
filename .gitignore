@@ -11,6 +11,8 @@ tmp-codex-transfer
 .gemini
 *.db
 *.db-journal
+prisma/db.sqlite
+prisma/db.sqlite-journal
 *.log
 .venv
 __pycache__

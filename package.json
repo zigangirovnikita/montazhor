@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "test:melism": "tsx scripts/test_melism_reconcile.ts",
     "test:elevenlabs": "tsx scripts/test_elevenlabs_transcription.ts",
-    "test:visual": "vitest run server/visual",
+
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },

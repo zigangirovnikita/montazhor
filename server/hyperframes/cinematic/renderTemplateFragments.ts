@@ -7,7 +7,7 @@ import type { RenderProfile } from "@/server/video/encoding";
 import type { VideoProfile } from "@/server/video/profile";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
 import { AIS_RENDERERS_VERSION } from "@/server/hyperframes/templates/ais/designTokens";
-import { VISUAL_DIRECTOR_VERSION } from "@/server/visual/visualDirector";
+import { SCENE_COMPILER_VERSION } from "@/server/scene/sceneCompiler";
 import { pathsForProject } from "@/lib/storage";
 
 export async function renderTemplateFragments(
@@ -40,7 +40,7 @@ export async function renderTemplateFragments(
       instance.visualWeight,
       instance.transitionIn,
       instance.transitionOut,
-      VISUAL_DIRECTOR_VERSION,
+      SCENE_COMPILER_VERSION,
       AIS_RENDERERS_VERSION,
       hashJson(profile),
       renderProfile

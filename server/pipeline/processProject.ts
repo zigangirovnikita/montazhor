@@ -21,11 +21,7 @@ import { buildSubtitleDraft } from "@/server/video/subtitles";
 import { renderCleanCut } from "@/server/video/cutting";
 import { planCuts } from "@/server/pipeline/steps/planCuts";
 
-import { remapTranscriptToOutputTimeline } from "@/server/visual/remapTranscript";
-import { buildPhrases } from "@/server/visual/phraseBuilder";
-import { analyzeSemantics } from "@/server/visual/semanticAnalyzer";
-import { buildSemanticVisualPlan } from "@/server/visual/visualPlanner";
-import { validateTiming } from "@/server/visual/timingValidator";
+
 
 export async function processProjectAnalyze(projectId: string) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
@@ -213,38 +209,7 @@ export async function processProjectAnalyze(projectId: string) {
     payload: subtitles,
   });
 
-  /*
-  // Legacy visual pipeline - deprecated in favor of server/scene/*
-  const remappedTranscript = remapTranscriptToOutputTimeline(transcript, edl);
-  await writeJsonFile(paths.remappedTranscript, remappedTranscript);
-  await logProject(projectId, "info", `Visual planning: remapped ${remappedTranscript.words.length} words to output timeline.`);
 
-  const phrases = buildPhrases(remappedTranscript.words);
-  await writeJsonFile(paths.phrases, phrases);
-  await logProject(projectId, "info", `PhraseBuilder: built ${phrases.length} phrases from ${remappedTranscript.words.length} words.`);
-
-  const semanticAnalysis = analyzeSemantics(phrases);
-  await writeJsonFile(paths.semanticAnalysis, semanticAnalysis);
-  
-  const intentCounts = semanticAnalysis.reduce((acc, a) => {
-    acc[a.intent] = (acc[a.intent] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  await logProject(projectId, "info", `SemanticAnalyzer: detected ${intentCounts.list_title || 0} list/step phrases, ${intentCounts.do_dont || 0} do/dont phrases, ${intentCounts.shortcut || 0} shortcuts.`);
-
-  const outputDuration = remappedTranscript.durationOutput;
-  const semanticVisualPlan = buildSemanticVisualPlan(phrases, semanticAnalysis, {
-    stylePackId: (project.stylePreset as StylePreset) || "dynamic_viral",
-    duration: outputDuration
-  });
-  await writeJsonFile(paths.visualPlan, semanticVisualPlan);
-  await logProject(projectId, "info", `VisualPlanner: created ${semanticVisualPlan.layers.length} semantic layers.`);
-
-  const timingReport = validateTiming(semanticVisualPlan, phrases);
-  await writeJsonFile(paths.timingReport, timingReport);
-  await logProject(projectId, "info", `TimingValidator: ${timingReport.warnings.length > 0 ? (timingReport.ok ? 'WARNINGS' : 'ERRORS') : '0 errors'}, ${timingReport.warnings.length} warnings.`);
-  */
 
 
   const planner = new HeuristicContentPlanner();
