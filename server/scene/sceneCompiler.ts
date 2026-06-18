@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock, buildMicroBeatsFromSemanticPayload } from "@/server/scene/microBeatPlanner";
+import { buildSceneRecipeRuntime } from "@/server/scene/sceneRecipeRuntime";
 
 export const SCENE_COMPILER_VERSION = "v3";
 
@@ -97,16 +98,17 @@ function compileSceneBlock(
   }
 
   const initialRecipeId = block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId;
-  const validatedRecipeId = resolveRecipeForPayload(initialRecipeId, copyBlock.payload, block.fallbackRecipeId);
-  const recipeDef = getSceneRecipe(validatedRecipeId);
-  const microBeats = compileMicroBeats(block, semanticBlock, copyBlock.payload);
+  const runtimeRecipe = buildSceneRecipeRuntime(initialRecipeId, copyBlock.payload, block.fallbackRecipeId);
+  const validatedRecipeId = runtimeRecipe.recipeId;
+  const recipeDef = runtimeRecipe.recipeDef;
+  const microBeats = compileMicroBeats(semanticBlock, copyBlock.payload, validatedRecipeId);
   const fallbackApplied = block.safeMode === true || validatedRecipeId !== initialRecipeId || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
-    ? compileOverlayBeats(block, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
+    ? compileOverlayBeats(block, validatedRecipeId, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
     : [];
   const fullScene = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? undefined
-    : compileFullScene(block, copyBlock, semanticBlock.summary);
+    : compileFullScene(block, validatedRecipeId, copyBlock, semanticBlock.summary);
 
   return {
     id: `compiled-${block.id}`,
@@ -135,8 +137,12 @@ function compileSceneBlock(
   };
 }
 
-function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBlock, payload: ScreenCopyPayload) {
-  const semanticBeats = buildMicroBeatsFromSemanticPayload(semanticBlock, payload, block.recipeId);
+function compileMicroBeats(
+  semanticBlock: SemanticBlock,
+  payload: ScreenCopyPayload,
+  recipeId: DirectorPlanBlock["recipeId"]
+) {
+  const semanticBeats = buildMicroBeatsFromSemanticPayload(semanticBlock, payload, recipeId);
   if (semanticBeats.length > 0) return semanticBeats;
   const words = semanticBlock.words.length > 0
     ? semanticBlock.words
@@ -152,18 +158,19 @@ function compileMicroBeats(block: DirectorPlanBlock, semanticBlock: SemanticBloc
             end: Math.min(semanticBlock.end, start + Math.max(0.18, slice * 0.9))
           };
         });
-  return buildMicroBeatsForBlock(semanticBlock, words, block.recipeId);
+  return buildMicroBeatsForBlock(semanticBlock, words, recipeId);
 }
 
 function compileOverlayBeats(
   block: DirectorPlanBlock,
+  recipeId: DirectorPlanBlock["recipeId"],
   copyBlock: ScreenCopyBlock,
   beats: SceneMicroBeat[],
   frame: VisualFrameProfile,
   styleOptions: VisualPlanOptions | undefined,
   fallbackApplied: boolean
 ) {
-  const recipeDef = getSceneRecipe(block.recipeId);
+  const recipeDef = getSceneRecipe(recipeId);
   const basePayload = copyBlock.payload as Record<string, unknown>;
   const supportVisuals = copyBlock.payload.supportVisuals ?? [];
   const layout = chooseLayout(recipeDef.allowedLayouts, frame.orientation);
@@ -176,7 +183,7 @@ function compileOverlayBeats(
       : "glass_slide";
 
   const sortedBeats = [...beats].sort((a, b) => a.start - b.start);
-  const supportBeats = buildSupportingSpeechBeats(block, sortedBeats, motionId, supportVisuals);
+  const supportBeats = buildSupportingSpeechBeats(block, recipeId, sortedBeats, motionId, supportVisuals);
   const primaryStart = round(block.start);
   const primaryEnd = supportBeats[0]
     ? round(Math.max(primaryStart + 0.6, Math.min(block.end, supportBeats[0].start - 0.08)))
@@ -192,25 +199,30 @@ function compileOverlayBeats(
     layout,
     payload: decoratePayloadForBeat(basePayload, sortedBeats[0]?.anchorText, fallbackApplied),
     sourceMomentId: block.blockId,
-    role: block.recipeId === "cta_finish" ? "cta" : "semantic_accent",
+    role: runtimeRoleForRecipe(recipeId),
     variant: fallbackApplied ? "safe" : block.scenePriority === "hero" ? "hero" : "standard"
   };
 
   return [primaryBeat, ...supportBeats];
 }
 
-function compileFullScene(block: DirectorPlanBlock, copyBlock: ScreenCopyBlock, summary: string): VisualScene {
-  const recipeDef = getSceneRecipe(block.recipeId);
+function compileFullScene(
+  block: DirectorPlanBlock,
+  recipeId: DirectorPlanBlock["recipeId"],
+  copyBlock: ScreenCopyBlock,
+  summary: string
+): VisualScene {
+  const recipeDef = getSceneRecipe(recipeId);
   return {
     id: `${block.id}-full`,
     start: round(block.start),
     duration: round(Math.max(recipeDef.duration.min, Math.min(recipeDef.duration.max, block.end - block.start))),
     sceneType: (recipeDef.visualMapping.fullSceneType ?? "pip_slide") as VisualScene["sceneType"],
-    presetId: block.recipeId,
+    presetId: recipeId,
     layoutMode: recipeDef.visualMapping.layoutMode ?? "overlay",
     speakerMode: block.speakerMode,
     sourceText: summary,
-    payload: buildFullScenePayload(block.recipeId, copyBlock.payload, summary) as Record<string, unknown>,
+    payload: buildFullScenePayload(recipeId, copyBlock.payload, summary) as Record<string, unknown>,
     safeRegionPolicy: block.speakerMode === "hidden" ? "full_frame" : block.speakerMode === "pip" ? "pip_safe" : "avoid_speaker",
     transitionIn: block.transitionIn === "wipe" ? "slide" : block.transitionIn === "cut" ? "fade" : block.transitionIn,
     transitionOut: block.transitionOut === "zoom" || block.transitionOut === "wipe" ? "slide" : block.transitionOut
@@ -290,11 +302,12 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
 
 function buildSupportingSpeechBeats(
   block: DirectorPlanBlock,
+  recipeId: DirectorPlanBlock["recipeId"],
   beats: SceneMicroBeat[],
   motionId: VisualBeat["motionId"],
   supportVisuals: NonNullable<ScreenCopyPayload["supportVisuals"]>
 ): VisualBeat[] {
-  if (block.recipeId === "cta_finish" || block.recipeId === "clean_section_transition") return [];
+  if (recipeId === "cta_finish" || recipeId === "clean_section_transition") return [];
   const selected = beats
     .filter((beat) => beat.start >= block.start + 0.9)
     .slice(0, block.scenePriority === "hero" ? 2 : 1);
@@ -477,14 +490,6 @@ function buildLayersFromSemanticSlots(block: DirectorPlanBlock, payload: ScreenC
   return layers;
 }
 
-function resolveRecipeForPayload(recipeId: DirectorPlanBlock["recipeId"], payload: ScreenCopyPayload, fallbackRecipeId?: DirectorPlanBlock["recipeId"]) {
-  const recipe = getSceneRecipe(recipeId);
-  const slotRoles = new Set((payload.slots ?? []).map((slot) => slot.role));
-  const satisfies = recipe.requiredSlotRoles.every((role) => slotRoles.has(role));
-  if (satisfies) return recipeId;
-  return fallbackRecipeId ?? recipe.fallbackRecipeId ?? recipeId;
-}
-
 function normalizeItems(items: unknown, summary: string) {
   if (!Array.isArray(items) || items.length === 0) return [summary];
   return items.map((item) => String(item)).filter(Boolean).slice(0, 4);
@@ -498,4 +503,8 @@ function splitPair(left: string | undefined, right: string | undefined, summary:
 
 function round(value: number) {
   return Math.round(value * 1000) / 1000;
+}
+
+function runtimeRoleForRecipe(recipeId: DirectorPlanBlock["recipeId"]) {
+  return recipeId === "cta_finish" ? "cta" : "semantic_accent";
 }

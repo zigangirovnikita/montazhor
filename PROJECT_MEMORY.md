@@ -81,6 +81,21 @@ Do not repeat unless:
 - The task is architectural, cross-file, or the relevant files are not obvious.
 
 ## Decisions
+### 2026-06-18 - Minimal visual-layer P0 guardrails tightened
+Decision:
+- Fix only the smallest safe P0 issues in the post-cut visual layer without changing block planning or clean timeline architecture.
+Reason:
+- The main immediate risks were stale reused scene plans, recipe fallback mismatch inside scene compilation, and silent subtitle loss when any compiled scene existed.
+Files affected:
+- `server/scene/sceneCompiler.ts`
+- `server/scene/sceneRecipeRuntime.ts`
+- `server/scene/renderScenePipeline.ts`
+- `server/scene/renderScenePipelineSignatures.ts`
+- `server/pipeline/renderProject.ts`
+- `server/scene/*.test.ts`
+Tradeoff:
+- Subtitles now stay enabled together with scene composition until a real spoken-text coverage contract exists, so some videos may show duplicate text temporarily instead of risking text loss.
+
 ### 2026-06-18 - Graphify is selective, not automatic
 Decision:
 - Use Graphify only for architecture, cross-file tracing, or non-obvious navigation tasks.
@@ -155,3 +170,19 @@ Tradeoff:
 - For DB-affecting changes, verify Prisma schema compatibility and migration/runtime state.
 - For render/cut/scene changes, verify one end-to-end sample or the closest targeted pipeline check available.
 - After a failed fix attempt, record the failure under `Failed attempts - do not repeat`.
+
+## Recent fixes
+### 2026-06-18 - Visual layer minimal P0 PR
+Status: done
+What changed:
+- `sceneCompiler` now carries the validated/fallback recipe id through downstream compile helpers instead of partially using the stale original recipe id.
+- `renderScenePipeline` now persists and checks semantic/signature arrays before reusing `director-plan.json` or `screen-copy-plan.json`.
+- `renderProject` no longer auto-disables standalone subtitles only because `compiledScenePlan.blocks.length > 0`.
+What remains:
+- P1: semantic blocks still originate from subtitle chunking rather than a dedicated remapped transcript block contract.
+- P1: scene coverage still does not prove continuous spoken-text coverage.
+- P1: standalone subtitles remain temporarily enabled on top of scene composition because the scene pipeline still lacks a reliable speech_text coverage contract; this prevents silent text loss but can cause subtitle/scene overlay collisions until a dedicated coverage contract and subtitle/scene safe-area coordination are added.
+- P2: full-scene hidden-speaker composition and broader HyperFrames guardrails still need dedicated tightening.
+Checks passed:
+- `pnpm typecheck`
+- `pnpm test:scene`

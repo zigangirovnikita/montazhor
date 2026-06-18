@@ -258,7 +258,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
       });
 
       videoForSubtitles = videoPath;
-      skipStandaloneSubtitlePass = compiledScenePlan.blocks.length > 0;
+      skipStandaloneSubtitlePass = false;
       await prisma.renderAsset.create({ data: { projectId, type: "semantic_overlay", path: videoPath } });
       await logProject(
         projectId,

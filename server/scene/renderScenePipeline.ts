@@ -19,6 +19,7 @@ import { buildReviewScenePlan, compileScenePlan } from "@/server/scene/sceneComp
 import { validateCompiledSceneCoverage } from "@/server/scene/sceneCoverageValidator";
 import { composeFullSceneVideo } from "@/server/scene/fullSceneComposer";
 import { composeOverlayScenes } from "@/server/scene/overlayComposer";
+import { buildScreenCopyBlockSignatures, buildSemanticBlockSignatures } from "@/server/scene/renderScenePipelineSignatures";
 import { buildScreenCopyPlan, SCREEN_COPY_PLAN_VERSION } from "@/server/scene/screenCopyPlanner";
 import type { RenderProfile } from "@/server/video/encoding";
 import type { VideoProfile } from "@/server/video/profile";
@@ -44,20 +45,31 @@ interface RenderScenePipelineInput {
 
 export async function renderScenePipeline(input: RenderScenePipelineInput) {
   const semanticBlocks = buildSemanticBlocks(input.subtitles, input.contentPlan, input.duration);
+  const semanticBlockSignatures = buildSemanticBlockSignatures(semanticBlocks, input.styleOptions?.visualTemplateId);
   const capabilities = resolveTemplateSceneCapabilities(input.stylePreset, input.styleOptions);
-  const existingDirectorPlan = await loadReusableDirectorPlan(input.paths.directorPlan, semanticBlocks, input.styleOptions?.visualTemplateId);
-  const directorPlan = existingDirectorPlan ?? await buildDirectorPlan({
+  const existingDirectorPlan = await loadReusableDirectorPlan(input.paths.directorPlan, semanticBlocks, semanticBlockSignatures, input.styleOptions?.visualTemplateId);
+  const directorPlanBase = existingDirectorPlan ?? await buildDirectorPlan({
     semanticBlocks,
     contentPlan: input.contentPlan,
     styleProfileId: input.stylePreset,
     capabilities
   }, input.projectId, input.log);
-  const existingScreenCopyPlan = await loadReusableScreenCopyPlan(input.paths.screenCopyPlan, directorPlan);
-  const screenCopyPlan = existingScreenCopyPlan ?? await buildScreenCopyPlan({
+  const directorPlan: DirectorPlan = {
+    ...directorPlanBase,
+    semanticBlocks,
+    semanticBlockSignatures,
+  };
+  const screenCopySignatures = buildScreenCopyBlockSignatures(directorPlan);
+  const existingScreenCopyPlan = await loadReusableScreenCopyPlan(input.paths.screenCopyPlan, directorPlan, screenCopySignatures);
+  const screenCopyPlanBase = existingScreenCopyPlan ?? await buildScreenCopyPlan({
     semanticBlocks,
     directorPlan,
     contentPlan: input.contentPlan
   }, input.projectId, input.log);
+  const screenCopyPlan: ScreenCopyPlan = {
+    ...screenCopyPlanBase,
+    blockSignatures: screenCopySignatures,
+  };
   const compiledScenePlan = compileScenePlan(directorPlan, screenCopyPlan, input.profile, input.styleOptions);
   const scenePlan = buildReviewScenePlan(directorPlan, screenCopyPlan);
 
@@ -114,7 +126,12 @@ export async function renderScenePipeline(input: RenderScenePipelineInput) {
   return { semanticBlocks, directorPlan, screenCopyPlan, scenePlan, compiledScenePlan, videoPath: overlayPath };
 }
 
-async function loadReusableDirectorPlan(filePath: string, semanticBlocks: ScenePlan["semanticBlocks"], templateId: string | undefined) {
+async function loadReusableDirectorPlan(
+  filePath: string,
+  semanticBlocks: ScenePlan["semanticBlocks"],
+  expectedSignatures: string[],
+  templateId: string | undefined
+) {
   try {
     const raw = JSON.parse(await readFile(filePath, "utf8")) as DirectorPlan;
     if (!Array.isArray(raw.blocks) || !Array.isArray(raw.semanticBlocks)) return null;
@@ -122,7 +139,11 @@ async function loadReusableDirectorPlan(filePath: string, semanticBlocks: SceneP
     if ((raw.templateId ?? undefined) !== templateId) return null;
     const sameIds = raw.semanticBlocks.length === semanticBlocks.length
       && raw.semanticBlocks.every((block, index) => block.id === semanticBlocks[index]?.id);
+    const sameSignatures = Array.isArray(raw.semanticBlockSignatures)
+      && raw.semanticBlockSignatures.length === expectedSignatures.length
+      && raw.semanticBlockSignatures.every((signature, index) => signature === expectedSignatures[index]);
     return sameIds
+      && sameSignatures
       ? {
           ...raw,
           semanticBlocks
@@ -133,7 +154,7 @@ async function loadReusableDirectorPlan(filePath: string, semanticBlocks: SceneP
   }
 }
 
-async function loadReusableScreenCopyPlan(filePath: string, directorPlan: DirectorPlan) {
+async function loadReusableScreenCopyPlan(filePath: string, directorPlan: DirectorPlan, expectedSignatures: string[]) {
   try {
     const raw = JSON.parse(await readFile(filePath, "utf8")) as ScreenCopyPlan;
     if (!Array.isArray(raw.blocks)) return null;
@@ -141,7 +162,10 @@ async function loadReusableScreenCopyPlan(filePath: string, directorPlan: Direct
     if ((raw.templateId ?? undefined) !== (directorPlan.templateId ?? undefined)) return null;
     const sameIds = raw.blocks.length === directorPlan.blocks.length
       && raw.blocks.every((block, index) => block.blockId === directorPlan.blocks[index]?.blockId);
-    return sameIds ? raw : null;
+    const sameSignatures = Array.isArray(raw.blockSignatures)
+      && raw.blockSignatures.length === expectedSignatures.length
+      && raw.blockSignatures.every((signature, index) => signature === expectedSignatures[index]);
+    return sameIds && sameSignatures ? raw : null;
   } catch {
     return null;
   }

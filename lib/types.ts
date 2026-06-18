@@ -549,6 +549,7 @@ export interface DirectorPlan {
   planner: "deterministic" | "ai";
   semanticBlocks: SemanticBlock[];
   blocks: DirectorPlanBlock[];
+  semanticBlockSignatures?: string[];
   diagnostics?: string[];
 }
 
@@ -569,6 +570,7 @@ export interface ScreenCopyPlan {
   styleProfileId: StylePreset;
   planner: "deterministic" | "ai";
   blocks: ScreenCopyBlock[];
+  blockSignatures?: string[];
   diagnostics?: string[];
 }
 
