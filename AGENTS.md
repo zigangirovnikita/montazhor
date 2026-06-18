@@ -761,3 +761,31 @@ Before writing such a documentation update, the agent must ask Nikita:
 `Внести это правило/решение в AGENTS.md?`
 
 Only update `AGENTS.md` after explicit confirmation, unless Nikita directly asked to update it.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+
+Rules:
+- Use Graphify selectively, not automatically.
+- Use `graphify query "<question>"` only when:
+  - the task requires understanding architecture across multiple files;
+  - the user asks where something is implemented;
+  - the task involves tracing flow between frontend, API, jobs, pipeline, DB, or rendering;
+  - the relevant files are not obvious;
+  - the task may otherwise require reading many files.
+- Do not use Graphify when:
+  - the user points to a specific file;
+  - the task is a small localized edit;
+  - the answer can be found by reading 1-3 obvious files;
+  - the task is about text, copy, UI wording, formatting, or a small bug in a known file.
+- Graphify is a navigation layer, not a required first step. Prefer the cheapest path: direct file read when the target is obvious, Graphify when it reduces search space.
+- Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts when Graphify is justified. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- Run `graphify update .` only when code changes affect the dependency graph: imports/exports, API routes, Prisma schema, job orchestration, pipeline flow, module structure, source file moves/renames/creation/deletion, or core server modules such as `server/ai`, `server/video`, `server/scene`, `server/hyperframes`, `lib/jobs.ts`, `lib/storage.ts`, `app/api/**`.
+- Do not run `graphify update .` after copy/text edits, style-only edits, README/docs changes, comments-only changes, formatting/lint-only changes, or small localized UI changes.
+- If unsure, do not run it automatically; ask whether to update Graphify.
