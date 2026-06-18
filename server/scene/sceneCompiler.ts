@@ -18,6 +18,7 @@ import type {
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock, buildMicroBeatsFromSemanticPayload } from "@/server/scene/microBeatPlanner";
 import { buildSceneRecipeRuntime } from "@/server/scene/sceneRecipeRuntime";
+import { guardScenePayload } from "./scenePayloadGuards";
 
 export const SCENE_COMPILER_VERSION = "v3";
 
@@ -99,16 +100,28 @@ function compileSceneBlock(
 
   const initialRecipeId = block.safeMode ? (block.fallbackRecipeId ?? block.recipeId) : block.recipeId;
   const runtimeRecipe = buildSceneRecipeRuntime(initialRecipeId, copyBlock.payload, block.fallbackRecipeId);
-  const validatedRecipeId = runtimeRecipe.recipeId;
-  const recipeDef = runtimeRecipe.recipeDef;
-  const microBeats = compileMicroBeats(semanticBlock, copyBlock.payload, validatedRecipeId);
+  const guardedRuntime = guardScenePayload({
+    recipeId: runtimeRecipe.recipeId,
+    recipeDef: runtimeRecipe.recipeDef,
+    payload: copyBlock.payload,
+    fallbackRecipeId: block.fallbackRecipeId,
+    summary: semanticBlock.summary
+  });
+  const compiledCopyBlock: ScreenCopyBlock = {
+    ...copyBlock,
+    recipeId: guardedRuntime.recipeId,
+    payload: guardedRuntime.payload
+  };
+  const validatedRecipeId = guardedRuntime.recipeId;
+  const recipeDef = guardedRuntime.recipeDef;
+  const microBeats = compileMicroBeats(semanticBlock, compiledCopyBlock.payload, validatedRecipeId);
   const fallbackApplied = block.safeMode === true || validatedRecipeId !== initialRecipeId || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
-    ? compileOverlayBeats(block, validatedRecipeId, copyBlock, microBeats, frame, styleOptions, fallbackApplied)
+    ? compileOverlayBeats(block, validatedRecipeId, compiledCopyBlock, microBeats, frame, styleOptions, fallbackApplied)
     : [];
   const fullScene = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? undefined
-    : compileFullScene(block, validatedRecipeId, copyBlock, semanticBlock.summary);
+    : compileFullScene(block, validatedRecipeId, compiledCopyBlock, semanticBlock.summary);
 
   return {
     id: `compiled-${block.id}`,
@@ -122,9 +135,9 @@ function compileSceneBlock(
     end: semanticBlock.end,
     duration: round(Math.max(0.8, semanticBlock.end - semanticBlock.start)),
     renderPath: fullScene ? "full_scene" : "overlay",
-    activeLayerIds: buildLayerPlan(block, copyBlock).filter((layer) => layer.enabled).map((layer) => layer.id),
+    activeLayerIds: buildLayerPlan(block, compiledCopyBlock).filter((layer) => layer.enabled).map((layer) => layer.id),
     summary: semanticBlock.summary,
-    screenCopy: copyBlock.payload,
+    screenCopy: compiledCopyBlock.payload,
     overlayBeats,
     fullScene,
     microBeats,
@@ -260,9 +273,11 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
   if (recipeId === "speaker_right_panel_left_infographic") {
     return {
       eyebrow: "SYSTEM",
-      value: readText(payload.value) ?? "01",
+      title,
+      value: readText(payload.value),
       label: readText(payload.label) ?? title,
       caption: subtitle,
+      items,
       semanticSlots,
       supportVisuals
     };
@@ -271,7 +286,7 @@ function buildFullScenePayload(recipeId: DirectorPlanBlock["recipeId"], payload:
     return {
       eyebrow: "TRUST MAP",
       title,
-      center: readText(payload.center) ?? "TRUST",
+      center: readText(payload.center) ?? title,
       left,
       right,
       supportVisuals
@@ -491,8 +506,14 @@ function buildLayersFromSemanticSlots(block: DirectorPlanBlock, payload: ScreenC
 }
 
 function normalizeItems(items: unknown, summary: string) {
-  if (!Array.isArray(items) || items.length === 0) return [summary];
-  return items.map((item) => String(item)).filter(Boolean).slice(0, 4);
+  if (Array.isArray(items) && items.length > 0) {
+    return items.map((item) => String(item).trim()).filter(Boolean).slice(0, 4);
+  }
+  return summary
+    .split(/[.;]|(?:\s+-\s+)/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 4);
 }
 
 function splitPair(left: string | undefined, right: string | undefined, summary: string) {

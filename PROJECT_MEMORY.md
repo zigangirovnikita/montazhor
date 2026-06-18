@@ -5,6 +5,7 @@
   - Main product shape is stable: upload -> analyze draft -> review -> render/finalize.
   - Next.js app, Prisma schema, and in-memory job orchestration are wired together.
   - Production runtime is expected to be on the remote server under `/opt/montazhor`; verify current deployment state before making production assumptions.
+  - Local Mac checks are preliminary only; server-side checks under `/opt/montazhor` or an isolated server copy are authoritative for typecheck, tests, rendering, provider wiring, and production-like validation.
   - Production transcription uses ElevenLabs `scribe_v2` with word timestamps through local Xray proxy.
   - Voice activity still relies on pyannote/Silero fallback logic.
   - Build, typecheck, and lint status must be re-verified in the current session before claiming the project is clean.
@@ -128,6 +129,16 @@ Files affected:
 Tradeoff:
 - Real validation often requires server checks before declaring fixes done.
 
+### 2026-06-18 - Local checks are smoke tests, server checks are authoritative
+Decision:
+- Do not claim a PR is fully verified until the relevant server-side checks pass, or Nikita explicitly accepts local-only validation.
+Reason:
+- The local Mac environment is useful for fast feedback, but it is not the source of truth for build behavior, scene tests, runtime wiring, or production-like render validation.
+Files affected:
+- `PROJECT_MEMORY.md`
+Tradeoff:
+- Even small PRs may need a short isolated server check before being treated as fully verified.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`
@@ -163,6 +174,8 @@ Tradeoff:
 
 ## Testing checklist
 - Confirm whether validation must happen locally or on the remote server.
+- For this project, treat local Mac validation as a preliminary smoke check unless Nikita explicitly accepts local-only validation.
+- Prefer isolated server-side validation under `/opt/montazhor` or a temporary server copy before calling scene/render/runtime changes verified.
 - For pipeline fixes, verify at least the relevant command set:
   - `pnpm typecheck`
   - `pnpm lint`
