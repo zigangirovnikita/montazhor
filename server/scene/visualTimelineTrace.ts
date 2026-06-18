@@ -13,6 +13,7 @@ import type {
   VisualBeat,
   VisualScene
 } from "@/lib/types";
+import type { VisualTimingPolicyMetadata } from "./visualTimingPolicy";
 import { getSceneRecipe } from "./sceneLibrary";
 import { guardScenePayload } from "./scenePayloadGuards";
 import { buildSceneRecipeRuntime } from "./sceneRecipeRuntime";
@@ -49,6 +50,12 @@ interface TraceItem {
   objectStart: number;
   objectEnd: number;
   objectDuration: number;
+  timingPolicyApplied: boolean;
+  timingPolicyReasons: string[];
+  originalObjectStart: number;
+  originalObjectEnd: number;
+  adjustedObjectStart: number;
+  adjustedObjectEnd: number;
   blockStart: number;
   blockEnd: number;
   blockDuration: number;
@@ -156,6 +163,15 @@ function buildTraceItem(
   semanticBlock: SemanticBlock,
   subtitles: SubtitleDraft[]
 ): TraceItem {
+  const timedObject = object as (VisualBeat | VisualScene) & { timingPolicy?: VisualTimingPolicyMetadata };
+  const timingPolicy = timedObject.timingPolicy ?? {
+    timingPolicyApplied: false,
+    timingPolicyReasons: [],
+    originalObjectStart: round(object.start),
+    originalObjectEnd: round(object.start + object.duration),
+    adjustedObjectStart: round(object.start),
+    adjustedObjectEnd: round(object.start + object.duration)
+  };
   const objectStart = round(object.start);
   const objectDuration = round(object.duration);
   const objectEnd = round(object.start + object.duration);
@@ -224,6 +240,12 @@ function buildTraceItem(
     objectStart,
     objectEnd,
     objectDuration,
+    timingPolicyApplied: timingPolicy.timingPolicyApplied,
+    timingPolicyReasons: timingPolicy.timingPolicyReasons,
+    originalObjectStart: timingPolicy.originalObjectStart,
+    originalObjectEnd: timingPolicy.originalObjectEnd,
+    adjustedObjectStart: timingPolicy.adjustedObjectStart,
+    adjustedObjectEnd: timingPolicy.adjustedObjectEnd,
     blockStart: round(compiledBlock.start),
     blockEnd: round(compiledBlock.end),
     blockDuration,

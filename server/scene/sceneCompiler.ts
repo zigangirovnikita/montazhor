@@ -18,6 +18,7 @@ import type {
 import { getSceneRecipe } from "@/server/scene/sceneLibrary";
 import { buildMicroBeatsForBlock, buildMicroBeatsFromSemanticPayload } from "@/server/scene/microBeatPlanner";
 import { buildSceneRecipeRuntime } from "@/server/scene/sceneRecipeRuntime";
+import { applyVisualTimingPolicy, type VisualTimingPolicyMetadata } from "./visualTimingPolicy";
 import { guardScenePayload } from "./scenePayloadGuards";
 
 export const SCENE_COMPILER_VERSION = "v3";
@@ -117,7 +118,7 @@ function compileSceneBlock(
   const microBeats = compileMicroBeats(semanticBlock, compiledCopyBlock.payload, validatedRecipeId);
   const fallbackApplied = block.safeMode === true || validatedRecipeId !== initialRecipeId || (microBeats.length === 0 && semanticBlock.end - semanticBlock.start > 3);
   const overlayBeats = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
-    ? compileOverlayBeats(block, validatedRecipeId, compiledCopyBlock, microBeats, frame, styleOptions, fallbackApplied)
+    ? compileOverlayBeats(block, semanticBlock.words, validatedRecipeId, compiledCopyBlock, microBeats, frame, styleOptions, fallbackApplied)
     : [];
   const fullScene = recipeDef.category === "overlay_scene" || recipeDef.category === "transition_scene"
     ? undefined
@@ -176,6 +177,7 @@ function compileMicroBeats(
 
 function compileOverlayBeats(
   block: DirectorPlanBlock,
+  cleanWords: SemanticBlock["words"],
   recipeId: DirectorPlanBlock["recipeId"],
   copyBlock: ScreenCopyBlock,
   beats: SceneMicroBeat[],
@@ -216,7 +218,21 @@ function compileOverlayBeats(
     variant: fallbackApplied ? "safe" : block.scenePriority === "hero" ? "hero" : "standard"
   };
 
-  return [primaryBeat, ...supportBeats];
+  const adjustedBeats = applyVisualTimingPolicy({
+    blockStart: block.start,
+    blockEnd: block.end,
+    renderPath: "overlay",
+    scenePriority: block.scenePriority,
+    visualRole: block.visualRole,
+    recipeId,
+    cleanWords,
+    objects: [
+      { object: primaryBeat, objectKind: "primary", visualRole: block.visualRole },
+      ...supportBeats.map((beat) => ({ object: beat, objectKind: "support" as const, visualRole: "support_overlay" as const }))
+    ]
+  });
+
+  return adjustedBeats.map(({ object, metadata }) => attachTimingPolicyMetadata(object, metadata));
 }
 
 function compileFullScene(
@@ -451,6 +467,13 @@ function primaryOverlayDuration(recipeId: DirectorPlanBlock["recipeId"], duratio
   if (recipeId === "cta_finish") return 1.8;
   if (recipeId === "clean_section_transition") return 1.1;
   return Math.min(1.8, Math.max(0.95, duration * 0.42));
+}
+
+function attachTimingPolicyMetadata(object: VisualBeat, metadata: VisualTimingPolicyMetadata) {
+  return {
+    ...object,
+    timingPolicy: metadata
+  } as VisualBeat & { timingPolicy: VisualTimingPolicyMetadata };
 }
 
 function chooseLayout(layouts: Array<"left" | "right" | "center" | "lower_third" | "full_frame">, orientation: VisualFrameProfile["orientation"]) {
