@@ -151,6 +151,19 @@ Files affected:
 Tradeoff:
 - This is diagnostic-only and intentionally does not change scene behavior; the next behavior PR should target director density / rolling-window repetition guard.
 
+### 2026-06-18 - Visual timing policy added for overlay microbeats
+Decision:
+- Add a small compile-time `visualTimingPolicy` for overlay objects so primary/support visuals stop collapsing into `0.4-1.8s` flashes inside `5-6s` spoken phrases.
+Reason:
+- Trace on the safe sample showed payload selection was mostly relevant, but object timing was too short and too late because support overlays inherited raw microbeat windows and primary overlays were truncated before the first support beat.
+Files affected:
+- `server/scene/sceneCompiler.ts`
+- `server/scene/visualTimingPolicy.ts`
+- `server/scene/visualTimelineTrace.ts`
+- `server/scene/visualTimingPolicy.test.ts`
+Tradeoff:
+- This is still a minimal block-local policy. It improves overlay duration and timing diagnostics without rewriting semantic blocks, block planning, payload extraction, or template behavior. Full-scene timing heuristics remain unchanged.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`
@@ -211,3 +224,24 @@ What remains:
 Checks passed:
 - `pnpm typecheck`
 - `pnpm test:scene`
+
+### 2026-06-18 - Visual timing policy / microbeat duration PR
+Status: done
+What changed:
+- Added `server/scene/visualTimingPolicy.ts` and applied it inside `compileScenePlan` after raw overlay beats are built.
+- Primary overlays now try to hold most of the semantic block, support overlays get a safe minimum duration, both stay inside the block, and timings are snapped toward nearby clean word boundaries when subtitle word timings are available.
+- `visual-timeline-trace.json` now records whether timing policy changed an object and stores original vs adjusted intervals.
+Problem addressed:
+- Overlay objects were living only `0.4-1.8s` on spoken phrases around `5-6s`, producing `visual_too_short_for_phrase`, `visual_starts_after_spoken_phrase_started`, and `visual_ends_before_spoken_phrase_finished` warnings.
+Checks passed:
+- Local: `pnpm typecheck`
+- Local: `pnpm test:scene`
+- Server isolated copy for code commit `6eda0d7abd874a0a22cd0a5264018204de599104`: `pnpm typecheck`
+- Server isolated copy for code commit `6eda0d7abd874a0a22cd0a5264018204de599104`: `pnpm test:scene`
+Safe sample trace:
+- Baseline from the last verified trace: `visual_too_short_for_phrase=7`, `visual_starts_after_spoken_phrase_started=7`, `visual_ends_before_spoken_phrase_finished=8`, `object_not_aligned_to_word_boundaries=8`.
+- Recomputed in isolated server copy after this PR: `visual_too_short_for_phrase=1`, `visual_starts_after_spoken_phrase_started=5`, `visual_ends_before_spoken_phrase_finished=5`, `object_not_aligned_to_word_boundaries=5`.
+What remains:
+- Remaining worst warnings are mostly on `full_scene` objects, which this PR intentionally does not retime.
+- One support overlay on the safe sample is still short relative to its phrase (`durationRatio=0.304`) even after tail-hold extension, so a later PR can add a denser support-vs-primary suppression rule.
+- `fallback_applied` warnings remain and are outside the scope of timing policy.
