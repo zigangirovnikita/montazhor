@@ -139,6 +139,18 @@ Files affected:
 Tradeoff:
 - Even small PRs may need a short isolated server check before being treated as fully verified.
 
+### 2026-06-18 - Visual timeline trace added for scene debugging
+Decision:
+- Persist `visual-timeline-trace.json` next to scene artifacts for object-level scene debugging.
+Reason:
+- It should explain why a visual insert appeared, which text/recipe survived to compile, where timings came from, and whether the visual was too short or textually misaligned with spoken words.
+Files affected:
+- `server/scene/visualTimelineTrace.ts`
+- `server/scene/renderScenePipeline.ts`
+- `lib/storage.ts`
+Tradeoff:
+- This is diagnostic-only and intentionally does not change scene behavior; the next behavior PR should target director density / rolling-window repetition guard.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`

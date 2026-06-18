@@ -24,6 +24,7 @@ import { buildScreenCopyPlan, SCREEN_COPY_PLAN_VERSION } from "@/server/scene/sc
 import type { RenderProfile } from "@/server/video/encoding";
 import type { VideoProfile } from "@/server/video/profile";
 import { auditProjectEvent } from "@/lib/audit";
+import { buildVisualTimelineTrace } from "./visualTimelineTrace";
 
 type ProjectPaths = ReturnType<typeof import("@/lib/storage").pathsForProject>;
 
@@ -72,6 +73,13 @@ export async function renderScenePipeline(input: RenderScenePipelineInput) {
   };
   const compiledScenePlan = compileScenePlan(directorPlan, screenCopyPlan, input.profile, input.styleOptions);
   const scenePlan = buildReviewScenePlan(directorPlan, screenCopyPlan);
+  const visualTimelineTrace = buildVisualTimelineTrace({
+    transcript: input.transcript,
+    subtitles: input.subtitles,
+    directorPlan,
+    screenCopyPlan,
+    compiledScenePlan
+  });
 
   const coverageReport = validateCompiledSceneCoverage(compiledScenePlan);
   if (!coverageReport.ok) {
@@ -92,6 +100,7 @@ export async function renderScenePipeline(input: RenderScenePipelineInput) {
   await writeJsonFile(input.paths.screenCopyPlan, screenCopyPlan);
   await writeJsonFile(input.paths.scenePlan, scenePlan);
   await writeJsonFile(input.paths.compiledScenePlan, compiledScenePlan);
+  await writeJsonFile(input.paths.visualTimelineTrace, visualTimelineTrace);
   await writeJsonFile(input.paths.sceneCoverageReport, coverageReport);
 
   const sceneBasePath = input.paths.cinematicComposedVideo.replace(/\.mp4$/, `.${input.renderProfile}.mp4`);

@@ -1,6 +1,6 @@
 import type { DirectorPlanBlock, SceneRecipeId, ScreenCopyPayload } from "@/lib/types";
-import type { SceneRecipeDefinition } from "@/server/scene/sceneLibrary";
-import { getSceneRecipe } from "@/server/scene/sceneLibrary";
+import type { SceneRecipeDefinition } from "./sceneLibrary";
+import { getSceneRecipe } from "./sceneLibrary";
 
 const MAX_TITLE_LENGTH = 84;
 const MAX_TEXT_LENGTH = 180;

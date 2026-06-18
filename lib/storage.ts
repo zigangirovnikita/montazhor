@@ -55,6 +55,7 @@ export function pathsForProject(projectId: string) {
     screenCopyPlan: path.join(project, "screen-copy-plan.json"),
     scenePlan: path.join(project, "scene-plan.json"),
     compiledScenePlan: path.join(project, "compiled-scene-plan.json"),
+    visualTimelineTrace: path.join(project, "visual-timeline-trace.json"),
     sceneCoverageReport: path.join(project, "scene-coverage-report.json"),
     visualPlan: path.join(project, "visual-plan.json"),
     visualScenePlan: path.join(project, "visual-scene-plan.json"),
