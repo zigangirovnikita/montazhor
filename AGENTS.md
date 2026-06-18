@@ -762,6 +762,29 @@ Before writing such a documentation update, the agent must ask Nikita:
 
 Only update `AGENTS.md` after explicit confirmation, unless Nikita directly asked to update it.
 
+## Project memory
+
+Before starting any non-trivial debugging, architecture change, pipeline change, or bugfix loop, read `PROJECT_MEMORY.md` if it exists.
+
+Use `PROJECT_MEMORY.md` to avoid repeating failed attempts, known bad fixes, and already-tested hypotheses.
+
+For small localized edits, do not read project memory unless the task touches an active problem listed there.
+
+After any non-trivial debugging session, update `PROJECT_MEMORY.md` with:
+
+- problem/symptom;
+- files touched;
+- root cause if known;
+- what was tried;
+- what worked;
+- what failed;
+- tests/commands run;
+- remaining risks or next safe step.
+
+Never delete failed attempts from memory unless Nikita explicitly asks. Mark outdated items as `obsolete` instead.
+
+If a fix fails, record it under `Failed attempts - do not repeat`.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
