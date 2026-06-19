@@ -9,6 +9,8 @@
     "start": "next start -p 5001",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "poc:browser-renderer": "tsx scripts/run-browser-frame-renderer-poc.ts",
+    "test:browser-renderer": "vitest run server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRendererTiming.test.ts",
     "test:melism": "tsx scripts/test_melism_reconcile.ts",
     "test:elevenlabs": "tsx scripts/test_elevenlabs_transcription.ts",
     "test:scene": "vitest run server/scene",
