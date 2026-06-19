@@ -46,6 +46,7 @@ describe("browserFrameRendererTiming", () => {
       width: 1080,
       height: 1920,
       duration: 2,
+      captionStyle: "bold-yellow",
       captions: [],
       cameraMoves: []
     };

@@ -21,11 +21,17 @@ import {
   secondsToFrameCount
 } from "@/server/render/browserFrameRendererTiming";
 import { buildBrowserFrameRendererHtml } from "@/server/render/browserFrameRendererTemplate";
+import {
+  buildBrowserFrameRenderPlanFromProject
+} from "@/server/render/browserFrameRenderPlanFromProject";
+import type { BrowserFrameCaptionStyle } from "@/server/render/browserFrameRendererPlan";
 
 export interface BrowserFrameRendererOptions {
-  cleanVideoPath: string;
+  cleanVideoPath?: string;
+  projectDir?: string;
   outputPath: string;
   renderPlanPath?: string;
+  captionStyle?: BrowserFrameCaptionStyle;
   debug?: boolean;
   log?: (message: string) => void;
 }
@@ -49,7 +55,8 @@ export interface BrowserFrameRendererResult {
 export async function renderBrowserFrames(input: BrowserFrameRendererOptions): Promise<BrowserFrameRendererResult> {
   const startedAt = Date.now();
   const log = input.log ?? (() => undefined);
-  const metadata = await probeVideo(input.cleanVideoPath);
+  const resolvedInput = await resolveRendererInput(input);
+  const metadata = await probeVideo(resolvedInput.cleanVideoPath);
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "montazhor-browser-render-"));
   const backgroundDir = path.join(tempDir, "background");
   const renderedDir = path.join(tempDir, "rendered");
@@ -65,7 +72,14 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
     await mkdir(backgroundDir, { recursive: true });
     await mkdir(renderedDir, { recursive: true });
 
-    const plan = await resolveRenderPlan(input.renderPlanPath, metadata.width, metadata.height, metadata.duration);
+    const { plan, planPath } = await resolveRenderPlan({
+      renderPlanPath: resolvedInput.renderPlanPath,
+      sourceWidth: metadata.width,
+      sourceHeight: metadata.height,
+      sourceDuration: metadata.duration,
+      projectDir: resolvedInput.projectDir,
+      captionStyle: input.captionStyle
+    });
     const timeline = buildFrameTimeline(plan);
     const totalFrames = secondsToFrameCount(plan.duration, plan.fps);
     const fontPath = await resolveFontPath();
@@ -76,7 +90,7 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
 
     const extractStartedAt = Date.now();
     await extractBackgroundFrames({
-      inputPath: input.cleanVideoPath,
+      inputPath: resolvedInput.cleanVideoPath,
       outputDir: backgroundDir,
       width: plan.width,
       height: plan.height,
@@ -110,25 +124,29 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
           backgroundUrl: string;
           caption: BrowserFrameRenderPlan["captions"][number] | null;
           camera: { id: string; scale: number; x: number; y: number } | null;
+          captionStyle: BrowserFrameCaptionStyle;
         }) => {
           const renderWindow = window as Window & typeof globalThis & {
             renderFrame: (time: number, frameData: {
               backgroundUrl: string;
               caption: BrowserFrameRenderPlan["captions"][number] | null;
               camera: { id: string; scale: number; x: number; y: number } | null;
+              captionStyle: BrowserFrameCaptionStyle;
             }) => Promise<void>;
           };
           await renderWindow.renderFrame(frameData.time, {
             backgroundUrl: frameData.backgroundUrl,
             caption: frameData.caption,
-            camera: frameData.camera
+            camera: frameData.camera,
+            captionStyle: frameData.captionStyle
           });
         },
         {
           time: frame.time,
           backgroundUrl: pathToFileURL(backgroundPath).toString(),
           caption,
-          camera
+          camera,
+          captionStyle: plan.captionStyle
         }
       );
       await frameRoot.screenshot({ path: outputFramePath, type: "png" });
@@ -144,14 +162,14 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
     await composeBrowserRenderedVideo({
       framesDir: renderedDir,
       fps: plan.fps,
-      audioSourcePath: input.cleanVideoPath,
+      audioSourcePath: resolvedInput.cleanVideoPath,
       outputPath: input.outputPath
     });
     composeMs = Date.now() - composeStartedAt;
 
     return {
       outputPath: input.outputPath,
-      renderPlanPath: input.renderPlanPath ?? planSnapshotPath,
+      renderPlanPath: resolvedInput.renderPlanPath ?? planPath ?? planSnapshotPath,
       tempDir: input.debug ? tempDir : undefined,
       totalFrames,
       duration: plan.duration,
@@ -173,29 +191,72 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
 }
 
 async function resolveRenderPlan(
-  renderPlanPath: string | undefined,
-  sourceWidth: number | undefined,
-  sourceHeight: number | undefined,
-  sourceDuration: number
+  input: {
+    renderPlanPath?: string;
+    sourceWidth: number | undefined;
+    sourceHeight: number | undefined;
+    sourceDuration: number;
+    projectDir?: string;
+    captionStyle?: BrowserFrameCaptionStyle;
+  }
 ) {
-  const width = sourceWidth ?? 1080;
-  const height = sourceHeight ?? 1920;
-  const cappedDuration = Math.min(sourceDuration, MAX_BROWSER_POC_DURATION_SECONDS);
+  const width = input.sourceWidth ?? 1080;
+  const height = input.sourceHeight ?? 1920;
+  const cappedDuration = Math.min(input.sourceDuration, MAX_BROWSER_POC_DURATION_SECONDS);
 
-  if (!renderPlanPath) {
-    return buildDemoBrowserFrameRenderPlan({
+  if (input.renderPlanPath) {
+    const plan = await readBrowserFrameRenderPlan(input.renderPlanPath);
+    return {
+      plan: {
+        ...plan,
+        duration: Math.min(plan.duration, cappedDuration),
+        captionStyle: input.captionStyle ?? plan.captionStyle
+      } satisfies BrowserFrameRenderPlan,
+      planPath: input.renderPlanPath
+    };
+  }
+
+  if (input.projectDir) {
+    const { plan, planPath } = await buildBrowserFrameRenderPlanFromProject({
+      projectDir: input.projectDir,
+      fps: DEFAULT_BROWSER_POC_FPS,
+      captionStyle: input.captionStyle,
+      maxDurationSeconds: cappedDuration,
+      writePlanToProject: true
+    });
+    return { plan, planPath };
+  }
+
+  return {
+    plan: buildDemoBrowserFrameRenderPlan({
       width,
       height,
       duration: cappedDuration,
-      fps: DEFAULT_BROWSER_POC_FPS
-    });
+      fps: DEFAULT_BROWSER_POC_FPS,
+      captionStyle: input.captionStyle
+    })
+  };
+}
+
+async function resolveRendererInput(input: BrowserFrameRendererOptions) {
+  if (input.projectDir) {
+    const cleanVideoPath = path.join(input.projectDir, "clean.mp4");
+    return {
+      cleanVideoPath,
+      renderPlanPath: input.renderPlanPath,
+      projectDir: input.projectDir
+    };
   }
 
-  const plan = await readBrowserFrameRenderPlan(renderPlanPath);
+  if (!input.cleanVideoPath) {
+    throw new Error("Browser renderer requires either projectDir or cleanVideoPath.");
+  }
+
   return {
-    ...plan,
-    duration: Math.min(plan.duration, cappedDuration)
-  } satisfies BrowserFrameRenderPlan;
+    cleanVideoPath: input.cleanVideoPath,
+    renderPlanPath: input.renderPlanPath,
+    projectDir: undefined
+  };
 }
 
 async function extractBackgroundFrames(input: {

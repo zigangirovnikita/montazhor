@@ -96,13 +96,46 @@ export function buildBrowserFrameRendererHtml(input: {
         transform: translate3d(0, 24px, 0) scale(0.94);
         will-change: transform, opacity;
       }
+      #caption-box[data-style="bold-yellow"] {
+        font-size: 74px;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+        -webkit-text-stroke: 2px rgba(0, 0, 0, 0.9);
+        text-shadow:
+          0 4px 0 rgba(0, 0, 0, 0.42),
+          0 14px 28px rgba(0, 0, 0, 0.38),
+          0 0 24px rgba(0, 0, 0, 0.18);
+      }
+      #caption-box[data-style="clean-white"] {
+        font-size: 68px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        text-transform: none;
+        -webkit-text-stroke: 0 transparent;
+        text-shadow:
+          0 6px 18px rgba(0, 0, 0, 0.42),
+          0 0 18px rgba(0, 0, 0, 0.16);
+      }
+      #caption-box[data-style="premium-minimal"] {
+        font-size: 60px;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        text-transform: none;
+        -webkit-text-stroke: 0 transparent;
+        text-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.28);
+      }
+      .caption-line {
+        display: block;
+      }
       .caption-word {
         display: inline-block;
         margin: 0 0.12em 0.08em 0;
         padding: 0.02em 0.06em;
         border-radius: 0.12em;
       }
-      .caption-word.is-highlight {
+      #caption-box[data-style="bold-yellow"] .caption-word.is-highlight {
         color: #111;
         background: #ffe44d;
         -webkit-text-stroke: 0 transparent;
@@ -110,6 +143,14 @@ export function buildBrowserFrameRendererHtml(input: {
           0 0 0 2px rgba(0, 0, 0, 0.18) inset,
           0 8px 24px rgba(255, 228, 77, 0.28);
         text-shadow: none;
+      }
+      #caption-box[data-style="clean-white"] .caption-word.is-highlight {
+        color: #ffe44d;
+      }
+      #caption-box[data-style="premium-minimal"] .caption-word.is-highlight {
+        color: #fff6d6;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset;
       }
     </style>
   </head>
@@ -144,17 +185,30 @@ export function buildBrowserFrameRendererHtml(input: {
           return value * value;
         }
 
+        function normalizeWord(value) {
+          return String(value || "").toLowerCase().replace(/[^\\p{L}\\p{N}%$€₽-]+/gu, "");
+        }
+
         function buildCaptionHtml(caption, time) {
           if (!caption) return "";
-          const words = Array.isArray(caption.words) && caption.words.length ? caption.words : caption.text.split(/\\s+/).filter(Boolean).map((text) => ({ text, start: caption.start, end: caption.end }));
-          return words.map((word) => {
-            const active = time >= word.start && time <= word.end;
-            const safeText = String(word.text)
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;");
-            return '<span class="caption-word' + (active ? ' is-highlight' : '') + '">' + safeText + '</span>';
-          }).join(" ");
+          const highlightSet = new Set(Array.isArray(caption.highlightedWords) ? caption.highlightedWords : []);
+          const lines = Array.isArray(caption.lines) && caption.lines.length ? caption.lines : [caption.text];
+
+          return lines.map((line) => {
+            const tokens = String(line).split(/\\s+/).filter(Boolean);
+            const lineHtml = tokens.map((token) => {
+              const safeText = String(token)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+              const word = (caption.words || []).find((entry) => entry.text === token && time >= entry.start && time <= entry.end)
+                || (caption.words || []).find((entry) => entry.text === token);
+              const active = Boolean(word && time >= word.start && time <= word.end);
+              const emphasized = highlightSet.has(normalizeWord(token));
+              return '<span class="caption-word' + ((active || emphasized) ? ' is-highlight' : '') + '">' + safeText + '</span>';
+            }).join(" ");
+            return '<span class="caption-line">' + lineHtml + '</span>';
+          }).join("");
         }
 
         async function ensureImage(url) {
@@ -189,6 +243,7 @@ export function buildBrowserFrameRendererHtml(input: {
             : 'translate3d(0,0,0) scale(1)';
 
           captionBox.innerHTML = buildCaptionHtml(caption, time);
+          captionBox.dataset.style = frameData.captionStyle || "bold-yellow";
           captionBox.style.opacity = caption ? String(Math.max(0, opacity)) : "0";
           captionBox.style.transform = caption
             ? 'translate3d(0,' + translateY.toFixed(2) + 'px,0) scale(' + scale.toFixed(4) + ')'

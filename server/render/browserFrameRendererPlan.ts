@@ -3,6 +3,13 @@ import { z } from "zod";
 
 export const DEFAULT_BROWSER_POC_FPS = 20;
 export const MAX_BROWSER_POC_DURATION_SECONDS = 15;
+export const DEFAULT_BROWSER_FRAME_STYLE = "bold-yellow" as const;
+
+export const browserFrameCaptionStyleSchema = z.enum([
+  "bold-yellow",
+  "clean-white",
+  "premium-minimal"
+]);
 
 const browserFrameWordSchema = z.object({
   text: z.string().trim().min(1),
@@ -17,7 +24,9 @@ const browserFrameCaptionSchema = z.object({
   start: z.number().min(0),
   end: z.number().min(0),
   text: z.string().trim().min(1),
-  words: z.array(browserFrameWordSchema).default([])
+  lines: z.array(z.string().trim().min(1)).min(1).max(2).default([]),
+  words: z.array(browserFrameWordSchema).default([]),
+  highlightedWords: z.array(z.string().trim().min(1)).max(2).default([])
 }).refine((caption) => caption.end > caption.start, {
   message: "Caption end must be greater than start."
 });
@@ -43,6 +52,7 @@ export const browserFrameRenderPlanSchema = z.object({
   width: z.number().int().min(320).max(2160),
   height: z.number().int().min(320).max(3840),
   duration: z.number().positive().max(MAX_BROWSER_POC_DURATION_SECONDS),
+  captionStyle: browserFrameCaptionStyleSchema.default(DEFAULT_BROWSER_FRAME_STYLE),
   captions: z.array(browserFrameCaptionSchema).default([]),
   cameraMoves: z.array(browserFrameCameraMoveSchema).default([])
 }).superRefine((plan, ctx) => {
@@ -52,6 +62,16 @@ export const browserFrameRenderPlanSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["captions", captionIndex],
         message: "Caption must stay within plan duration."
+      });
+    }
+
+    const joinedLines = caption.lines.join(" ").replace(/\s+/g, " ").trim();
+    const joinedText = caption.text.replace(/\s+/g, " ").trim();
+    if (caption.lines.length && joinedLines !== joinedText) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["captions", captionIndex, "lines"],
+        message: "Caption lines must match caption text."
       });
     }
 
@@ -77,6 +97,7 @@ export const browserFrameRenderPlanSchema = z.object({
   }
 });
 
+export type BrowserFrameCaptionStyle = z.infer<typeof browserFrameCaptionStyleSchema>;
 export type BrowserFrameWord = z.infer<typeof browserFrameWordSchema>;
 export type BrowserFrameCaption = z.infer<typeof browserFrameCaptionSchema>;
 export type BrowserFrameCameraMove = z.infer<typeof browserFrameCameraMoveSchema>;
@@ -96,6 +117,7 @@ export function buildDemoBrowserFrameRenderPlan(input: {
   width: number;
   height: number;
   fps?: number;
+  captionStyle?: BrowserFrameCaptionStyle;
 }) {
   const duration = Math.min(input.duration, 12);
   const fps = Math.min(input.fps ?? DEFAULT_BROWSER_POC_FPS, DEFAULT_BROWSER_POC_FPS);
@@ -111,6 +133,7 @@ export function buildDemoBrowserFrameRenderPlan(input: {
     width: input.width,
     height: input.height,
     duration,
+    captionStyle: input.captionStyle ?? DEFAULT_BROWSER_FRAME_STYLE,
     captions: captions.map((text, index) =>
       buildDemoCaption({
         id: `caption-${index + 1}`,
@@ -147,6 +170,8 @@ function buildDemoCaption(input: {
   return {
     id: input.id,
     text: input.text,
+    lines: [input.text],
+    highlightedWords: [],
     start: input.start,
     end: input.end,
     words: tokens.map((text, index) => {

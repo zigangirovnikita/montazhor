@@ -31,6 +31,7 @@ describe("browserFrameRendererPlan", () => {
             start: 0,
             end: 2,
             text: "hello world",
+            lines: ["hello world"],
             words: [{ text: "hello", start: 0, end: 2.2 }]
           }
         ],
@@ -48,6 +49,7 @@ describe("browserFrameRendererPlan", () => {
 
     expect(plan.fps).toBe(20);
     expect(plan.duration).toBe(12);
+    expect(plan.captionStyle).toBe("bold-yellow");
     expect(plan.captions.length).toBeGreaterThan(0);
     expect(plan.cameraMoves.length).toBe(1);
   });
