@@ -17,15 +17,19 @@ export async function cleanupProjectArtifacts(projectId: string) {
     safeRm(paths.semanticOverlayMp4),
     safeRm(paths.infographicVideo),
     safeRm(paths.splitVideo),
-    safeRm(paths.subtitledVideo),
     safeRm(paths.browserRenderedCaptionsVideo),
-    safeRm(paths.reviewVideo)
+    safeRm(paths.reviewVideo),
+    safeRm(paths.cinematicSceneVideo),
+    safeRm(paths.cinematicComposedVideo)
   ]);
 
   await prisma.renderAsset.deleteMany({
     where: {
       projectId,
-      type: { not: "final" }
+      OR: [
+        { type: { in: ["review", "semantic_overlay", "infographic", "split", "clean_preview", "intermediate"] } },
+        { type: "subtitle", path: { not: paths.subtitledVideo } }
+      ]
     }
   });
 }

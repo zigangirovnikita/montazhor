@@ -17,7 +17,7 @@ This is not a timeline editor. The app is built around an autopilot pipeline and
 - SQLite
 - FFmpeg and FFprobe available in `PATH`, or the bundled project wrappers in `./bin`
 - Python `3.11` virtualenv with `faster-whisper`
-- HyperFrames CLI through `npx hyperframes`
+- Chrome available for the browser renderer (`pnpm exec puppeteer browsers install chrome` if the bundled browser is missing)
 
 Current local setup may need:
 
@@ -51,17 +51,10 @@ cp .env.example .env
 pnpm install
 pnpm prisma:generate
 pnpm prisma:push
-npx hyperframes doctor
 pnpm dev
 ```
 
-If system FFmpeg is not installed, use the project wrappers when checking HyperFrames:
-
-```bash
-PATH="$PWD/bin:$PATH" corepack pnpm exec hyperframes doctor
-```
-
-The Node pipeline uses `ffmpeg-static` and `ffprobe-static` as fallbacks. HyperFrames still needs enough free memory for Chrome-based rendering.
+The Node pipeline uses `ffmpeg-static` and `ffprobe-static` as fallbacks. The browser renderer still needs enough free memory for Chrome-based rendering.
 
 Open `http://localhost:5001`.
 
@@ -83,7 +76,7 @@ For Linux server deployment and migration steps, see `docs/server-deploy.md`.
 
 - The local queue is in-memory and intended for one local user.
 - Voice commands are transcribed locally, but automatic intent application is stubbed.
-- HyperFrames inserts are optional. If rendering fails, the final video continues without inserts.
+- Legacy HyperFrames modules remain in the repo, but the browser-renderer MVP path does not require HyperFrames at runtime.
 - Face tracking, cloud storage, auth, billing, and social publishing are intentionally out of scope.
 
 ## Checks

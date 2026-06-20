@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BlockReviewPanel } from "@/app/components/BlockReviewPanel";
 import type { ProjectPayload } from "@/app/components/projectFlowTypes";
-import type { CleanupMode, SceneRecipeId, ScreenCopyPayload } from "@/lib/types";
+import type { CleanupMode } from "@/lib/types";
 
 export const processingSteps = [
   ["extracting_audio", "Распознаем звук"],
@@ -78,8 +77,7 @@ export function FinalPreview({
   onApprove,
   onStyle,
   onText,
-  onSubtitledRender,
-  onSceneAction
+  onSubtitledRender
 }: {
   payload: ProjectPayload;
   busy: boolean;
@@ -87,7 +85,6 @@ export function FinalPreview({
   onStyle: () => void;
   onText: () => void;
   onSubtitledRender: () => void;
-  onSceneAction: (request: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode" | "disable_insert" | "edit_copy"; recipeId?: SceneRecipeId; layerId?: string; copyPatch?: Partial<ScreenCopyPayload> }) => Promise<void>;
 }) {
   return (
     <div className="flow-stack">
@@ -98,8 +95,6 @@ export function FinalPreview({
       <div className="compare-player">
         <video src={payload.reviewUrl ?? payload.cleanPreviewUrl ?? payload.originalUrl} controls playsInline />
       </div>
-      <VisualPlanReview payload={payload} />
-      <BlockReviewPanel payload={payload} busy={busy} onApply={onSceneAction} />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
         <button className="mode-button secondary-action" type="button" disabled={busy} onClick={onSubtitledRender}>
@@ -111,39 +106,6 @@ export function FinalPreview({
       </div>
     </div>
   );
-}
-
-function VisualPlanReview({ payload }: { payload: ProjectPayload }) {
-  const compiledBlocks = payload.draft?.compiledScenePlan?.blocks ?? [];
-  const beats = payload.draft?.visualPlan?.beats ?? [];
-  if (compiledBlocks.length === 0 && beats.length === 0) return null;
-  return (
-    <section className="visual-review-panel">
-      <header className="section-lead">
-        <h3>Что выбрал planner</h3>
-      </header>
-      <div className="visual-review-list">
-        {compiledBlocks.length > 0 ? compiledBlocks.slice(0, 10).map((block) => (
-          <article className="visual-review-chip" key={block.id}>
-            <strong>{block.recipeId}</strong>
-            <span>{block.summary}</span>
-          </article>
-        )) : beats.slice(0, 10).map((beat) => (
-          <article className="visual-review-chip" key={beat.id}>
-            <strong>{beat.presetId ?? beat.templateId}</strong>
-            <span>{formatBeatText(beat.payload)}</span>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function formatBeatText(payload: Record<string, unknown>) {
-  const direct = [payload.text, payload.label, payload.title, payload.subtext].find((value) => typeof value === "string" && value.trim());
-  if (direct) return String(direct);
-  if (Array.isArray(payload.items)) return payload.items.map(String).join(" · ");
-  return "Без текста";
 }
 
 export function ExportScreen({ busy, onBack, onExport }: { busy: boolean; onBack: () => void; onExport: () => void }) {

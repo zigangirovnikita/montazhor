@@ -15,7 +15,7 @@ import {
 import { parseStyleOptions, resolvePresentationMode, resolveStylePreset } from "@/app/components/StyleStudio";
 import { TemplatePicker } from "@/app/components/TemplatePicker";
 import type { DraftEditRequest, ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
-import type { CleanupMode, ScreenCopyPayload, SceneRecipeId } from "@/lib/types";
+import type { CleanupMode } from "@/lib/types";
 import { templateToVisualPlanOptions, type StoredTemplate } from "@/lib/templateBuilder";
 
 type LocalView = "main" | "text" | "precision" | "templates" | "export";
@@ -133,20 +133,6 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
       setError(messageFromError(requestError));
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function applySceneBlockAction(body: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode" | "disable_insert" | "edit_copy"; recipeId?: SceneRecipeId; layerId?: string; copyPatch?: Partial<ScreenCopyPayload> }) {
-    if (busy || isProcessing) return;
-    setBusy(true);
-    setError("");
-    try {
-      await apiPost(`/api/projects/${projectId}/scene-blocks`, body);
-      await apiPost(`/api/projects/${projectId}/render`);
-      await refresh();
-    } catch (requestError) {
-      setBusy(false);
-      setError(messageFromError(requestError));
     }
   }
 
@@ -280,7 +266,6 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
           onStyle={() => setView("templates")}
           onText={() => setView("text")}
           onSubtitledRender={renderSubtitledVideo}
-          onSceneAction={applySceneBlockAction}
         />
       </ProjectShell>
     );

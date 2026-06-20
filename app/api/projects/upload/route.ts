@@ -59,8 +59,8 @@ export async function POST(request: Request) {
         language: String(formData.get("language") ?? "auto"),
         durationTarget: String(formData.get("durationTarget") ?? "auto"),
         cleanupMode: "pauses_and_fillers",
-        editMode: "cut_subtitles_infographics",
-        presentationMode: "subtitles_infographics",
+        editMode: "cut_subtitles",
+        presentationMode: "subtitles_only",
         styleOptionsJson: JSON.stringify({
           subtitleFont: "manrope",
           subtitleStyle: "active_word",

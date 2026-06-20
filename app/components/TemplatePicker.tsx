@@ -50,7 +50,7 @@ export function TemplatePicker({
       <header className="screen-head">
         <p className="screen-step">Шаблон ролика</p>
         <h1>Выбери готовый шаблон</h1>
-        <p>Шаблон задает внешний вид текста, плашек, акцентов и motion. После выбора сразу начнется сборка preview через HyperFrames.</p>
+        <p>Шаблон задает внешний вид текста, акцентов и motion. После выбора сразу начнется сборка preview через browser renderer.</p>
       </header>
 
       {loading ? <div className="empty-state">Загружаю шаблоны...</div> : null}

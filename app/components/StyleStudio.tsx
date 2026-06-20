@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizePresentationMode } from "@/lib/presentationMode";
 import type { MotionIntensity, PresentationMode, StylePreset, VisualDensity, VisualPresetPack, VisualTemplateId } from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import { StyleStudioCatalog } from "@/app/components/StyleStudioCatalog";
@@ -90,22 +91,6 @@ export function StyleStudio({
           })}
         />
         <ToggleRow
-          label="Плашки с главными мыслями"
-          checked={styleState.presentationMode !== "subtitles_only"}
-          onToggle={() => onStyleChange({
-            ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
-          })}
-        />
-        <ToggleRow
-          label="Инфографика"
-          checked={styleState.presentationMode !== "subtitles_only"}
-          onToggle={() => onStyleChange({
-            ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
-          })}
-        />
-        <ToggleRow
           label="Автозум на склейках"
           checked
           disabled
@@ -176,14 +161,6 @@ export function ElementAdjustments({
           onToggle={() => onStyleChange({
             ...styleState,
             styleOptions: { ...options, subtitleStyle: options.subtitleStyle === "clean" ? "active_word" : "clean" }
-          })}
-        />
-        <ToggleRow
-          label="Плашки / инфографика"
-          checked={styleState.presentationMode !== "subtitles_only"}
-          onToggle={() => onStyleChange({
-            ...styleState,
-            presentationMode: styleState.presentationMode !== "subtitles_only" ? "subtitles_only" : "subtitles_infographics"
           })}
         />
       </section>
@@ -386,8 +363,7 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
 }
 
 export function resolvePresentationMode(value: string | null | undefined): PresentationMode {
-  if (value === "subtitles_infographics" || value === "subtitles_infographics_media" || value === "cinematic_scenes") return value;
-  return "subtitles_only";
+  return normalizePresentationMode(value);
 }
 
 export function resolveStylePreset(value: string | null | undefined): StylePreset {

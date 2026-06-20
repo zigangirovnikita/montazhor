@@ -37,32 +37,10 @@ type StylingProps = {
 
 const overlayCards = [
   {
-    id: "subtitles_infographics",
-    title: "Смысловой визуальный слой",
-    description: "Непрерывный HyperFrames-слой: кинетический текст, цифры, карточки и акценты поверх ролика.",
-    preview: "infographics",
-    available: true
-  },
-  {
     id: "subtitles_only",
-    title: "Только субтитры",
-    description: "Чистый монтаж с сабами без дополнительных вставок.",
-    preview: "subtitles",
-    available: true
-  },
-  {
-    id: "cinematic_scenes",
-    title: "Кинематографичные сцены",
-    description: "HUD, PIP-слайды и полноэкранные учебные сцены. Сейчас режим дорабатывается.",
-    preview: "cinematic",
-    available: false
-  },
-  {
-    id: "subtitles_infographics_media",
-    title: "Субтитры, инфографика и медиа",
-    description: "Картинки и видео-вставки подключим следующим этапом.",
-    preview: "media",
-    available: false
+    title: "Browser-renderer MVP",
+    description: "Канонический путь: clean cut, субтитры и шаблонное оформление без scene-based веток.",
+    preview: "subtitles"
   }
 ] as const;
 
@@ -117,17 +95,16 @@ export function OverlayModeChooser({
           const selected = presentationMode === card.id;
           return (
             <button
-              className={`visual-card visual-card-wide${selected ? " selected" : ""}${card.available === false ? " disabled" : ""}`}
+              className={`visual-card visual-card-wide${selected ? " selected" : ""}`}
               key={card.id}
               type="button"
-              onClick={() => card.available !== false && onPresentationModeChange(card.id as PresentationMode)}
-              disabled={pending || card.available === false}
+              onClick={() => onPresentationModeChange(card.id as PresentationMode)}
+              disabled={pending}
             >
               <VisualPreview kind={card.preview} />
               <div className="visual-copy">
                 <strong>{card.title}</strong>
                 <span>{card.description}</span>
-                {card.available === false ? <em>Скоро</em> : null}
               </div>
             </button>
           );
@@ -142,7 +119,6 @@ export function OverlayModeChooser({
 }
 
 export function PresentationConfigurator({
-  presentationMode,
   stylePreset,
   styleOptions,
   pending,
@@ -151,7 +127,7 @@ export function PresentationConfigurator({
   onStyleOptionsChange,
   onRenderPreview
 }: StylingProps) {
-  const withInfographic = presentationMode !== "subtitles_only";
+  const withInfographic = false;
 
   return (
     <div className="style-wizard">
@@ -231,7 +207,7 @@ export function PresentationConfigurator({
           Назад
         </button>
         <button className="cta-button" type="button" onClick={onRenderPreview} disabled={pending}>
-          {pending ? "Генерирую..." : "Генерировать вставки"}
+          {pending ? "Генерирую..." : "Собрать preview"}
         </button>
       </div>
     </div>

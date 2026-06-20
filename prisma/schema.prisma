@@ -15,9 +15,9 @@ model Project {
   originalPath     String
   status           String   @default("uploaded")
   platform         String   @default("instagram_reels")
-  editMode         String   @default("cut_subtitles_infographics")
+  editMode         String   @default("cut_subtitles")
   cleanupMode      String   @default("semantic_cleanup")
-  presentationMode String   @default("subtitles_infographics")
+  presentationMode String   @default("subtitles_only")
   stylePreset      String   @default("clean_expert")
   styleOptionsJson String?
   language         String   @default("auto")

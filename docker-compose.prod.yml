@@ -15,12 +15,9 @@ services:
       FFMPEG_PATH: ffmpeg
       FFPROBE_PATH: ffprobe
       WHISPER_PYTHON: /usr/bin/python3
-      HYPERFRAMES_BIN: npx hyperframes
-      HYPERFRAMES_RENDER_MODE: local
       PRODUCER_BROWSER_GPU_MODE: software
       PRODUCER_MAX_CONCURRENT_RENDERS: "1"
       PUPPETEER_CACHE_DIR: /app/storage/.cache/puppeteer
-      HYPERFRAMES_NO_TELEMETRY: "1"
       HF_HOME: /app/storage/models/huggingface
       HUGGINGFACE_HUB_CACHE: /app/storage/models/huggingface/hub
       TORCH_HOME: /app/storage/models/torch

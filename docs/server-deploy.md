@@ -86,7 +86,8 @@ docker compose -f docker-compose.prod.yml up -d
 
 - The app stores uploads, projects, models, caches, and SQLite data under `storage`.
 - First transcription run will download Whisper/pyannote models into `storage/models`.
-- HyperFrames and browser rendering need free RAM and `/dev/shm`; do not undersize the server.
+- The browser renderer needs free RAM and `/dev/shm`; do not undersize the server.
+- Legacy HyperFrames modules may stay installed for dormant paths, but they are not required for the browser-renderer MVP runtime.
 - On server restart, startup recovery now resets stuck processing projects to `error`.
 
 ## Suggested migration order

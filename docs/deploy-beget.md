@@ -83,6 +83,7 @@ server {
 ## Notes
 
 - This container keeps SQLite and all generated assets under `./storage` on the host.
-- First boot may take a long time because Python models and browser assets can download/build.
+- First boot may take a long time because Python models and Chrome assets can download/build.
+- Browser-renderer MVP does not require HyperFrames provisioning on the server.
 - CPU-only transcription/rendering on the server will be noticeably slower than local lightweight testing.
 - If `pyannote` is too heavy for this host, switch the environment to `VOICE_ACTIVITY_PROVIDER=silero` as a fallback rather than disabling speech detection entirely.
