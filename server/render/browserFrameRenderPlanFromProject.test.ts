@@ -23,8 +23,50 @@ const { probeVideoMock } = vi.hoisted(() => ({
   }))
 }));
 
+const { detectActiveVideoBoxMock } = vi.hoisted(() => ({
+  detectActiveVideoBoxMock: vi.fn(async (): Promise<{
+    activeVideoBox: {
+      detected: boolean;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      source: "frame_black_bar_detection" | "full_frame_fallback";
+    };
+    captionSafeArea: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      marginX: number;
+      marginBottom: number;
+    };
+  }> => ({
+    activeVideoBox: {
+      detected: false,
+      x: 0,
+      y: 0,
+      width: 1080,
+      height: 1920,
+      source: "full_frame_fallback" as const
+    },
+    captionSafeArea: {
+      x: 49,
+      y: 0,
+      width: 982,
+      height: 1780,
+      marginX: 49,
+      marginBottom: 140
+    }
+  }))
+}));
+
 vi.mock("../video/metadata", () => ({
   probeVideo: probeVideoMock
+}));
+
+vi.mock("./browserFrameActiveBox", () => ({
+  detectActiveVideoBox: detectActiveVideoBoxMock
 }));
 
 const tempDirs: string[] = [];
@@ -63,6 +105,8 @@ describe("browserFrameRenderPlanFromProject", () => {
     expect(result.plan.diagnostics.captionSource).toBe("transcript_edl_clean_time");
     expect(result.plan.diagnostics.edlApplied).toBe(true);
     expect(result.plan.diagnostics.subtitlesDraftUsed).toBe(false);
+    expect(result.plan.diagnostics.activeVideoBox.detected).toBe(false);
+    expect(result.plan.diagnostics.captionSafeArea.width).toBeGreaterThan(0);
     expect(result.planPath).toBe(path.join(projectDir, "browser-render-plan.json"));
   });
 
@@ -83,6 +127,24 @@ describe("browserFrameRenderPlanFromProject", () => {
   });
 
   it("preserves horizontal video dimensions", async () => {
+    detectActiveVideoBoxMock.mockResolvedValueOnce({
+      activeVideoBox: {
+        detected: false,
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+        source: "full_frame_fallback"
+      },
+      captionSafeArea: {
+        x: 72,
+        y: 0,
+        width: 1776,
+        height: 940,
+        marginX: 72,
+        marginBottom: 140
+      }
+    });
     probeVideoMock.mockResolvedValueOnce({
       duration: 10,
       width: 1920,
@@ -94,6 +156,41 @@ describe("browserFrameRenderPlanFromProject", () => {
     const result = await buildBrowserFrameRenderPlanFromProject({ projectDir });
     expect(result.plan.width).toBe(1920);
     expect(result.plan.height).toBe(1080);
+  });
+
+  it("uses caption safe area from detected active box", async () => {
+    detectActiveVideoBoxMock.mockResolvedValueOnce({
+      activeVideoBox: {
+        detected: true,
+        x: 420,
+        y: 0,
+        width: 1080,
+        height: 1080,
+        source: "frame_black_bar_detection"
+      },
+      captionSafeArea: {
+        x: 468,
+        y: 0,
+        width: 984,
+        height: 960,
+        marginX: 48,
+        marginBottom: 120
+      }
+    });
+    probeVideoMock.mockResolvedValueOnce({
+      duration: 10,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      hasAudio: true
+    });
+    const projectDir = await makeProjectFixture();
+    const result = await buildBrowserFrameRenderPlanFromProject({ projectDir });
+
+    expect(result.plan.diagnostics.activeVideoBox.detected).toBe(true);
+    expect(result.plan.diagnostics.activeVideoBox.x).toBe(420);
+    expect(result.plan.diagnostics.captionSafeArea.x).toBe(468);
+    expect(result.plan.diagnostics.captionSafeArea.width).toBe(984);
   });
 
   it("chunks long subtitle words into smaller browser captions", () => {

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "poc:browser-renderer": "tsx scripts/run-browser-frame-renderer-poc.ts",
-    "test:browser-renderer": "vitest run server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRendererTiming.test.ts server/render/browserFrameRenderPlanFromProject.test.ts",
+    "test:browser-renderer": "vitest run server/render/browserFrameActiveBox.test.ts server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRendererTiming.test.ts server/render/browserFrameRenderPlanFromProject.test.ts",
     "test:melism": "tsx scripts/test_melism_reconcile.ts",
     "test:elevenlabs": "tsx scripts/test_elevenlabs_transcription.ts",
     "test:scene": "vitest run server/scene",

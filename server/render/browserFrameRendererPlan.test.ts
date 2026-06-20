@@ -5,17 +5,17 @@ import {
 } from "./browserFrameRendererPlan";
 
 describe("browserFrameRendererPlan", () => {
-  it("rejects plan durations above poc limit", () => {
+  it("rejects plan durations above renderer hard limit", () => {
     expect(() =>
       parseBrowserFrameRenderPlan({
         fps: 20,
         width: 1080,
         height: 1920,
-        duration: 18,
+        duration: 4000,
         captions: [],
         cameraMoves: [],
         diagnostics: {
-          sourceVideo: { width: 1080, height: 1920, duration: 18 },
+          sourceVideo: { width: 1080, height: 1920, duration: 4000 },
           output: { width: 1080, height: 1920, fps: 20 },
           captionSource: "demo",
           edlApplied: false,
@@ -24,7 +24,7 @@ describe("browserFrameRendererPlan", () => {
           warnings: []
         }
       })
-    ).toThrow(/15/);
+    ).toThrow(/3600/);
   });
 
   it("rejects caption words outside caption bounds", () => {
@@ -70,5 +70,7 @@ describe("browserFrameRendererPlan", () => {
     expect(plan.captionStyle).toBe("bold-yellow");
     expect(plan.captions.length).toBeGreaterThan(0);
     expect(plan.cameraMoves.length).toBe(1);
+    expect(plan.diagnostics.activeVideoBox.source).toBe("full_frame_fallback");
+    expect(plan.diagnostics.captionSafeArea.width).toBeGreaterThan(0);
   });
 });

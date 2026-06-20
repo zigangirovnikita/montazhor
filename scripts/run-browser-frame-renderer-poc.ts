@@ -1,11 +1,12 @@
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { renderBrowserFrames } from "@/server/render/browserFrameRenderer";
+import { DEFAULT_BROWSER_POC_DURATION_SECONDS } from "@/server/render/browserFrameRendererPlan";
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if ((!args.input && !args.project) || !args.output) {
-    throw new Error("Usage: tsx scripts/run-browser-frame-renderer-poc.ts (--input /path/to/clean.mp4 | --project /path/to/project) --output /path/to/browser-rendered.mp4 [--plan /path/to/render-plan.json] [--style bold-yellow|clean-white|premium-minimal] [--debug]");
+    throw new Error("Usage: tsx scripts/run-browser-frame-renderer-poc.ts (--input /path/to/clean.mp4 | --project /path/to/project) --output /path/to/browser-rendered.mp4 [--plan /path/to/render-plan.json] [--style bold-yellow|clean-white|premium-minimal] [--max-duration 15] [--debug]");
   }
 
   await mkdir(path.dirname(args.output), { recursive: true });
@@ -16,6 +17,8 @@ async function main() {
     renderPlanPath: args.plan ? path.resolve(args.plan) : undefined,
     captionStyle: args.style,
     enableCameraMoves: args.cameraMoves,
+    maxDurationSeconds: args.maxDurationSeconds ?? DEFAULT_BROWSER_POC_DURATION_SECONDS,
+    debugActiveBox: args.debugActiveBox,
     debug: args.debug,
     log: (message) => console.log(message)
   });
@@ -31,6 +34,8 @@ function parseArgs(argv: string[]) {
     plan?: string;
     style?: "bold-yellow" | "clean-white" | "premium-minimal";
     cameraMoves?: boolean;
+    maxDurationSeconds?: number;
+    debugActiveBox?: boolean;
     debug?: boolean;
   } = {};
 
@@ -43,6 +48,8 @@ function parseArgs(argv: string[]) {
     if (value === "--style") args.style = argv[index + 1] as typeof args.style;
     if (value === "--camera-moves") args.cameraMoves = true;
     if (value === "--no-camera-moves") args.cameraMoves = false;
+    if (value === "--max-duration") args.maxDurationSeconds = Number.parseFloat(argv[index + 1] ?? "");
+    if (value === "--debug-active-box") args.debugActiveBox = true;
     if (value === "--debug") args.debug = true;
   }
 

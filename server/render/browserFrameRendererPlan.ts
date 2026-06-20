@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 export const DEFAULT_BROWSER_POC_FPS = 20;
-export const MAX_BROWSER_POC_DURATION_SECONDS = 15;
+export const DEFAULT_BROWSER_POC_DURATION_SECONDS = 15;
+export const MAX_BROWSER_RENDER_DURATION_SECONDS = 60 * 60;
 export const DEFAULT_BROWSER_FRAME_STYLE = "bold-yellow" as const;
 
 export const browserFrameCaptionStyleSchema = z.enum([
@@ -66,19 +67,49 @@ const browserFrameDiagnosticsSchema = z.object({
   edlApplied: z.boolean(),
   subtitlesDraftUsed: z.boolean(),
   cameraMovesEnabled: z.boolean(),
-  warnings: z.array(z.string()).default([])
+  warnings: z.array(z.string()).default([]),
+  activeVideoBox: z.object({
+    detected: z.boolean(),
+    x: z.number().int().min(0),
+    y: z.number().int().min(0),
+    width: z.number().int().min(1),
+    height: z.number().int().min(1),
+    source: z.enum(["frame_black_bar_detection", "full_frame_fallback"])
+  }).optional(),
+  captionSafeArea: z.object({
+    x: z.number().int().min(0),
+    y: z.number().int().min(0),
+    width: z.number().int().min(1),
+    height: z.number().int().min(1),
+    marginX: z.number().int().min(0),
+    marginBottom: z.number().int().min(0)
+  }).optional()
 });
 
 export const browserFrameRenderPlanSchema = z.object({
   fps: z.number().int().min(1).max(DEFAULT_BROWSER_POC_FPS).default(DEFAULT_BROWSER_POC_FPS),
   width: z.number().int().min(320).max(2160),
   height: z.number().int().min(320).max(3840),
-  duration: z.number().positive().max(MAX_BROWSER_POC_DURATION_SECONDS),
+  duration: z.number().positive().max(MAX_BROWSER_RENDER_DURATION_SECONDS),
   captionStyle: browserFrameCaptionStyleSchema.default(DEFAULT_BROWSER_FRAME_STYLE),
   captions: z.array(browserFrameCaptionSchema).default([]),
   cameraMoves: z.array(browserFrameCameraMoveSchema).default([]),
   diagnostics: browserFrameDiagnosticsSchema
-}).superRefine((plan, ctx) => {
+}).transform((plan) => ({
+  ...plan,
+  diagnostics: {
+    ...plan.diagnostics,
+    activeVideoBox: plan.diagnostics.activeVideoBox ?? {
+      detected: false,
+      x: 0,
+      y: 0,
+      width: plan.width,
+      height: plan.height,
+      source: "full_frame_fallback" as const
+    },
+    captionSafeArea: plan.diagnostics.captionSafeArea ?? buildDefaultCaptionSafeArea(plan.width, plan.height)
+  }
+})).superRefine((plan, ctx) => {
   for (const [captionIndex, caption] of plan.captions.entries()) {
     if (caption.start > plan.duration || caption.end > plan.duration) {
       ctx.addIssue({
@@ -117,6 +148,28 @@ export const browserFrameRenderPlanSchema = z.object({
         message: "Camera move must stay within plan duration."
       });
     }
+  }
+
+  if (
+    plan.diagnostics.activeVideoBox.x + plan.diagnostics.activeVideoBox.width > plan.width
+    || plan.diagnostics.activeVideoBox.y + plan.diagnostics.activeVideoBox.height > plan.height
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["diagnostics", "activeVideoBox"],
+      message: "Active video box must stay within the frame."
+    });
+  }
+
+  if (
+    plan.diagnostics.captionSafeArea.x + plan.diagnostics.captionSafeArea.width > plan.width
+    || plan.diagnostics.captionSafeArea.y + plan.diagnostics.captionSafeArea.height > plan.height
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["diagnostics", "captionSafeArea"],
+      message: "Caption safe area must stay within the frame."
+    });
   }
 });
 
@@ -194,7 +247,16 @@ export function buildDemoBrowserFrameRenderPlan(input: {
       edlApplied: false,
       subtitlesDraftUsed: false,
       cameraMovesEnabled: true,
-      warnings: []
+      warnings: [],
+      activeVideoBox: {
+        detected: false,
+        x: 0,
+        y: 0,
+        width: input.width,
+        height: input.height,
+        source: "full_frame_fallback"
+      },
+      captionSafeArea: buildDefaultCaptionSafeArea(input.width, input.height)
     }
   });
 }
@@ -225,4 +287,17 @@ function buildDemoCaption(input: {
 
 function roundTime(value: number) {
   return Math.round(value * 1000) / 1000;
+}
+
+function buildDefaultCaptionSafeArea(width: number, height: number) {
+  const marginX = Math.max(36, Math.min(72, Math.round(width * 0.045)));
+  const marginBottom = Math.max(96, Math.min(140, Math.round(height * 0.11)));
+  return {
+    x: marginX,
+    y: 0,
+    width: Math.max(1, width - marginX * 2),
+    height: Math.max(1, height - marginBottom),
+    marginX,
+    marginBottom
+  };
 }

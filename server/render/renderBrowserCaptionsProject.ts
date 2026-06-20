@@ -6,8 +6,25 @@ import { renderBrowserFrames } from "@/server/render/browserFrameRenderer";
 import { probeVideo } from "@/server/video/metadata";
 
 export async function renderBrowserCaptionsForProject(projectId: string) {
-  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
-  const paths = pathsForProject(projectId);
+  return renderBrowserCaptionsArtifact({
+    projectId,
+    outputPath: pathsForProject(projectId).browserRenderedCaptionsVideo,
+    renderAssetType: "experimental_browser_captions",
+    startedMessage: "Experimental browser captions render started.",
+    readyMessagePrefix: "Experimental browser captions render is ready"
+  });
+}
+
+export async function renderBrowserCaptionsArtifact(input: {
+  projectId: string;
+  outputPath: string;
+  renderAssetType: string;
+  startedMessage: string;
+  readyMessagePrefix: string;
+  writePlanToProject?: boolean;
+}) {
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: input.projectId } });
+  const paths = pathsForProject(input.projectId);
 
   try {
     await access(paths.cleanVideo);
@@ -15,27 +32,28 @@ export async function renderBrowserCaptionsForProject(projectId: string) {
     throw new Error("Clean video is not ready yet. Run analysis first.");
   }
 
-  await logProject(projectId, "info", "Experimental browser captions render started.");
+  await logProject(input.projectId, "info", input.startedMessage);
   const sourceMetadata = await probeVideo(paths.cleanVideo);
   await logProject(
-    projectId,
+    input.projectId,
     "info",
     `Browser captions source: ${sourceMetadata.width ?? "?"}x${sourceMetadata.height ?? "?"}, ${sourceMetadata.duration.toFixed(2)}s.`
   );
 
   const result = await renderBrowserFrames({
     projectDir: paths.project,
-    outputPath: paths.browserRenderedCaptionsVideo,
+    outputPath: input.outputPath,
     captionStyle: "bold-yellow",
     enableCameraMoves: false,
-    log: (message) => logProject(projectId, "info", `[browser-renderer] ${message}`)
+    writePlanToProject: input.writePlanToProject,
+    log: (message) => logProject(input.projectId, "info", `[browser-renderer] ${message}`)
   });
 
   await prisma.renderAsset.create({
     data: {
-      projectId,
-      type: "experimental_browser_captions",
-      path: paths.browserRenderedCaptionsVideo,
+      projectId: input.projectId,
+      type: input.renderAssetType,
+      path: input.outputPath,
       metadataJson: JSON.stringify({
         renderPlanPath: result.renderPlanPath,
         totalFrames: result.totalFrames,
@@ -48,15 +66,15 @@ export async function renderBrowserCaptionsForProject(projectId: string) {
   });
 
   await logProject(
-    projectId,
+    input.projectId,
     "info",
-    `Experimental browser captions render is ready: ${result.width}x${result.height}, ${result.totalFrames} frames, ${result.duration.toFixed(2)}s.`
+    `${input.readyMessagePrefix}: ${result.width}x${result.height}, ${result.totalFrames} frames, ${result.duration.toFixed(2)}s.`
   );
 
   return {
     ...result,
-    projectId,
+    projectId: input.projectId,
     originalFilename: project.originalFilename,
-    outputPath: paths.browserRenderedCaptionsVideo
+    outputPath: input.outputPath
   };
 }

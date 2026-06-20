@@ -9,10 +9,11 @@ import type {
   BrowserFrameRenderPlan,
   BrowserFrameWord
 } from "./browserFrameRendererPlan";
+import { detectActiveVideoBox } from "./browserFrameActiveBox";
 import {
   DEFAULT_BROWSER_FRAME_STYLE,
   DEFAULT_BROWSER_POC_FPS,
-  MAX_BROWSER_POC_DURATION_SECONDS,
+  DEFAULT_BROWSER_POC_DURATION_SECONDS,
   parseBrowserFrameRenderPlan
 } from "./browserFrameRendererPlan";
 
@@ -36,6 +37,8 @@ export interface BrowserFramePlanFromProjectOptions {
   captionStyle?: BrowserFrameCaptionStyle;
   maxDurationSeconds?: number;
   enableCameraMoves?: boolean;
+  debugActiveBox?: boolean;
+  log?: (message: string) => void;
   writePlanToProject?: boolean;
 }
 
@@ -47,11 +50,18 @@ export async function buildBrowserFrameRenderPlanFromProject(
   const subtitleLoad = await loadProjectSubtitles(artifacts);
   const duration = roundTime(Math.min(
     metadata.duration,
-    input.maxDurationSeconds ?? MAX_BROWSER_POC_DURATION_SECONDS
+    input.maxDurationSeconds ?? DEFAULT_BROWSER_POC_DURATION_SECONDS
   ));
   const width = metadata.width ?? 1080;
   const height = metadata.height ?? 1920;
   const fps = Math.min(input.fps ?? DEFAULT_BROWSER_POC_FPS, DEFAULT_BROWSER_POC_FPS);
+  const activeBox = await detectActiveVideoBox({
+    videoPath: artifacts.cleanVideoPath,
+    width,
+    height,
+    duration,
+    log: input.debugActiveBox ? input.log : undefined
+  });
   const captionsBuild = buildCaptionsForBrowserPlan(subtitleLoad.subtitles, duration, {
     captionSource: subtitleLoad.captionSource,
     edlApplied: subtitleLoad.edlApplied,
@@ -82,7 +92,9 @@ export async function buildBrowserFrameRenderPlanFromProject(
       edlApplied: captionsBuild.edlApplied,
       subtitlesDraftUsed: captionsBuild.subtitlesDraftUsed,
       cameraMovesEnabled,
-      warnings: captionsBuild.warnings
+      warnings: captionsBuild.warnings,
+      activeVideoBox: activeBox.activeVideoBox,
+      captionSafeArea: activeBox.captionSafeArea
     }
   });
 

@@ -3,6 +3,12 @@ import { pathToFileURL } from "node:url";
 export function buildBrowserFrameRendererHtml(input: {
   width: number;
   height: number;
+  captionSafeArea: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   fontPath?: string;
 }) {
   const fontUrl = input.fontPath ? pathToFileURL(input.fontPath).toString() : "";
@@ -71,10 +77,12 @@ export function buildBrowserFrameRendererHtml(input: {
       }
       #caption-shell {
         position: absolute;
-        left: 72px;
-        right: 72px;
-        bottom: 120px;
+        left: ${input.captionSafeArea.x}px;
+        top: ${input.captionSafeArea.y}px;
+        width: ${input.captionSafeArea.width}px;
+        height: ${input.captionSafeArea.height}px;
         display: flex;
+        align-items: flex-end;
         justify-content: center;
         pointer-events: none;
       }

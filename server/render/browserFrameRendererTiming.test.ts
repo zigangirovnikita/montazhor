@@ -56,7 +56,23 @@ describe("browserFrameRendererTiming", () => {
         edlApplied: false,
         subtitlesDraftUsed: false,
         cameraMovesEnabled: false,
-        warnings: []
+        warnings: [],
+        activeVideoBox: {
+          detected: false,
+          x: 0,
+          y: 0,
+          width: 1080,
+          height: 1920,
+          source: "full_frame_fallback"
+        },
+        captionSafeArea: {
+          x: 49,
+          y: 0,
+          width: 982,
+          height: 1780,
+          marginX: 49,
+          marginBottom: 140
+        }
       }
     };
 

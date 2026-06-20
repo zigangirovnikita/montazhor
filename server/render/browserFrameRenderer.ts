@@ -9,9 +9,9 @@ import { probeVideo } from "@/server/video/metadata";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import {
   buildDemoBrowserFrameRenderPlan,
+  DEFAULT_BROWSER_POC_DURATION_SECONDS,
   DEFAULT_BROWSER_POC_FPS,
   type BrowserFrameRenderPlan,
-  MAX_BROWSER_POC_DURATION_SECONDS,
   readBrowserFrameRenderPlan
 } from "@/server/render/browserFrameRendererPlan";
 import {
@@ -33,6 +33,9 @@ export interface BrowserFrameRendererOptions {
   renderPlanPath?: string;
   captionStyle?: BrowserFrameCaptionStyle;
   enableCameraMoves?: boolean;
+  maxDurationSeconds?: number;
+  writePlanToProject?: boolean;
+  debugActiveBox?: boolean;
   debug?: boolean;
   log?: (message: string) => void;
 }
@@ -80,13 +83,26 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       sourceDuration: metadata.duration,
       projectDir: resolvedInput.projectDir,
       captionStyle: input.captionStyle,
-      enableCameraMoves: input.enableCameraMoves
+      enableCameraMoves: input.enableCameraMoves,
+      maxDurationSeconds: input.maxDurationSeconds,
+      writePlanToProject: input.writePlanToProject,
+      debugActiveBox: input.debugActiveBox,
+      log
     });
     const timeline = buildFrameTimeline(plan);
     const totalFrames = secondsToFrameCount(plan.duration, plan.fps);
     const fontPath = await resolveFontPath();
     await writeFile(planSnapshotPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
-    await writeFile(htmlPath, buildBrowserFrameRendererHtml({ width: plan.width, height: plan.height, fontPath }), "utf8");
+    await writeFile(
+      htmlPath,
+      buildBrowserFrameRendererHtml({
+        width: plan.width,
+        height: plan.height,
+        fontPath,
+        captionSafeArea: plan.diagnostics.captionSafeArea
+      }),
+      "utf8"
+    );
 
     log(`Browser POC: ${plan.width}x${plan.height}, ${plan.fps} fps, ${plan.duration.toFixed(2)}s, ${totalFrames} frames.`);
 
@@ -203,11 +219,16 @@ async function resolveRenderPlan(
     projectDir?: string;
     captionStyle?: BrowserFrameCaptionStyle;
     enableCameraMoves?: boolean;
+    maxDurationSeconds?: number;
+    writePlanToProject?: boolean;
+    debugActiveBox?: boolean;
+    log?: (message: string) => void;
   }
 ) {
   const width = input.sourceWidth ?? 1080;
   const height = input.sourceHeight ?? 1920;
-  const cappedDuration = Math.min(input.sourceDuration, MAX_BROWSER_POC_DURATION_SECONDS);
+  const durationLimit = input.maxDurationSeconds ?? (input.projectDir ? input.sourceDuration : DEFAULT_BROWSER_POC_DURATION_SECONDS);
+  const cappedDuration = Math.min(input.sourceDuration, durationLimit);
 
   if (input.renderPlanPath) {
     const plan = await readBrowserFrameRenderPlan(input.renderPlanPath);
@@ -227,8 +248,10 @@ async function resolveRenderPlan(
       fps: DEFAULT_BROWSER_POC_FPS,
       captionStyle: input.captionStyle,
       enableCameraMoves: input.enableCameraMoves,
+      debugActiveBox: input.debugActiveBox,
+      log: input.log,
       maxDurationSeconds: cappedDuration,
-      writePlanToProject: true
+      writePlanToProject: input.writePlanToProject
     });
     return { plan, planPath };
   }

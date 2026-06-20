@@ -11,6 +11,7 @@ import { renderInfographicPanel } from "@/server/hyperframes/infographic";
 import { renderScenePipeline } from "@/server/scene/renderScenePipeline";
 import { type RenderProfile } from "@/server/video/encoding";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
+import { renderSubtitledVideoViaBrowserRenderer } from "@/server/pipeline/renderSubtitledVideoViaBrowserRenderer";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
 import { renderCleanCut } from "@/server/video/cutting";
 import {
@@ -191,6 +192,20 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   }
 
   const cleanMetadata = await probeVideo(paths.cleanVideo);
+
+  if (shouldUseBrowserCaptionsRenderer()) {
+    await updateProjectStatus(projectId, "rendering_preview");
+    await renderSubtitledVideoViaBrowserRenderer(projectId);
+    await logProject(projectId, "info", "Preview rendered via browser captions renderer after clean cut.");
+    await auditProjectEvent(projectId, {
+      phase: "render_preview",
+      step: "browser_captions",
+      kind: "result",
+      summary: "Preview rendered via browser captions renderer after clean cut."
+    });
+    return { profile, stylePreset, presentationMode: "subtitles_only" as PresentationMode };
+  }
+
   const subtitles = buildSubtitlesForEdl(transcript, edl);
   let videoForSubtitles = paths.cleanVideo;
   let skipStandaloneSubtitlePass = false;
@@ -397,6 +412,10 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
 
 function fallbackPresentationMode(editMode: string | null | undefined): PresentationMode {
   return editMode === "cut_subtitles_infographics" ? "subtitles_infographics" : "subtitles_only";
+}
+
+function shouldUseBrowserCaptionsRenderer() {
+  return true;
 }
 
 async function safeUnlink(filePath: string) {
