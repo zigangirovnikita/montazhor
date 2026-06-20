@@ -39,10 +39,10 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const paths = pathsForProject(id);
   const cleanPreviewReady = await stat(paths.cleanVideo).then(() => true).catch(() => false);
-  const experimentalBrowserCaptionsReady = await stat(paths.browserRenderedCaptionsVideo).then(() => true).catch(() => false);
+  const subtitledVideoReady = await stat(paths.subtitledVideo).then(() => true).catch(() => false);
   const revision = project.updatedAt.getTime();
   const activeJobLabel = getProjectJobLabel(id);
-  const experimentalBrowserCaptionsActive = isProjectJobActive(id) && activeJobLabel === "Experimental browser captions render";
+  const subtitledVideoActive = isProjectJobActive(id) && activeJobLabel === "Subtitled video render";
 
   return NextResponse.json({
     project,
@@ -51,8 +51,8 @@ export async function GET(_request: Request, context: RouteContext) {
     reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review?v=${revision}` : null,
     cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean?v=${revision}` : null,
     originalUrl: `/api/projects/${id}/original?v=${revision}`,
-    experimentalBrowserCaptionsUrl: experimentalBrowserCaptionsReady ? `/api/projects/${id}/download-browser-captions?v=${revision}` : null,
-    experimentalBrowserCaptionsActive
+    subtitledVideoUrl: subtitledVideoReady ? `/api/projects/${id}/download-subtitled?v=${revision}` : null,
+    subtitledVideoActive
   });
 }
 

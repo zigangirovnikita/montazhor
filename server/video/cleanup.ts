@@ -18,6 +18,7 @@ export async function cleanupProjectArtifacts(projectId: string) {
     safeRm(paths.infographicVideo),
     safeRm(paths.splitVideo),
     safeRm(paths.subtitledVideo),
+    safeRm(paths.browserRenderedCaptionsVideo),
     safeRm(paths.reviewVideo)
   ]);
 

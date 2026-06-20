@@ -199,7 +199,7 @@ export function buildDemoBrowserFrameRenderPlan(input: {
   const duration = Math.min(input.duration, 12);
   const fps = Math.min(input.fps ?? DEFAULT_BROWSER_POC_FPS, DEFAULT_BROWSER_POC_FPS);
   const captions = [
-    "Это browser frame renderer POC для Montazhor",
+    "Это browser captions renderer для Montazhor",
     "Текст живет в HTML а фон идет из clean mp4",
     "Кадры собираются Puppeteer и финал склеивает FFmpeg"
   ];

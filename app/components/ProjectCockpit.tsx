@@ -122,12 +122,12 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     }
   }
 
-  async function renderExperimentalBrowserCaptions() {
-    if (busy || isProcessing || payload?.experimentalBrowserCaptionsActive) return;
+  async function renderSubtitledVideo() {
+    if (busy || isProcessing || payload?.subtitledVideoActive) return;
     setBusy(true);
     setError("");
     try {
-      await apiPost(`/api/projects/${projectId}/render-browser-captions`);
+      await apiPost(`/api/projects/${projectId}/render-subtitled`);
       await refresh();
     } catch (requestError) {
       setError(messageFromError(requestError));
@@ -217,10 +217,10 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
           onOpenPrecision={() => setView("precision")}
           onContinue={() => setView("templates")}
         />
-        <button className="mode-button secondary-action" type="button" disabled={busy || payload.experimentalBrowserCaptionsActive} onClick={renderExperimentalBrowserCaptions}>
-          {payload.experimentalBrowserCaptionsActive ? "Собираю subtitles v1..." : "Скачать с субтитрами v1"}
+        <button className="mode-button secondary-action" type="button" disabled={busy || payload.subtitledVideoActive} onClick={renderSubtitledVideo}>
+          {payload.subtitledVideoActive ? "Собираю видео с субтитрами..." : "Скачать видео с субтитрами"}
         </button>
-        {payload.experimentalBrowserCaptionsUrl ? <a className="mode-button secondary-action" href={payload.experimentalBrowserCaptionsUrl}>Скачать готовый experimental MP4</a> : null}
+        {payload.subtitledVideoUrl ? <a className="mode-button secondary-action" href={payload.subtitledVideoUrl}>Скачать готовый MP4 с субтитрами</a> : null}
         {error ? <p className="error floating-error">{error}</p> : null}
       </ProjectShell>
     );
@@ -279,7 +279,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
           onApprove={() => setView("export")}
           onStyle={() => setView("templates")}
           onText={() => setView("text")}
-          onExperimentalRender={renderExperimentalBrowserCaptions}
+          onSubtitledRender={renderSubtitledVideo}
           onSceneAction={applySceneBlockAction}
         />
       </ProjectShell>
@@ -296,7 +296,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
 function styleStateForTemplate(template: StoredTemplate): StyleState {
   const templateOptions = templateToVisualPlanOptions(template.data);
   return {
-    presentationMode: "subtitles_infographics",
+    presentationMode: "subtitles_only",
     stylePreset: stylePresetForTemplate(templateOptions.presetPack),
     styleOptions: {
       subtitleFont: "manrope",

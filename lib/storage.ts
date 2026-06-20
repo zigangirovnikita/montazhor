@@ -60,6 +60,7 @@ export function pathsForProject(projectId: string) {
     visualPlan: path.join(project, "visual-plan.json"),
     visualScenePlan: path.join(project, "visual-scene-plan.json"),
     browserRenderPlan: path.join(project, "browser-render-plan.json"),
+    browserRenderPlanLive: path.join(project, "browser-render-plan.live.json"),
     subtitlesDraft: path.join(project, "subtitles-draft.json"),
     subtitlesAss: path.join(project, "subtitles.ass"),
     subtitlesOverlayMp4: path.join(project, "subtitles-overlay.mp4"),

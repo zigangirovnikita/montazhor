@@ -60,8 +60,8 @@ export function enqueueFinalize(projectId: string) {
   return runLocked(projectId, "Final export", () => finalizeProjectExport(projectId));
 }
 
-export function enqueueExperimentalBrowserCaptionsRender(projectId: string) {
-  return runLocked(projectId, "Experimental browser captions render", () => renderBrowserCaptionsForProject(projectId).then(() => undefined));
+export function enqueueSubtitledVideoRender(projectId: string) {
+  return runLocked(projectId, "Subtitled video render", () => renderBrowserCaptionsForProject(projectId).then(() => undefined));
 }
 
 export function isProjectJobActive(projectId: string) {

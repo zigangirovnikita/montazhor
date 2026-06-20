@@ -9,7 +9,6 @@ APP_PORT="${APP_PORT:-5001}"
 APP_URL="${APP_URL:-http://127.0.0.1:${APP_PORT}}"
 HEALTH_PATH="${HEALTH_PATH:-/}"
 PREPARE_SCRIPT="${PREPARE_SCRIPT:-$APP_DIR/scripts/prepare_standalone_release.sh}"
-HYPERFRAMES_RUNTIME_SCRIPT="${HYPERFRAMES_RUNTIME_SCRIPT:-$APP_DIR/scripts/ensure_hyperframes_runtime.sh}"
 TMP_DIR="${TMP_DIR:-/tmp/montazhor-healthcheck}"
 
 mkdir -p "$TMP_DIR"
@@ -41,16 +40,6 @@ prepare_release_if_possible() {
   APP_USER="${APP_USER}" bash "$PREPARE_SCRIPT"
 }
 
-ensure_hyperframes_runtime_if_possible() {
-  if [[ ! -x "$HYPERFRAMES_RUNTIME_SCRIPT" ]]; then
-    log "HyperFrames runtime script is missing: $HYPERFRAMES_RUNTIME_SCRIPT"
-    return 1
-  fi
-
-  log "Ensuring HyperFrames browser runtime"
-  APP_DIR="${APP_DIR}" APP_USER="${APP_USER}" bash "$HYPERFRAMES_RUNTIME_SCRIPT"
-}
-
 check_home_html() {
   curl -fsS --max-time 15 -o "$HTML_FILE" "${APP_URL}${HEALTH_PATH}"
 }
@@ -71,8 +60,6 @@ main() {
   local js_path=""
 
   restart_nginx_if_needed
-  ensure_hyperframes_runtime_if_possible || true
-
   if ! systemctl is-active --quiet "${APP_SERVICE}"; then
     log "${APP_SERVICE}.service is inactive"
     prepare_release_if_possible || true

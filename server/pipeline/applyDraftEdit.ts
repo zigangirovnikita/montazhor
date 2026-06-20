@@ -64,6 +64,8 @@ export async function applyDraftEdit(projectId: string, input: DraftEditInput) {
   await safeUnlink(paths.reviewVideo);
   await safeUnlink(paths.finalVideo);
   await safeUnlink(paths.subtitledVideo);
+  await safeUnlink(paths.browserRenderedCaptionsVideo);
+  await safeUnlink(paths.browserRenderPlanLive);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.subtitlesOverlayMp4);
@@ -301,6 +303,7 @@ async function invalidateRenderedReviewArtifacts(projectId: string, includeClean
   await safeUnlink(paths.reviewVideo);
   await safeUnlink(paths.finalVideo);
   await safeUnlink(paths.subtitledVideo);
+  await safeUnlink(paths.browserRenderedCaptionsVideo);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticBlocks);
@@ -312,6 +315,7 @@ async function invalidateRenderedReviewArtifacts(projectId: string, includeClean
   await safeUnlink(paths.subtitlesAss);
   await safeUnlink(paths.subtitlesOverlayMp4);
   await safeUnlink(paths.semanticOverlayMp4);
+  await safeUnlink(paths.browserRenderPlanLive);
 
   await prisma.renderAsset.deleteMany({
     where: {

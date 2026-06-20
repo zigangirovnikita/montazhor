@@ -162,6 +162,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   // clean.mp4 and visual-scene-plan.json are now cached via ensureArtifact;
   // other intermediates are still unconditionally invalidated until Steps 2-3.
   await safeUnlink(paths.subtitledVideo);
+  await safeUnlink(paths.browserRenderedCaptionsVideo);
   await safeUnlink(paths.splitVideo);
   await safeUnlink(paths.infographicVideo);
   await safeUnlink(paths.semanticOverlayMp4);
@@ -192,19 +193,17 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   }
 
   const cleanMetadata = await probeVideo(paths.cleanVideo);
-
-  if (shouldUseBrowserCaptionsRenderer()) {
-    await updateProjectStatus(projectId, "rendering_preview");
-    await renderSubtitledVideoViaBrowserRenderer(projectId);
-    await logProject(projectId, "info", "Preview rendered via browser captions renderer after clean cut.");
-    await auditProjectEvent(projectId, {
-      phase: "render_preview",
-      step: "browser_captions",
-      kind: "result",
-      summary: "Preview rendered via browser captions renderer after clean cut."
-    });
-    return { profile, stylePreset, presentationMode: "subtitles_only" as PresentationMode };
-  }
+  await updateProjectStatus(projectId, "rendering_preview");
+  await logProject(projectId, "info", "Using Browser Captions Renderer MVP path.");
+  await renderSubtitledVideoViaBrowserRenderer(projectId);
+  await logProject(projectId, "info", `Browser captions preview is ready after clean cut (${cleanMetadata.duration.toFixed(2)}s).`);
+  await auditProjectEvent(projectId, {
+    phase: "render_preview",
+    step: "browser_captions_mvp",
+    kind: "result",
+    summary: "Using Browser Captions Renderer MVP path."
+  });
+  return { profile, stylePreset, presentationMode: "subtitles_only" as PresentationMode };
 
   const subtitles = buildSubtitlesForEdl(transcript, edl);
   let videoForSubtitles = paths.cleanVideo;
@@ -281,7 +280,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
         `Scene pipeline rendered ${compiledScenePlan.blocks.length} compiled blocks (${compiledScenePlan.blocks.filter((block) => block.renderPath === "overlay").length} overlay, ${compiledScenePlan.blocks.filter((block) => block.renderPath === "full_scene").length} full-scene).`
       );
     } catch (sceneError) {
-      const message = sceneError instanceof Error ? sceneError.message : String(sceneError);
+      const message = errorMessage(sceneError);
       await safeUnlink(paths.semanticOverlayMp4);
       await logProject(
         projectId,
@@ -317,7 +316,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
         metadata: { infographicVideo: paths.infographicVideo, splitVideo: paths.splitVideo },
       });
     } catch (infographicError) {
-      const message = infographicError instanceof Error ? infographicError.message : String(infographicError);
+      const message = errorMessage(infographicError);
       effectivePresentationMode = "subtitles_only";
       captionRegion = undefined;
       await safeUnlink(paths.infographicVideo);
@@ -384,7 +383,7 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
         });
       }
     } catch (hyperframesError) {
-      const msg = hyperframesError instanceof Error ? hyperframesError.message : String(hyperframesError);
+      const msg = errorMessage(hyperframesError);
       await logProject(projectId, "warn", `HyperFrames subtitles failed, falling back to FFmpeg ASS burn. ${hyperframesRenderDiagnostics()} Original error: ${msg}`);
       await burnSubtitles(videoForSubtitles, paths.subtitlesAss, profile, renderProfile, paths.subtitledVideo);
       await logProject(projectId, "info", "Subtitles burned via FFmpeg ASS fallback.");
@@ -414,14 +413,14 @@ function fallbackPresentationMode(editMode: string | null | undefined): Presenta
   return editMode === "cut_subtitles_infographics" ? "subtitles_infographics" : "subtitles_only";
 }
 
-function shouldUseBrowserCaptionsRenderer() {
-  return true;
-}
-
 async function safeUnlink(filePath: string) {
   try {
     await unlink(filePath);
   } catch {
     // File may not exist — that's fine
   }
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

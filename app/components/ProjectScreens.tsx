@@ -78,7 +78,7 @@ export function FinalPreview({
   onApprove,
   onStyle,
   onText,
-  onExperimentalRender,
+  onSubtitledRender,
   onSceneAction
 }: {
   payload: ProjectPayload;
@@ -86,7 +86,7 @@ export function FinalPreview({
   onApprove: () => void;
   onStyle: () => void;
   onText: () => void;
-  onExperimentalRender: () => void;
+  onSubtitledRender: () => void;
   onSceneAction: (request: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode" | "disable_insert" | "edit_copy"; recipeId?: SceneRecipeId; layerId?: string; copyPatch?: Partial<ScreenCopyPayload> }) => Promise<void>;
 }) {
   return (
@@ -102,10 +102,10 @@ export function FinalPreview({
       <BlockReviewPanel payload={payload} busy={busy} onApply={onSceneAction} />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
-        <button className="mode-button secondary-action" type="button" disabled={busy} onClick={onExperimentalRender}>
-          {payload.experimentalBrowserCaptionsActive ? "Собираю subtitles v1..." : "Скачать с субтитрами v1"}
+        <button className="mode-button secondary-action" type="button" disabled={busy} onClick={onSubtitledRender}>
+          {payload.subtitledVideoActive ? "Собираю видео с субтитрами..." : "Скачать видео с субтитрами"}
         </button>
-        {payload.experimentalBrowserCaptionsUrl ? <a className="mode-button secondary-action" href={payload.experimentalBrowserCaptionsUrl}>Скачать experimental MP4</a> : null}
+        {payload.subtitledVideoUrl ? <a className="mode-button secondary-action" href={payload.subtitledVideoUrl}>Скачать MP4 с субтитрами</a> : null}
         <button className="mode-button secondary-action" type="button" onClick={onStyle}>Выбрать другой шаблон</button>
         <button className="mode-button secondary-action" type="button" onClick={onText}>Вернуться к тексту</button>
       </div>
@@ -179,7 +179,7 @@ export function DoneScreen({ payload }: { payload: ProjectPayload }) {
       </div>
       <div className="review-button-grid">
         {payload.downloadUrl ? <a className="cta-button" href={payload.downloadUrl}>Скачать</a> : null}
-        {payload.experimentalBrowserCaptionsUrl ? <a className="mode-button secondary-action" href={payload.experimentalBrowserCaptionsUrl}>Скачать с субтитрами v1</a> : null}
+        {payload.subtitledVideoUrl ? <a className="mode-button secondary-action" href={payload.subtitledVideoUrl}>Скачать видео с субтитрами</a> : null}
         <button className="mode-button secondary-action" type="button" disabled>Поделиться</button>
         <Link className="mode-button secondary-action" href="/">Сделать еще версию</Link>
         <Link className="mode-button secondary-action" href="/">Вернуться в меню</Link>

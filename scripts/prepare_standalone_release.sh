@@ -9,7 +9,6 @@ STATIC_SRC_DIR="${STATIC_SRC_DIR:-$BUILD_DIR/static}"
 STATIC_DST_DIR="${STATIC_DST_DIR:-$STANDALONE_DIR/.next/static}"
 PUBLIC_SRC_DIR="${PUBLIC_SRC_DIR:-$APP_DIR/public}"
 PUBLIC_DST_DIR="${PUBLIC_DST_DIR:-$STANDALONE_DIR/public}"
-HYPERFRAMES_RUNTIME_SCRIPT="${HYPERFRAMES_RUNTIME_SCRIPT:-$APP_DIR/scripts/ensure_hyperframes_runtime.sh}"
 
 if [[ ! -f "$STANDALONE_DIR/server.js" ]]; then
   echo "Missing standalone server: $STANDALONE_DIR/server.js"
@@ -35,10 +34,6 @@ fi
 if [[ ! -d "$STATIC_DST_DIR/chunks" ]]; then
   echo "Prepared standalone release is missing chunk assets under: $STATIC_DST_DIR/chunks"
   exit 1
-fi
-
-if [[ -x "$HYPERFRAMES_RUNTIME_SCRIPT" ]]; then
-  APP_DIR="$APP_DIR" APP_USER="$APP_USER" bash "$HYPERFRAMES_RUNTIME_SCRIPT"
 fi
 
 if [[ "${EUID}" -eq 0 && -n "$APP_USER" ]] && id -u "$APP_USER" >/dev/null 2>&1; then

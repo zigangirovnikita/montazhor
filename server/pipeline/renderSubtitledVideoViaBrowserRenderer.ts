@@ -4,14 +4,15 @@ import { renderBrowserCaptionsArtifact } from "@/server/render/renderBrowserCapt
 
 export async function renderSubtitledVideoViaBrowserRenderer(projectId: string) {
   const paths = pathsForProject(projectId);
-  await logProject(projectId, "info", "Rendering browser captions video instead of HyperFrames subtitle path.");
+  await logProject(projectId, "info", "Using Browser Captions Renderer MVP path.");
 
   return renderBrowserCaptionsArtifact({
     projectId,
     outputPath: paths.subtitledVideo,
     renderAssetType: "subtitle",
-    startedMessage: "Browser subtitles render started.",
-    readyMessagePrefix: "Browser subtitles video is ready",
-    writePlanToProject: false
+    startedMessage: "Subtitled video render started.",
+    readyMessagePrefix: "Subtitled video is ready",
+    writePlanToProject: true,
+    projectPlanOutputPath: paths.browserRenderPlanLive
   });
 }

@@ -42,8 +42,8 @@ export interface ProjectPayload {
   cleanPreviewUrl: string | null;
   reviewUrl: string | null;
   downloadUrl: string | null;
-  experimentalBrowserCaptionsUrl: string | null;
-  experimentalBrowserCaptionsActive: boolean;
+  subtitledVideoUrl: string | null;
+  subtitledVideoActive: boolean;
 }
 
 export type DraftEditAction = "restore_removed_range" | "delete_range" | "delete_word" | "edit_word_text" | "apply_review_edits" | "reset_draft";

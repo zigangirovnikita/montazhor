@@ -6,12 +6,14 @@ import { renderBrowserFrames } from "@/server/render/browserFrameRenderer";
 import { probeVideo } from "@/server/video/metadata";
 
 export async function renderBrowserCaptionsForProject(projectId: string) {
+  const paths = pathsForProject(projectId);
   return renderBrowserCaptionsArtifact({
     projectId,
-    outputPath: pathsForProject(projectId).browserRenderedCaptionsVideo,
-    renderAssetType: "experimental_browser_captions",
-    startedMessage: "Experimental browser captions render started.",
-    readyMessagePrefix: "Experimental browser captions render is ready"
+    outputPath: paths.subtitledVideo,
+    renderAssetType: "subtitle",
+    startedMessage: "Subtitled video render started.",
+    readyMessagePrefix: "Subtitled video is ready",
+    projectPlanOutputPath: paths.browserRenderPlanLive
   });
 }
 
@@ -22,6 +24,7 @@ export async function renderBrowserCaptionsArtifact(input: {
   startedMessage: string;
   readyMessagePrefix: string;
   writePlanToProject?: boolean;
+  projectPlanOutputPath?: string;
 }) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: input.projectId } });
   const paths = pathsForProject(input.projectId);
@@ -46,6 +49,7 @@ export async function renderBrowserCaptionsArtifact(input: {
     captionStyle: "bold-yellow",
     enableCameraMoves: false,
     writePlanToProject: input.writePlanToProject,
+    projectPlanOutputPath: input.projectPlanOutputPath,
     log: (message) => logProject(input.projectId, "info", `[browser-renderer] ${message}`)
   });
 

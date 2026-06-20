@@ -40,6 +40,7 @@ export interface BrowserFramePlanFromProjectOptions {
   debugActiveBox?: boolean;
   log?: (message: string) => void;
   writePlanToProject?: boolean;
+  projectPlanOutputPath?: string;
 }
 
 export async function buildBrowserFrameRenderPlanFromProject(
@@ -100,7 +101,7 @@ export async function buildBrowserFrameRenderPlanFromProject(
 
   let planPath: string | undefined;
   if (input.writePlanToProject !== false) {
-    planPath = path.join(input.projectDir, "browser-render-plan.json");
+    planPath = input.projectPlanOutputPath ?? path.join(input.projectDir, "browser-render-plan.json");
     await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
   }
 

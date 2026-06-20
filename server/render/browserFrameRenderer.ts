@@ -35,6 +35,7 @@ export interface BrowserFrameRendererOptions {
   enableCameraMoves?: boolean;
   maxDurationSeconds?: number;
   writePlanToProject?: boolean;
+  projectPlanOutputPath?: string;
   debugActiveBox?: boolean;
   debug?: boolean;
   log?: (message: string) => void;
@@ -86,6 +87,7 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       enableCameraMoves: input.enableCameraMoves,
       maxDurationSeconds: input.maxDurationSeconds,
       writePlanToProject: input.writePlanToProject,
+      projectPlanOutputPath: input.projectPlanOutputPath,
       debugActiveBox: input.debugActiveBox,
       log
     });
@@ -104,7 +106,7 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       "utf8"
     );
 
-    log(`Browser POC: ${plan.width}x${plan.height}, ${plan.fps} fps, ${plan.duration.toFixed(2)}s, ${totalFrames} frames.`);
+    log(`Browser captions renderer: ${plan.width}x${plan.height}, ${plan.fps} fps, ${plan.duration.toFixed(2)}s, ${totalFrames} frames.`);
 
     const extractStartedAt = Date.now();
     await extractBackgroundFrames({
@@ -173,7 +175,7 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       peakRssMb = Math.max(peakRssMb, currentRssMb());
 
       if ((frame.index + 1) % 25 === 0 || frame.index + 1 === timeline.length) {
-        log(`Browser POC progress: ${frame.index + 1}/${timeline.length} frames.`);
+        log(`Browser captions renderer progress: ${frame.index + 1}/${timeline.length} frames.`);
       }
     }
     screenshotMs = Date.now() - screenshotStartedAt;
@@ -221,6 +223,7 @@ async function resolveRenderPlan(
     enableCameraMoves?: boolean;
     maxDurationSeconds?: number;
     writePlanToProject?: boolean;
+    projectPlanOutputPath?: string;
     debugActiveBox?: boolean;
     log?: (message: string) => void;
   }
@@ -251,7 +254,8 @@ async function resolveRenderPlan(
       debugActiveBox: input.debugActiveBox,
       log: input.log,
       maxDurationSeconds: cappedDuration,
-      writePlanToProject: input.writePlanToProject
+      writePlanToProject: input.writePlanToProject,
+      projectPlanOutputPath: input.projectPlanOutputPath
     });
     return { plan, planPath };
   }

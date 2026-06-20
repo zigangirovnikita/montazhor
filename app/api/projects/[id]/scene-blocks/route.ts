@@ -133,6 +133,8 @@ export async function POST(request: Request, context: RouteContext) {
   await safeUnlink(paths.compiledScenePlan);
   await safeUnlink(paths.semanticOverlayMp4);
   await safeUnlink(paths.subtitledVideo);
+  await safeUnlink(paths.browserRenderedCaptionsVideo);
+  await safeUnlink(paths.browserRenderPlanLive);
   await safeUnlink(paths.reviewVideo);
   await safeUnlink(paths.finalVideo);
 

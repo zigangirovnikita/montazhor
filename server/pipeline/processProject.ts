@@ -34,7 +34,12 @@ export async function processProjectAnalyze(projectId: string) {
   await prisma.editDecision.deleteMany({ where: { projectId } });
   await prisma.renderAsset.deleteMany({ where: { projectId } });
   await safeUnlink(paths.cleanVideo);
+  await safeUnlink(paths.subtitledVideo);
+  await safeUnlink(paths.browserRenderedCaptionsVideo);
   await safeUnlink(paths.reviewVideo);
+  await safeUnlink(paths.finalVideo);
+  await safeUnlink(paths.browserRenderPlan);
+  await safeUnlink(paths.browserRenderPlanLive);
   await safeUnlink(paths.reviewCandidates);
   await prisma.project.update({
     where: { id: projectId },
