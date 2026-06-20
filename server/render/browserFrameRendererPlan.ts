@@ -47,6 +47,28 @@ const browserFrameCameraMoveSchema = z.object({
   message: "Camera move end must be greater than start."
 });
 
+const browserFrameDiagnosticsSchema = z.object({
+  sourceVideo: z.object({
+    width: z.number().int().min(1),
+    height: z.number().int().min(1),
+    duration: z.number().positive()
+  }),
+  output: z.object({
+    width: z.number().int().min(1),
+    height: z.number().int().min(1),
+    fps: z.number().int().min(1)
+  }),
+  captionSource: z.enum([
+    "transcript_edl_clean_time",
+    "subtitles_draft_fallback",
+    "demo"
+  ]),
+  edlApplied: z.boolean(),
+  subtitlesDraftUsed: z.boolean(),
+  cameraMovesEnabled: z.boolean(),
+  warnings: z.array(z.string()).default([])
+});
+
 export const browserFrameRenderPlanSchema = z.object({
   fps: z.number().int().min(1).max(DEFAULT_BROWSER_POC_FPS).default(DEFAULT_BROWSER_POC_FPS),
   width: z.number().int().min(320).max(2160),
@@ -54,7 +76,8 @@ export const browserFrameRenderPlanSchema = z.object({
   duration: z.number().positive().max(MAX_BROWSER_POC_DURATION_SECONDS),
   captionStyle: browserFrameCaptionStyleSchema.default(DEFAULT_BROWSER_FRAME_STYLE),
   captions: z.array(browserFrameCaptionSchema).default([]),
-  cameraMoves: z.array(browserFrameCameraMoveSchema).default([])
+  cameraMoves: z.array(browserFrameCameraMoveSchema).default([]),
+  diagnostics: browserFrameDiagnosticsSchema
 }).superRefine((plan, ctx) => {
   for (const [captionIndex, caption] of plan.captions.entries()) {
     if (caption.start > plan.duration || caption.end > plan.duration) {
@@ -101,6 +124,7 @@ export type BrowserFrameCaptionStyle = z.infer<typeof browserFrameCaptionStyleSc
 export type BrowserFrameWord = z.infer<typeof browserFrameWordSchema>;
 export type BrowserFrameCaption = z.infer<typeof browserFrameCaptionSchema>;
 export type BrowserFrameCameraMove = z.infer<typeof browserFrameCameraMoveSchema>;
+export type BrowserFrameDiagnostics = z.infer<typeof browserFrameDiagnosticsSchema>;
 export type BrowserFrameRenderPlan = z.infer<typeof browserFrameRenderPlanSchema>;
 
 export async function readBrowserFrameRenderPlan(planPath: string) {
@@ -154,7 +178,24 @@ export function buildDemoBrowserFrameRenderPlan(input: {
         yFrom: 0,
         yTo: -0.02
       }
-    ]
+    ],
+    diagnostics: {
+      sourceVideo: {
+        width: input.width,
+        height: input.height,
+        duration
+      },
+      output: {
+        width: input.width,
+        height: input.height,
+        fps
+      },
+      captionSource: "demo",
+      edlApplied: false,
+      subtitlesDraftUsed: false,
+      cameraMovesEnabled: true,
+      warnings: []
+    }
   });
 }
 

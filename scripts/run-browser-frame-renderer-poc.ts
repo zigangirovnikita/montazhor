@@ -15,6 +15,7 @@ async function main() {
     outputPath: path.resolve(args.output),
     renderPlanPath: args.plan ? path.resolve(args.plan) : undefined,
     captionStyle: args.style,
+    enableCameraMoves: args.cameraMoves,
     debug: args.debug,
     log: (message) => console.log(message)
   });
@@ -29,6 +30,7 @@ function parseArgs(argv: string[]) {
     output?: string;
     plan?: string;
     style?: "bold-yellow" | "clean-white" | "premium-minimal";
+    cameraMoves?: boolean;
     debug?: boolean;
   } = {};
 
@@ -39,6 +41,8 @@ function parseArgs(argv: string[]) {
     if (value === "--output") args.output = argv[index + 1];
     if (value === "--plan") args.plan = argv[index + 1];
     if (value === "--style") args.style = argv[index + 1] as typeof args.style;
+    if (value === "--camera-moves") args.cameraMoves = true;
+    if (value === "--no-camera-moves") args.cameraMoves = false;
     if (value === "--debug") args.debug = true;
   }
 

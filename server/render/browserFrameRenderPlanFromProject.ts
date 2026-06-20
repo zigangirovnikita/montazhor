@@ -35,6 +35,7 @@ export interface BrowserFramePlanFromProjectOptions {
   fps?: number;
   captionStyle?: BrowserFrameCaptionStyle;
   maxDurationSeconds?: number;
+  enableCameraMoves?: boolean;
   writePlanToProject?: boolean;
 }
 
@@ -43,7 +44,7 @@ export async function buildBrowserFrameRenderPlanFromProject(
 ): Promise<{ artifacts: BrowserFrameProjectArtifacts; plan: BrowserFrameRenderPlan; planPath?: string }> {
   const artifacts = await resolveProjectArtifacts(input.projectDir);
   const metadata = await probeVideo(artifacts.cleanVideoPath);
-  const subtitles = await loadProjectSubtitles(artifacts);
+  const subtitleLoad = await loadProjectSubtitles(artifacts);
   const duration = roundTime(Math.min(
     metadata.duration,
     input.maxDurationSeconds ?? MAX_BROWSER_POC_DURATION_SECONDS
@@ -51,15 +52,38 @@ export async function buildBrowserFrameRenderPlanFromProject(
   const width = metadata.width ?? 1080;
   const height = metadata.height ?? 1920;
   const fps = Math.min(input.fps ?? DEFAULT_BROWSER_POC_FPS, DEFAULT_BROWSER_POC_FPS);
-  const captions = buildCaptionsForBrowserPlan(subtitles, duration);
+  const captionsBuild = buildCaptionsForBrowserPlan(subtitleLoad.subtitles, duration, {
+    captionSource: subtitleLoad.captionSource,
+    edlApplied: subtitleLoad.edlApplied,
+    subtitlesDraftUsed: subtitleLoad.subtitlesDraftUsed,
+    warnings: subtitleLoad.warnings
+  });
+  const cameraMovesEnabled = input.enableCameraMoves ?? false;
   const plan = parseBrowserFrameRenderPlan({
     fps,
     width,
     height,
     duration,
     captionStyle: input.captionStyle ?? DEFAULT_BROWSER_FRAME_STYLE,
-    captions,
-    cameraMoves: buildCameraMoves(duration)
+    captions: captionsBuild.captions,
+    cameraMoves: cameraMovesEnabled ? buildCameraMoves(duration) : [],
+    diagnostics: {
+      sourceVideo: {
+        width,
+        height,
+        duration
+      },
+      output: {
+        width,
+        height,
+        fps
+      },
+      captionSource: captionsBuild.captionSource,
+      edlApplied: captionsBuild.edlApplied,
+      subtitlesDraftUsed: captionsBuild.subtitlesDraftUsed,
+      cameraMovesEnabled,
+      warnings: captionsBuild.warnings
+    }
   });
 
   let planPath: string | undefined;
@@ -85,7 +109,16 @@ export async function resolveProjectArtifacts(projectDir: string): Promise<Brows
   };
 }
 
-export function buildCaptionsForBrowserPlan(subtitles: SubtitleDraft[], maxDurationSeconds: number) {
+export function buildCaptionsForBrowserPlan(
+  subtitles: SubtitleDraft[],
+  maxDurationSeconds: number,
+  diagnostics?: {
+    captionSource?: "transcript_edl_clean_time" | "subtitles_draft_fallback";
+    edlApplied?: boolean;
+    subtitlesDraftUsed?: boolean;
+    warnings?: string[];
+  }
+) {
   const captions: BrowserFrameCaption[] = [];
 
   for (const subtitle of subtitles) {
@@ -110,7 +143,13 @@ export function buildCaptionsForBrowserPlan(subtitles: SubtitleDraft[], maxDurat
     }
   }
 
-  return captions.filter((caption) => caption.end > caption.start);
+  return {
+    captions: captions.filter((caption) => caption.end > caption.start),
+    captionSource: diagnostics?.captionSource ?? "subtitles_draft_fallback",
+    edlApplied: diagnostics?.edlApplied ?? false,
+    subtitlesDraftUsed: diagnostics?.subtitlesDraftUsed ?? true,
+    warnings: diagnostics?.warnings ?? []
+  };
 }
 
 export function chunkSubtitleWords(words: BrowserFrameWord[]) {
@@ -197,23 +236,54 @@ export function buildCameraMoves(duration: number): BrowserFrameCameraMove[] {
 }
 
 async function loadProjectSubtitles(artifacts: BrowserFrameProjectArtifacts) {
+  if (artifacts.transcriptPath && artifacts.edlPath) {
+    const transcript = JSON.parse(await readFile(artifacts.transcriptPath, "utf8")) as TranscriptJson;
+    const edl = JSON.parse(await readFile(artifacts.edlPath, "utf8")) as EditDecisionListLike;
+    return {
+      subtitles: buildSubtitlesForEdlLocal(transcript, edl),
+      captionSource: "transcript_edl_clean_time" as const,
+      edlApplied: true,
+      subtitlesDraftUsed: false,
+      warnings: []
+    };
+  }
+
   if (artifacts.subtitlesDraftPath) {
     const subtitles = JSON.parse(await readFile(artifacts.subtitlesDraftPath, "utf8")) as SubtitleDraft[];
-    if (subtitles.length) return subtitles;
+    if (subtitles.length) {
+      return {
+        subtitles,
+        captionSource: "subtitles_draft_fallback" as const,
+        edlApplied: false,
+        subtitlesDraftUsed: true,
+        warnings: ["subtitles_draft_fallback_used"]
+      };
+    }
   }
 
-  const transcriptPath = artifacts.remappedTranscriptPath ?? artifacts.transcriptPath;
-  if (!transcriptPath) {
-    throw new Error("Project does not contain subtitles-draft.json or transcript.json.");
+  if (artifacts.remappedTranscriptPath) {
+    const transcript = JSON.parse(await readFile(artifacts.remappedTranscriptPath, "utf8")) as TranscriptJson;
+    return {
+      subtitles: buildSubtitleDraftLocal(transcript),
+      captionSource: "subtitles_draft_fallback" as const,
+      edlApplied: false,
+      subtitlesDraftUsed: false,
+      warnings: ["transcript_without_edl_fallback_used"]
+    };
   }
 
-  const transcript = JSON.parse(await readFile(transcriptPath, "utf8")) as TranscriptJson;
-  if (artifacts.edlPath && transcriptPath === artifacts.transcriptPath) {
-    const edl = JSON.parse(await readFile(artifacts.edlPath, "utf8")) as EditDecisionListLike;
-    return buildSubtitlesForEdlLocal(transcript, edl);
+  if (artifacts.transcriptPath) {
+    const transcript = JSON.parse(await readFile(artifacts.transcriptPath, "utf8")) as TranscriptJson;
+    return {
+      subtitles: buildSubtitleDraftLocal(transcript),
+      captionSource: "subtitles_draft_fallback" as const,
+      edlApplied: false,
+      subtitlesDraftUsed: false,
+      warnings: ["transcript_without_edl_fallback_used"]
+    };
   }
 
-  return buildSubtitleDraftLocal(transcript);
+  throw new Error("Project does not contain transcript.json + edl.json and does not provide subtitles-draft.json fallback.");
 }
 
 function shouldBreakChunk(current: BrowserFrameWord[], nextWord: BrowserFrameWord, next: BrowserFrameWord[]) {

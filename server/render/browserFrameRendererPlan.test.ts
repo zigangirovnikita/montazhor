@@ -13,7 +13,16 @@ describe("browserFrameRendererPlan", () => {
         height: 1920,
         duration: 18,
         captions: [],
-        cameraMoves: []
+        cameraMoves: [],
+        diagnostics: {
+          sourceVideo: { width: 1080, height: 1920, duration: 18 },
+          output: { width: 1080, height: 1920, fps: 20 },
+          captionSource: "demo",
+          edlApplied: false,
+          subtitlesDraftUsed: false,
+          cameraMovesEnabled: false,
+          warnings: []
+        }
       })
     ).toThrow(/15/);
   });
@@ -35,7 +44,16 @@ describe("browserFrameRendererPlan", () => {
             words: [{ text: "hello", start: 0, end: 2.2 }]
           }
         ],
-        cameraMoves: []
+        cameraMoves: [],
+        diagnostics: {
+          sourceVideo: { width: 1080, height: 1920, duration: 8 },
+          output: { width: 1080, height: 1920, fps: 20 },
+          captionSource: "demo",
+          edlApplied: false,
+          subtitlesDraftUsed: false,
+          cameraMovesEnabled: false,
+          warnings: []
+        }
       })
     ).toThrow(/caption bounds/i);
   });

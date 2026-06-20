@@ -48,7 +48,16 @@ describe("browserFrameRendererTiming", () => {
       duration: 2,
       captionStyle: "bold-yellow",
       captions: [],
-      cameraMoves: []
+      cameraMoves: [],
+      diagnostics: {
+        sourceVideo: { width: 1080, height: 1920, duration: 2 },
+        output: { width: 1080, height: 1920, fps: 20 },
+        captionSource: "demo",
+        edlApplied: false,
+        subtitlesDraftUsed: false,
+        cameraMovesEnabled: false,
+        warnings: []
+      }
     };
 
     const timeline = buildFrameTimeline(plan);

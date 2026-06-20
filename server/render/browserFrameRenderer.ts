@@ -32,6 +32,7 @@ export interface BrowserFrameRendererOptions {
   outputPath: string;
   renderPlanPath?: string;
   captionStyle?: BrowserFrameCaptionStyle;
+  enableCameraMoves?: boolean;
   debug?: boolean;
   log?: (message: string) => void;
 }
@@ -78,7 +79,8 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       sourceHeight: metadata.height,
       sourceDuration: metadata.duration,
       projectDir: resolvedInput.projectDir,
-      captionStyle: input.captionStyle
+      captionStyle: input.captionStyle,
+      enableCameraMoves: input.enableCameraMoves
     });
     const timeline = buildFrameTimeline(plan);
     const totalFrames = secondsToFrameCount(plan.duration, plan.fps);
@@ -92,6 +94,8 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
     await extractBackgroundFrames({
       inputPath: resolvedInput.cleanVideoPath,
       outputDir: backgroundDir,
+      sourceWidth: metadata.width,
+      sourceHeight: metadata.height,
       width: plan.width,
       height: plan.height,
       fps: plan.fps,
@@ -198,6 +202,7 @@ async function resolveRenderPlan(
     sourceDuration: number;
     projectDir?: string;
     captionStyle?: BrowserFrameCaptionStyle;
+    enableCameraMoves?: boolean;
   }
 ) {
   const width = input.sourceWidth ?? 1080;
@@ -221,6 +226,7 @@ async function resolveRenderPlan(
       projectDir: input.projectDir,
       fps: DEFAULT_BROWSER_POC_FPS,
       captionStyle: input.captionStyle,
+      enableCameraMoves: input.enableCameraMoves,
       maxDurationSeconds: cappedDuration,
       writePlanToProject: true
     });
@@ -262,11 +268,18 @@ async function resolveRendererInput(input: BrowserFrameRendererOptions) {
 async function extractBackgroundFrames(input: {
   inputPath: string;
   outputDir: string;
+  sourceWidth: number | undefined;
+  sourceHeight: number | undefined;
   width: number;
   height: number;
   fps: number;
   frameCount: number;
 }) {
+  const needsScale = input.sourceWidth !== input.width || input.sourceHeight !== input.height;
+  const videoFilter = needsScale
+    ? `fps=${input.fps},scale=${input.width}:${input.height}:force_original_aspect_ratio=decrease,pad=${input.width}:${input.height}:(ow-iw)/2:(oh-ih)/2:black`
+    : `fps=${input.fps}`;
+
   await runCommand(ffmpegPath(), [
     "-y",
     "-i",
@@ -274,7 +287,7 @@ async function extractBackgroundFrames(input: {
     "-frames:v",
     String(input.frameCount),
     "-vf",
-    `fps=${input.fps},scale=${input.width}:${input.height}:force_original_aspect_ratio=increase,crop=${input.width}:${input.height}`,
+    videoFilter,
     "-q:v",
     "2",
     path.join(input.outputDir, "bg_%05d.jpg")

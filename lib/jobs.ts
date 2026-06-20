@@ -2,8 +2,10 @@ import { logProject, updateProjectStatus } from "@/lib/logger";
 import { prisma } from "@/lib/db";
 import { processProjectAnalyze } from "@/server/pipeline/processProject";
 import { finalizeProjectExport, renderStyledPreview } from "@/server/pipeline/renderProject";
+import { renderBrowserCaptionsForProject } from "@/server/render/renderBrowserCaptionsProject";
 
 const activeJobs = new Map<string, Promise<void>>();
+const activeJobLabels = new Map<string, string>();
 
 /** Statuses that indicate work is already in progress */
 const PROCESSING_STATUSES = new Set([
@@ -40,8 +42,10 @@ async function runLocked(projectId: string, label: string, work: () => Promise<v
     })
     .finally(() => {
       activeJobs.delete(projectId);
+      activeJobLabels.delete(projectId);
     });
   activeJobs.set(projectId, job);
+  activeJobLabels.set(projectId, label);
 }
 
 export function enqueueAnalyze(projectId: string) {
@@ -56,8 +60,16 @@ export function enqueueFinalize(projectId: string) {
   return runLocked(projectId, "Final export", () => finalizeProjectExport(projectId));
 }
 
+export function enqueueExperimentalBrowserCaptionsRender(projectId: string) {
+  return runLocked(projectId, "Experimental browser captions render", () => renderBrowserCaptionsForProject(projectId).then(() => undefined));
+}
+
 export function isProjectJobActive(projectId: string) {
   return activeJobs.has(projectId);
+}
+
+export function getProjectJobLabel(projectId: string) {
+  return activeJobLabels.get(projectId) ?? null;
 }
 
 /**

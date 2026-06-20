@@ -122,6 +122,20 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     }
   }
 
+  async function renderExperimentalBrowserCaptions() {
+    if (busy || isProcessing || payload?.experimentalBrowserCaptionsActive) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiPost(`/api/projects/${projectId}/render-browser-captions`);
+      await refresh();
+    } catch (requestError) {
+      setError(messageFromError(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function applySceneBlockAction(body: { blockId: string; action: "regenerate_block" | "change_scene" | "simplify_scene" | "make_stronger" | "disable_layer" | "bring_speaker_back" | "hide_speaker_for_block" | "switch_to_safe_mode" | "disable_insert" | "edit_copy"; recipeId?: SceneRecipeId; layerId?: string; copyPatch?: Partial<ScreenCopyPayload> }) {
     if (busy || isProcessing) return;
     setBusy(true);
@@ -203,6 +217,10 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
           onOpenPrecision={() => setView("precision")}
           onContinue={() => setView("templates")}
         />
+        <button className="mode-button secondary-action" type="button" disabled={busy || payload.experimentalBrowserCaptionsActive} onClick={renderExperimentalBrowserCaptions}>
+          {payload.experimentalBrowserCaptionsActive ? "Собираю subtitles v1..." : "Скачать с субтитрами v1"}
+        </button>
+        {payload.experimentalBrowserCaptionsUrl ? <a className="mode-button secondary-action" href={payload.experimentalBrowserCaptionsUrl}>Скачать готовый experimental MP4</a> : null}
         {error ? <p className="error floating-error">{error}</p> : null}
       </ProjectShell>
     );
@@ -261,6 +279,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
           onApprove={() => setView("export")}
           onStyle={() => setView("templates")}
           onText={() => setView("text")}
+          onExperimentalRender={renderExperimentalBrowserCaptions}
           onSceneAction={applySceneBlockAction}
         />
       </ProjectShell>
