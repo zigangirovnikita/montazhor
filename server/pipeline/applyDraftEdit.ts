@@ -1,13 +1,15 @@
-import { readFile, unlink } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { auditProjectEvent } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
 import { pathsForProject, writeJsonFile } from "@/lib/storage";
 import type { EditDecisionList, EditRange, TranscriptJson } from "@/lib/types";
+import { invalidateRenderedReviewArtifacts, safeUnlink } from "@/server/pipeline/draftArtifactInvalidation";
 import { complementRanges, mergeCloseRanges, renderCleanCut } from "@/server/video/cutting";
 import { probeVideo } from "@/server/video/metadata";
 import { resolveVideoProfile } from "@/server/video/profile";
 import { buildSubtitleDraft } from "@/server/video/subtitles";
+import { prepareLivePreviewPlan } from "@/server/render/prepareLivePreviewPlan";
 
 type DraftEditAction = "restore_removed_range" | "delete_range" | "delete_word" | "edit_word_text" | "apply_review_edits" | "reset_draft";
 type DraftEditOperation = Exclude<DraftEditAction, "apply_review_edits" | "reset_draft">;
@@ -104,6 +106,7 @@ export async function applyDraftEdit(projectId: string, input: DraftEditInput) {
       durationFinal: cleanMetadata.duration
     }
   });
+  await prepareLivePreviewPlan(projectId);
   await logProject(projectId, "info", draftEditLogMessage(input.action, editRange));
 
   return nextEdl;
@@ -208,6 +211,7 @@ async function applyReviewEditBatch(
     });
   }
 
+  await prepareLivePreviewPlan(projectId);
   await logProject(projectId, "info", `Draft text review: applied ${edits.length} queued changes (${edlEditCount} montage, ${transcriptEditCount} subtitle text) in one re-render.`);
   return nextEdl;
 }
@@ -252,6 +256,7 @@ async function applyTranscriptWordEdit(projectId: string, input: DraftEditInput)
       finalVideoPath: null
     }
   });
+  await prepareLivePreviewPlan(projectId);
   await logProject(projectId, "info", `Draft text review: corrected subtitle word at ${Number(input.sourceStart).toFixed(2)}-${Number(input.sourceEnd).toFixed(2)}s.`);
   await auditProjectEvent(projectId, {
     phase: "draft_review",
@@ -295,36 +300,6 @@ async function editTranscriptWord(filePath: string, current: TranscriptJson | nu
     throw new Error("Не нашел это слово в транскрипте. Обнови страницу и попробуй еще раз.");
   }
   return nextTranscript;
-}
-
-async function invalidateRenderedReviewArtifacts(projectId: string, includeClean: boolean) {
-  const paths = pathsForProject(projectId);
-  if (includeClean) await safeUnlink(paths.cleanVideo);
-  await safeUnlink(paths.reviewVideo);
-  await safeUnlink(paths.finalVideo);
-  await safeUnlink(paths.subtitledVideo);
-  await safeUnlink(paths.browserRenderedCaptionsVideo);
-  await safeUnlink(paths.splitVideo);
-  await safeUnlink(paths.infographicVideo);
-  await safeUnlink(paths.semanticBlocks);
-  await safeUnlink(paths.directorPlan);
-  await safeUnlink(paths.screenCopyPlan);
-  await safeUnlink(paths.scenePlan);
-  await safeUnlink(paths.compiledScenePlan);
-  await safeUnlink(paths.visualPlan);
-  await safeUnlink(paths.subtitlesAss);
-  await safeUnlink(paths.subtitlesOverlayMp4);
-  await safeUnlink(paths.semanticOverlayMp4);
-  await safeUnlink(paths.browserRenderPlanLive);
-
-  await prisma.renderAsset.deleteMany({
-    where: {
-      projectId,
-      type: { in: includeClean
-        ? ["clean_preview", "intermediate", "review", "final", "subtitle", "split", "infographic", "semantic_overlay"]
-        : ["intermediate", "review", "final", "subtitle", "split", "infographic", "semantic_overlay"] }
-    }
-  });
 }
 
 function normalizeEditedWord(value: string | undefined) {
@@ -398,12 +373,4 @@ function draftEditLogMessage(action: DraftEditAction, range: EditRange | null) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-async function safeUnlink(filePath: string) {
-  try {
-    await unlink(filePath);
-  } catch {
-    // File may not exist yet.
-  }
 }

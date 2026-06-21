@@ -83,9 +83,9 @@ export function DraftReviewTicker({
   }, [activeSegment, playbackActive]);
 
   useEffect(() => {
-    if (playbackActive && scrubSourceTime !== null) {
-      setScrubSourceTime(null);
-    }
+    if (!playbackActive || scrubSourceTime === null) return;
+    const frame = window.requestAnimationFrame(() => setScrubSourceTime(null));
+    return () => window.cancelAnimationFrame(frame);
   }, [playbackActive, scrubSourceTime]);
 
   function scrubToSourceTime(sourceTime: number) {

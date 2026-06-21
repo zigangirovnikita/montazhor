@@ -63,6 +63,7 @@ export function ProjectEditor({
     ? payload.originalUrl
     : payload.cleanPreviewUrl ?? payload.reviewUrl ?? payload.originalUrl;
   const showPreviewSubtitles = activeTab !== "transcript" && compareMode === "after";
+  const firstCaptionStart = payload.livePreviewPlan?.captions?.[0]?.start ?? 0;
   const queueSeek = (time: number) => {
     seekRequestIdRef.current += 1;
     setSeekRequest({ id: seekRequestIdRef.current, time });
@@ -82,8 +83,9 @@ export function ProjectEditor({
   }, [compareMode, keptRanges, previewTime]);
 
   useEffect(() => {
-    queueSeek(0);
-  }, [activeVideoUrl]);
+    const nextTime = showPreviewSubtitles ? firstCaptionStart : 0;
+    queueSeek(nextTime);
+  }, [activeVideoUrl, firstCaptionStart, showPreviewSubtitles]);
 
   return (
     <div className="project-editor">

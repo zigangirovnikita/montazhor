@@ -105,6 +105,15 @@ export function LiveCaptionPreview({
     );
   }
 
+  if (plan.captions.length === 0) {
+    return (
+      <div className="compare-player">
+        <video ref={videoRef} src={videoUrl} controls playsInline />
+        <p className="empty-state">Нет текста для живого предпросмотра субтитров. Пересобери черновик.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="compare-player live-caption-preview">
       <div className="live-caption-stage" style={{ aspectRatio: `${plan.width} / ${plan.height}` }}>
@@ -121,17 +130,19 @@ export function LiveCaptionPreview({
             zIndex: 2
           }}
         >
-          <div
-            className={`live-caption-box backdrop-${skin.backdrop}`}
-            style={{
-              color: skin.textColor,
-              fontSize: fontSizeForCaptionSize(styleOptions.captionSize, skin.fontSize),
-              fontWeight: skin.fontWeight,
-              textTransform: skin.textTransform
-            }}
-          >
-            {activeCaption ? renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions, skin) : null}
-          </div>
+          {activeCaption ? (
+            <div
+              className={`live-caption-box backdrop-${skin.backdrop}`}
+              style={{
+                color: skin.textColor,
+                fontSize: fontSizeForCaptionSize(styleOptions.captionSize, skin.fontSize),
+                fontWeight: skin.fontWeight,
+                textTransform: skin.textTransform
+              }}
+            >
+              {renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions, skin)}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

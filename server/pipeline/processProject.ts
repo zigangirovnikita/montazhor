@@ -201,7 +201,12 @@ export async function processProjectAnalyze(projectId: string) {
 
   await updateProjectStatus(projectId, "rendering_clean_video");
   await renderCleanCut(project.originalPath, edl, paths.cleanVideo, profile);
+  const cleanMetadata = await probeVideo(paths.cleanVideo);
   await prisma.renderAsset.create({ data: { projectId, type: "clean_preview", path: paths.cleanVideo } });
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { durationFinal: cleanMetadata.duration }
+  });
   await logProject(projectId, "info", "Clean cut preview is ready.");
 
   const subtitles = buildSubtitleDraft(transcript);
