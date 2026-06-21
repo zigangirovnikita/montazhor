@@ -216,6 +216,21 @@ Files affected:
 Tradeoff:
 - `parsePpm` is exported only for targeted regression coverage.
 
+### 2026-06-21 - Playback highlight drift was UI update pressure, not wrong caption timebase
+Decision:
+- Keep the existing `clean-time` caption/remap model and reduce editor-side playback churn instead of rewriting timing logic.
+Reason:
+- The confirmed regression path was frontend update pressure: `LiveCaptionPreview` pushed `previewTime` into the parent tree on every animation frame, and `ProjectCockpit` kept polling stable project payloads every 2 seconds even during review. A targeted remap test confirmed browser-caption words already use `transcript + edl` clean-time, so the “subtitles are bound to pre-cut timings” hypothesis did not hold for this path.
+Files affected:
+- `app/components/LiveCaptionPreview.tsx`
+- `app/components/previewPlaybackSync.ts`
+- `app/components/previewPlaybackSync.test.ts`
+- `app/components/projectPolling.ts`
+- `app/components/ProjectCockpit.tsx`
+- `server/render/browserFrameRenderPlanFromProject.test.ts`
+Tradeoff:
+- Parent-level playback time is now intentionally throttled instead of frame-perfect, while the local preview stays frame-accurate. This reduces whole-editor rerenders during playback without changing the subtitle preview’s actual active-word timing.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`

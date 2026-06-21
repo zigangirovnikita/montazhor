@@ -235,6 +235,58 @@ describe("browserFrameRenderPlanFromProject", () => {
     expect(moves.at(-1)?.end).toBe(12);
   });
 
+  it("remaps caption timings into clean-time when EDL cuts source gaps", async () => {
+    probeVideoMock.mockResolvedValueOnce({
+      duration: 2.2,
+      width: 1080,
+      height: 1920,
+      fps: 25,
+      hasAudio: true
+    });
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "montazhor-browser-plan-remap-"));
+    tempDirs.push(projectDir);
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, "clean.mp4"), "");
+    await writeFile(path.join(projectDir, "transcript.json"), JSON.stringify({
+      language: "ru",
+      duration: 3.2,
+      segments: [
+        {
+          id: 1,
+          start: 0,
+          end: 0.6,
+          text: "Привет",
+          words: [transcriptWord("Привет", 0, 0.6)]
+        },
+        {
+          id: 2,
+          start: 2,
+          end: 2.6,
+          text: "мир",
+          words: [transcriptWord("мир", 2, 2.6)]
+        }
+      ]
+    }, null, 2));
+    await writeFile(path.join(projectDir, "edl.json"), JSON.stringify({
+      keptRanges: [
+        { sourceStart: 0, sourceEnd: 0.6, reason: "speech" },
+        { sourceStart: 2, sourceEnd: 2.6, reason: "speech" }
+      ],
+      removedRanges: [
+        { sourceStart: 0.6, sourceEnd: 2, reason: "pause" }
+      ]
+    }, null, 2));
+
+    const result = await buildBrowserFrameRenderPlanFromProject({ projectDir });
+    const remappedWord = result.plan.captions
+      .flatMap((caption) => caption.words)
+      .find((word) => word.text === "мир");
+
+    expect(result.plan.diagnostics.captionSource).toBe("transcript_edl_clean_time");
+    expect(remappedWord?.start).toBeCloseTo(0.6, 3);
+    expect(remappedWord?.end).toBeCloseTo(1.2, 3);
+  });
+
   it("builds browser captions with highlight words preserved", () => {
     const result = buildCaptionsForBrowserPlan(makeSubtitles(), 8);
     expect(result.captions.length).toBeGreaterThan(1);

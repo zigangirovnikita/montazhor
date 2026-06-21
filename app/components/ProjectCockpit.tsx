@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { PrecisionTune } from "@/app/components/DraftReview";
 import { AppSection, AppShell } from "@/app/components/AppShell";
+import { shouldPollProject } from "@/app/components/projectPolling";
 import { EditorTab, ProjectEditor } from "@/app/components/ProjectEditor";
 import {
   CleanupModeScreen,
@@ -36,6 +37,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
 
   const status = payload?.project.status ?? "";
   const isProcessing = payload ? !["uploaded", "draft_ready", "review_ready", "done", "error"].includes(status) : false;
+  const pollingEnabled = shouldPollProject(status, busy, editBusy);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,12 +50,18 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     }
 
     void tick();
+    if (!pollingEnabled) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const timer = setInterval(() => void tick(), 2000);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [projectId]);
+  }, [pollingEnabled, projectId]);
 
   useEffect(() => () => {
     if (styleSaveTimeoutRef.current) clearTimeout(styleSaveTimeoutRef.current);

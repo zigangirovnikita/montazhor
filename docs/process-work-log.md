@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-21 — Playback sync lag fixed without changing caption time model
+
+- Problem: on long enough playback, both the blue active-token highlight in `Текст и чистка` and the active spoken word highlight in `Стили субтитров` started aligned for the first seconds and then visibly lagged behind the audio.
+- Decision: verify the two main hypotheses separately. Add regression coverage proving browser-caption preview words are already remapped into `clean-time` from `transcript + edl`, then fix the confirmed UI-side cause by throttling parent `previewTime` updates from `LiveCaptionPreview` while keeping local frame-accurate preview timing, and stop background project polling for stable statuses such as `draft_ready`, `review_ready`, and `done`.
+- Result: targeted tests now confirm the subtitle preview is not using pre-cut source timestamps, while the editor no longer forces full parent-tree updates on every animation frame during playback. Added focused coverage for playback-time throttling/flush behavior and clean-time remap behavior; `pnpm exec vitest run app/components/previewPlaybackSync.test.ts server/render/browserFrameRenderPlanFromProject.test.ts` and `pnpm typecheck` pass locally.
+- Follow-up: after deploy, re-check the live server project page on a longer real playback pass to confirm the visible drift stays gone under production browser load.
+
 ### 2026-06-21 — Desktop style studio deployed and server synced to GitHub
 
 - Problem: subtitle-style work and the new desktop editor shell had accumulated locally, but the runtime needed a clean deploy path and an explicit verification that the server code really matched GitHub instead of a stale dirty worktree.

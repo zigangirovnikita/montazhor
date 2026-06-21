@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaptionPosition, CaptionSize, StyleDraftOptions } from "@/app/components/PresentationConfigurator";
+import { createPreviewTimeReporter } from "@/app/components/previewPlaybackSync";
 import type { BrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
 
 export type PreviewSeekRequest = {
@@ -42,14 +43,15 @@ export function LiveCaptionPreview({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    const reporter = createPreviewTimeReporter(setInternalCurrentTime, onTimeChange);
 
     let frame = 0;
     const update = () => {
-      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
+      reporter.sync(video.currentTime || 0);
       if (!video.paused && !video.ended) frame = window.requestAnimationFrame(update);
     };
 
-    const handleTimeUpdate = () => syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
+    const handleTimeUpdate = () => reporter.sync(video.currentTime || 0);
     const handlePlay = () => {
       onPlayingChange?.(true);
       window.cancelAnimationFrame(frame);
@@ -58,7 +60,7 @@ export function LiveCaptionPreview({
     const handlePause = () => {
       onPlayingChange?.(false);
       window.cancelAnimationFrame(frame);
-      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
+      reporter.flush(video.currentTime || 0);
     };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
@@ -84,7 +86,8 @@ export function LiveCaptionPreview({
     const applySeek = () => {
       if (!video) return;
       video.currentTime = Math.max(0, seekRequest.time);
-      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
+      const reporter = createPreviewTimeReporter(setInternalCurrentTime, onTimeChange);
+      reporter.flush(video.currentTime || 0);
     };
 
     if (video.readyState >= 1) {
@@ -148,15 +151,6 @@ export function LiveCaptionPreview({
       </div>
     </div>
   );
-}
-
-function syncCurrentTime(
-  value: number,
-  onTimeChange: ((time: number) => void) | undefined,
-  setInternalCurrentTime: (value: number) => void
-) {
-  setInternalCurrentTime(value);
-  onTimeChange?.(value);
 }
 
 function renderCaptionLines(
