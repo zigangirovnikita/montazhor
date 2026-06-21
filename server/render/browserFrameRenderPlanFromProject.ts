@@ -13,7 +13,6 @@ import { detectActiveVideoBox } from "./browserFrameActiveBox";
 import {
   DEFAULT_BROWSER_FRAME_STYLE,
   DEFAULT_BROWSER_POC_FPS,
-  DEFAULT_BROWSER_POC_DURATION_SECONDS,
   parseBrowserFrameRenderPlan
 } from "./browserFrameRendererPlan";
 
@@ -49,10 +48,8 @@ export async function buildBrowserFrameRenderPlanFromProject(
   const artifacts = await resolveProjectArtifacts(input.projectDir);
   const metadata = await probeVideo(artifacts.cleanVideoPath);
   const subtitleLoad = await loadProjectSubtitles(artifacts);
-  const duration = roundTime(Math.min(
-    metadata.duration,
-    input.maxDurationSeconds ?? DEFAULT_BROWSER_POC_DURATION_SECONDS
-  ));
+  const maxDurationSeconds = input.maxDurationSeconds ?? metadata.duration;
+  const duration = roundTime(Math.min(metadata.duration, maxDurationSeconds));
   const width = metadata.width ?? 1080;
   const height = metadata.height ?? 1920;
   const fps = Math.min(input.fps ?? DEFAULT_BROWSER_POC_FPS, DEFAULT_BROWSER_POC_FPS);
