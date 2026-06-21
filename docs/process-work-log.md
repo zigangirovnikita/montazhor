@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-22 — Latest upload showed residual UI playback lag, not cut-time drift
+
+- Problem: after the first playback-sync fix, the newest server draft `cmqo9niy40000w1jrnckl6n19` still felt slightly behind on active-word highlighting.
+- Decision: inspect the real latest project artifacts instead of guessing. Confirm that the project has only two short pause cuts (`10.879-11.44` and `18.204-18.932`) and that browser captions are still remapped into clean-time correctly. Then reduce transcript-side parent time throttling from `120ms` to `60ms`, and stop sending preview time to the parent editor at all outside the `Текст и чистка` tab where that state is actually consumed.
+- Result: the remaining confirmed source on this latest upload was editor-side playback propagation, not cumulative cut drift. The latest browser plan still contains some very short word windows from the STT side, but the unnecessary parent rerenders in subtitle-style mode are now removed entirely, and transcript-mode highlight latency is cut in half. Targeted tests and `pnpm typecheck` pass locally after the change.
+- Follow-up: if slight drift is still visible after this deploy specifically in subtitle-style preview, the next safe target is UI-only smoothing for very short word windows from the STT transcript rather than another remap/cut rewrite.
+
 ### 2026-06-21 — Playback sync lag fixed without changing caption time model
 
 - Problem: on long enough playback, both the blue active-token highlight in `Текст и чистка` and the active spoken word highlight in `Стили субтитров` started aligned for the first seconds and then visibly lagged behind the audio.

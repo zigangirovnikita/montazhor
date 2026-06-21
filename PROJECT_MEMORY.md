@@ -231,6 +231,18 @@ Files affected:
 Tradeoff:
 - Parent-level playback time is now intentionally throttled instead of frame-perfect, while the local preview stays frame-accurate. This reduces whole-editor rerenders during playback without changing the subtitle preview’s actual active-word timing.
 
+### 2026-06-22 - Latest server upload confirmed residual lag path more precisely
+Decision:
+- Keep the same clean-time remap model, but narrow parent playback propagation even further: only the transcript tab receives lifted preview time, and its throttle is reduced from `120ms` to `60ms`.
+Reason:
+- On the latest real server draft `cmqo9niy40000w1jrnckl6n19`, EDL drift was ruled out directly from artifacts: only two short cuts exist and caption timings already line up with clean-time. The remaining residual lag path was frontend state propagation. Subtitle-style preview did not need parent `previewTime` at all, so those rerenders were pure overhead.
+Files affected:
+- `app/components/ProjectEditor.tsx`
+- `app/components/previewPlaybackSync.ts`
+- `docs/process-work-log.md`
+Tradeoff:
+- Transcript mode still uses a throttled parent time channel by design, but with lower latency. If style preview still feels off after this, the next likely target is UI-only smoothing for STT words with `~80-100ms` windows rather than any EDL/cut-time change.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`

@@ -1,6 +1,6 @@
 "use client";
 
-export const PREVIEW_TIME_PARENT_UPDATE_MS = 120;
+export const PREVIEW_TIME_PARENT_UPDATE_MS = 60;
 
 export function createPreviewTimeReporter(
   setInternalCurrentTime: (value: number) => void,

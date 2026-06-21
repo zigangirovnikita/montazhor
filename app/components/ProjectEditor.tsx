@@ -160,7 +160,7 @@ export function ProjectEditor({
           styleOptions={styleState.styleOptions}
           showSubtitles={showPreviewSubtitles}
           currentTime={previewTime}
-          onTimeChange={setPreviewTime}
+          onTimeChange={activeTab === "transcript" ? setPreviewTime : undefined}
           onPlayingChange={setPreviewPlaying}
           seekRequest={seekRequest}
         />
