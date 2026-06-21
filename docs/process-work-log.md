@@ -11,6 +11,40 @@ How to use:
 
 ## Entries
 
+### 2026-06-21 — Desktop style studio deployed and server synced to GitHub
+
+- Problem: subtitle-style work and the new desktop editor shell had accumulated locally, but the runtime needed a clean deploy path and an explicit verification that the server code really matched GitHub instead of a stale dirty worktree.
+- Decision: ship the desktop shell, project dashboard, persistent editor preview, style studio preset catalog, local style-state normalization, debounced style saving, and safer preview asset URL handling as one code deploy. Before pulling on the server, preserve the old dirty worktree in `git stash` instead of overwriting it.
+- Result: commit `bfd35d2` was pushed to `origin/stabilize/browser-renderer-mvp`, `/opt/montazhor` was updated with `git pull --ff-only`, `pnpm build` and `scripts/prepare_standalone_release.sh` completed, and `montazhor.service` restarted successfully. Server verification confirmed `HEAD`, `origin/stabilize/browser-renderer-mvp`, and hashes of key files such as `ProjectCockpit.tsx`, `ProjectEditor.tsx`, `SubtitleStyleStudio.tsx`, `styleState.ts`, `subtitleStylePresets.ts`, `AppShell.tsx`, `DashboardHome.tsx`, `app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, and `globals.css` all match the local GitHub state exactly.
+- Follow-up: the pre-deploy server-local uncommitted state is preserved in `stash@{0}` as `pre-deploy-2026-06-21-style-studio`; inspect or drop it later after confirming it is no longer needed.
+
+### 2026-06-21 — Draft review UX synced with real preview and safer export flow
+
+- Problem: the review workspace had several broken interactions at once. The old checklist block on cleanup mode and the removed-count block on processing were unnecessary noise; the transcript review and right-side preview were not synced; autoplay moved the text, but manual paused review also got force-scrolled back; the active transcript block became bold instead of showing karaoke-style word focus; `До / После` did not reliably switch the real video source; subtitles were still shown on `Текст и чистка`; and export actions were visible before the user reached `Постинг`.
+- Decision: make the right preview panel the single playback source of truth and feed its `currentTime / playing / seek` state into transcript review. Remove the local duplicate player from `DraftReviewTicker`, keep text autoscroll only while playback is running, highlight the active word with a translucent blue background instead of bolding the whole segment, rebuild the rail with waveform-like bars and `kept / removed / candidate` colors, rename the compare buttons to `Исходник / После обрезки`, hide subtitles on `Текст и чистка`, and show export controls only on `Постинг`. Also remove the two obsolete helper blocks from the cleanup and processing screens.
+- Result: the Hermes project page now shows the new review rail, paused manual scrubbing no longer snaps the transcript back to the old playback position, playback advances both the active word and the transcript scroll, compare mode switches the actual `<video>` source between `/original` and `/clean`, transcript tab preview is subtitle-free, and export buttons appear only on `Постинг`. The queued `Применить изменения` path and `Вернуть всё` path were both exercised on the live project page after deploy and returned the review screen to a clean state. Changes were committed as `f75b85c`, pushed to `stabilize/browser-renderer-mvp`, copied to `/opt/montazhor`, rebuilt on the server, and `montazhor.service` restarted successfully.
+- Follow-up: mobile-specific QA for the same transcript/timeline interactions is still worth a separate pass.
+
+### 2026-06-21 — Upload loading state restored on Hermes
+
+- Problem: the desktop upload flow only changed the submit button text to `Загружаю...`, while the expected mascot/spinner loading state was not visible on `https://hermes.marketologii.ru/`.
+- Decision: render the loading state inside the existing dashed upload dropzone and hide the submit button while upload is in progress. Keep startup recovery separate from job queue imports so the browser bundle does not pull server-only renderer dependencies.
+- Result: server typecheck/build passed, standalone release was prepared, `montazhor.service` restarted, and Hermes now serves the new CSS/JS. A browser upload-state check confirmed `.desktop-upload-loading.desktop-upload-dropzone` is shown and no submit button remains during upload. Standalone ownership was corrected back to `montazhor:montazhor` after a root-prepared release caused a transient permission-denied restart loop.
+
+### 2026-06-21 — Desktop-first Russian app shell deployed
+
+- Problem: the working MVP flow existed, but the UI looked like a mobile screen centered on a desktop monitor and exposed too little structure for the product flow.
+- Decision: add a desktop SaaS shell in the existing Montazhor palette, with a collapsible sidebar, Russian dashboard, upload zone, recent projects, and a project editor where the right-side live video preview stays visible while the left panel switches between `Текст и чистка`, `Стили субтитров`, `Эффекты`, and `Постинг`.
+- Result: `https://hermes.marketologii.ru/` now serves the Russian desktop dashboard; style switching uses a lightweight `PATCH` and does not trigger heavy render/finalize. Server build and restart were verified.
+- Follow-up: polish mobile layout, implement real effects/media inserts, add AI post metadata generation, and continue improving transcript/timeline ergonomics.
+
+### 2026-06-21 — Browser captions PPM payload truncation fixed
+
+- Problem: a user run failed with `PPM frame payload is truncated` during browser captions active-box detection.
+- Decision: fix `parsePpm` so it skips only the single separator after the PPM header max value, not all whitespace-like bytes at the beginning of binary pixel data. Add a regression test with first pixel bytes `10, 32, 13`.
+- Result: local and server targeted tests pass, typecheck/build pass, and `montazhor.service` was restarted. The public dashboard remains available at `https://hermes.marketologii.ru/`.
+- Follow-up: rerun the exact project that failed to confirm the full render path completes.
+
 ### 2026-06-16 — Scene planner shifted from copy compression to semantic slot planning
 
 - Problem: the cinematic scene path still decided visuals mainly as `block -> recipe -> compressed text`, so it thought in terms of montage variety instead of sentence meaning like `number + headline`, `wrong phrase -> fix`, `hotkey chip`, and timed support visuals.

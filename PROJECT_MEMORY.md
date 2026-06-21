@@ -3,6 +3,10 @@
 ## Current stable state
 - What currently works:
   - Main product shape is stable: upload -> analyze draft -> review -> render/finalize.
+  - Main UI is now desktop-first on `https://hermes.marketologii.ru/`: Russian dashboard, persistent collapsible sidebar, upload zone, recent projects, and project editor tabs with a persistent right-side live preview.
+  - The subtitle-style path now includes a dedicated preset studio with 8 preset cards, separate base/accent text controls, insert toggles, and local browser preview updates without immediate heavy rerender.
+  - Project editor now keeps `LiveCaptionPreview` visible across text cleanup, subtitle style selection, effects placeholder, and posting placeholder tabs.
+  - Server deploy on `/opt/montazhor` is currently aligned with GitHub branch `stabilize/browser-renderer-mvp` at commit `bfd35d2`; key app file hashes were checked after deploy and matched local exactly.
   - Next.js app, Prisma schema, and in-memory job orchestration are wired together.
   - Production runtime is expected to be on the remote server under `/opt/montazhor`; verify current deployment state before making production assumptions.
   - Local Mac checks are preliminary only; server-side checks under `/opt/montazhor` or an isolated server copy are authoritative for typecheck, tests, rendering, provider wiring, and production-like validation.
@@ -10,6 +14,7 @@
   - Voice activity still relies on pyannote/Silero fallback logic.
   - Build, typecheck, and lint status must be re-verified in the current session before claiming the project is clean.
   - Scene pipeline currently renders compiled semantic blocks without obvious coverage gaps in the latest audit sample.
+  - Browser captions active-box PPM parsing is fixed so binary frame pixels that look like whitespace no longer trigger false `PPM frame payload is truncated` failures.
 - What is currently broken:
   - Server logs showed recurring `Failed to find Server Action "x"` errors on the remote runtime and should be treated as an active deployment/runtime issue until re-verified.
   - Remote audit reported `ProjectAuditEvent` schema/runtime mismatch or missing table state; verify actual deployed DB migration state before relying on audit events in production.
@@ -164,6 +169,53 @@ Files affected:
 Tradeoff:
 - This is still a minimal block-local policy. It improves overlay duration and timing diagnostics without rewriting semantic blocks, block planning, payload extraction, or template behavior. Full-scene timing heuristics remain unchanged.
 
+### 2026-06-21 - Desktop-first Russian frontend shell
+Decision:
+- Replace the old mobile-centered entry/project UI with a desktop SaaS shell while keeping the working MVP pipeline intact.
+Reason:
+- The app looked like a narrow mobile screen on desktop and hid the actual product flow behind sparse screens.
+Files affected:
+- `app/page.tsx`
+- `app/project/[id]/page.tsx`
+- `app/components/AppShell.tsx`
+- `app/components/DashboardHome.tsx`
+- `app/components/ProjectEditor.tsx`
+- `app/components/ProjectCockpit.tsx`
+- `app/components/DraftReview.tsx`
+- `app/components/DraftReviewTicker.tsx`
+- `app/components/StyleStudio.tsx`
+- `app/api/projects/route.ts`
+- `app/globals.css`
+Tradeoff:
+- Some sidebar sections and the effects/posting tabs are explicit placeholders. Style switching is intentionally lightweight and does not trigger heavy rendering.
+
+### 2026-06-21 - Subtitle style studio is browser-local first, export second
+Decision:
+- Keep subtitle style changes local in the browser preview first, then persist them with debounced `PATCH` saves and flush before export-related actions.
+Reason:
+- The style tab must feel immediate. Rebinding the video source or tying every click to a heavy render makes the workflow stutter and reintroduces preview restarts.
+Files affected:
+- `app/components/ProjectCockpit.tsx`
+- `app/components/ProjectEditor.tsx`
+- `app/components/SubtitleStyleStudio.tsx`
+- `app/components/styleState.ts`
+- `app/components/subtitleStylePresets.ts`
+- `app/components/LiveCaptionPreview.tsx`
+- `app/api/projects/[id]/route.ts`
+Tradeoff:
+- There is now a short debounce window before style changes are persisted to the DB, so export paths must flush pending style saves explicitly before starting any build/output action.
+
+### 2026-06-21 - PPM parser must not skip binary pixel whitespace
+Decision:
+- In `parsePpm`, skip only the single header separator after `maxValue`, not all following whitespace bytes.
+Reason:
+- PPM `P6` pixel data is binary. Bytes such as `9`, `10`, `13`, or `32` can be real pixel values. Treating them as extra header whitespace corrupts the payload offset and causes false `PPM frame payload is truncated` errors.
+Files affected:
+- `server/render/browserFrameActiveBox.ts`
+- `server/render/browserFrameActiveBox.test.ts`
+Tradeoff:
+- `parsePpm` is exported only for targeted regression coverage.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`
@@ -210,6 +262,32 @@ Tradeoff:
 - After a failed fix attempt, record the failure under `Failed attempts - do not repeat`.
 
 ## Recent fixes
+### 2026-06-21 - Browser captions PPM frame truncation fixed
+Status: done
+What changed:
+- `parsePpm` now preserves binary pixel data correctly when the first pixel bytes look like whitespace.
+- Added a regression test for a binary PPM whose first pixel starts with whitespace-like byte values.
+Validation:
+- Local: `pnpm exec vitest run server/render/browserFrameActiveBox.test.ts`, `pnpm typecheck`, `pnpm lint`, `pnpm build`.
+- Server `/opt/montazhor`: targeted Vitest, `pnpm typecheck`, `pnpm build`.
+- `montazhor.service` restarted and `https://hermes.marketologii.ru/` verified.
+What remains:
+- Re-run the user project that hit the error to confirm the full browser captions render now completes end to end.
+
+### 2026-06-21 - Desktop frontend redesign deployed
+Status: done
+What changed:
+- Added Russian desktop dashboard with upload, quick actions, recent projects, and collapsible sidebar.
+- Added project editor shell with four tabs and persistent right-side `LiveCaptionPreview`.
+- Added six frontend subtitle style presets; selection updates preview immediately and saves via lightweight `PATCH` without calling `/render` or `/finalize`.
+- Hid the obsolete template-builder path from the main user flow.
+Validation:
+- Local: `pnpm typecheck`, `pnpm lint`, `pnpm build`, headless Chrome screenshots.
+- Server `/opt/montazhor`: `pnpm typecheck`, `pnpm build`, service restart.
+- Public URL `https://hermes.marketologii.ru/` verified with the Russian dashboard.
+What remains:
+- Mobile polish, real effects implementation, AI post metadata generation, and deeper transcript/timeline UI polish.
+
 ### 2026-06-18 - Visual layer minimal P0 PR
 Status: done
 What changed:
