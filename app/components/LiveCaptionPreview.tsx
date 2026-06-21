@@ -32,7 +32,7 @@ export function LiveCaptionPreview({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [internalCurrentTime, setInternalCurrentTime] = useState(0);
-  const resolvedCurrentTime = currentTime ?? internalCurrentTime;
+  const resolvedCurrentTime = internalCurrentTime || currentTime || 0;
   const activeCaption = useMemo(
     () => plan ? resolveCaptionAtTime(plan, resolvedCurrentTime) : null,
     [plan, resolvedCurrentTime]

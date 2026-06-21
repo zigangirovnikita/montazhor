@@ -58,6 +58,7 @@ export function ProjectEditor({
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [seekRequest, setSeekRequest] = useState<{ id: number; time: number } | null>(null);
   const previousCompareModeRef = useRef(compareMode);
+  const previousAutoSeekRef = useRef<{ videoUrl: string; subtitlesVisible: boolean; firstCaptionStart: number } | null>(null);
   const seekRequestIdRef = useRef(0);
   const activeVideoUrl = compareMode === "before"
     ? payload.originalUrl
@@ -83,8 +84,14 @@ export function ProjectEditor({
   }, [compareMode, keptRanges, previewTime]);
 
   useEffect(() => {
-    const nextTime = showPreviewSubtitles ? firstCaptionStart : 0;
-    queueSeek(nextTime);
+    const previous = previousAutoSeekRef.current;
+    const videoChanged = previous?.videoUrl !== activeVideoUrl;
+    const subtitlesJustBecameVisible = showPreviewSubtitles && previous?.subtitlesVisible !== true;
+    const firstCaptionJustBecameAvailable = showPreviewSubtitles && (previous?.firstCaptionStart ?? 0) <= 0 && firstCaptionStart > 0;
+    previousAutoSeekRef.current = { videoUrl: activeVideoUrl, subtitlesVisible: showPreviewSubtitles, firstCaptionStart };
+
+    if (!videoChanged && !subtitlesJustBecameVisible && !firstCaptionJustBecameAvailable) return;
+    queueSeek(showPreviewSubtitles ? firstCaptionStart : 0);
   }, [activeVideoUrl, firstCaptionStart, showPreviewSubtitles]);
 
   return (
