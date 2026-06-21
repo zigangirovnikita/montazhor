@@ -11,7 +11,7 @@ export async function register() {
   recoveryStarted = true;
 
   try {
-    const { resetStuckProjects } = await import("@/lib/jobs");
+    const { resetStuckProjects } = await import("@/lib/startupRecovery");
     const resetCount = await resetStuckProjects(0);
     if (resetCount > 0) {
       console.warn(`[startup-recovery] Reset ${resetCount} stuck project(s) to error.`);

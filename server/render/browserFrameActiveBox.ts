@@ -225,7 +225,7 @@ async function extractFrameToPpm(input: {
   ]);
 }
 
-function parsePpm(buffer: Buffer) {
+export function parsePpm(buffer: Buffer) {
   let offset = 0;
   const readToken = () => {
     while (offset < buffer.length && isWhitespace(buffer[offset])) offset += 1;
@@ -248,7 +248,7 @@ function parsePpm(buffer: Buffer) {
     throw new Error("Invalid PPM header.");
   }
 
-  while (offset < buffer.length && isWhitespace(buffer[offset])) offset += 1;
+  if (offset < buffer.length && isWhitespace(buffer[offset])) offset += 1;
   const data = buffer.subarray(offset);
   if (data.length < width * height * 3) {
     throw new Error("PPM frame payload is truncated.");

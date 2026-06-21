@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getProjectJobLabel, isProjectJobActive } from "@/lib/jobs";
@@ -44,7 +45,6 @@ export async function GET(_request: Request, context: RouteContext) {
   const livePreviewPlan = await readFile(paths.browserRenderPlanLive, "utf8")
     .then((raw) => parseBrowserFrameRenderPlan(JSON.parse(raw)))
     .catch(() => null);
-  const revision = project.updatedAt.getTime();
   const activeJobLabel = getProjectJobLabel(id);
   const subtitledVideoActive = isProjectJobActive(id) && activeJobLabel === "Subtitled video render";
 
@@ -52,11 +52,11 @@ export async function GET(_request: Request, context: RouteContext) {
     project,
     draft,
     livePreviewPlan,
-    downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download?v=${revision}` : null,
-    reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review?v=${revision}` : null,
-    cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean?v=${revision}` : null,
-    originalUrl: `/api/projects/${id}/original?v=${revision}`,
-    subtitledVideoUrl: subtitledVideoReady ? `/api/projects/${id}/download-subtitled?v=${revision}` : null,
+    downloadUrl: await buildOptionalAssetUrl(`/api/projects/${id}/download`, project.finalVideoPath),
+    reviewUrl: await buildOptionalAssetUrl(`/api/projects/${id}/review`, project.reviewVideoPath),
+    cleanPreviewUrl: cleanPreviewReady ? await buildAssetUrl(`/api/projects/${id}/clean`, paths.cleanVideo) : null,
+    originalUrl: await buildAssetUrl(`/api/projects/${id}/original`, project.originalPath),
+    subtitledVideoUrl: subtitledVideoReady ? await buildAssetUrl(`/api/projects/${id}/download-subtitled`, paths.subtitledVideo) : null,
     subtitledVideoActive
   });
 }
@@ -130,4 +130,22 @@ export async function PATCH(request: Request, context: RouteContext) {
   });
 
   return NextResponse.json({ ok: true });
+}
+
+async function buildAssetUrl(basePath: string, filePath: string) {
+  const revision = await stat(path.resolve(filePath))
+    .then((fileStat) => Math.floor(fileStat.mtimeMs))
+    .catch(() => null);
+
+  return revision ? `${basePath}?v=${revision}` : basePath;
+}
+
+async function buildOptionalAssetUrl(basePath: string, filePath?: string | null) {
+  if (!filePath) return null;
+
+  const revision = await stat(path.resolve(filePath))
+    .then((fileStat) => Math.floor(fileStat.mtimeMs))
+    .catch(() => null);
+
+  return revision ? `${basePath}?v=${revision}` : null;
 }

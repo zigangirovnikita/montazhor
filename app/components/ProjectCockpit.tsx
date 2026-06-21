@@ -1,34 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { DraftReview, PrecisionTune } from "@/app/components/DraftReview";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PrecisionTune } from "@/app/components/DraftReview";
+import { AppSection, AppShell } from "@/app/components/AppShell";
+import { EditorTab, ProjectEditor } from "@/app/components/ProjectEditor";
 import {
   CleanupModeScreen,
   DoneScreen,
-  ExportScreen,
-  FinalPreview,
   LoadingScreen,
   ProcessingScreen,
-  ProjectShell
 } from "@/app/components/ProjectScreens";
-import { parseStyleOptions, resolvePresentationMode, resolveStylePreset } from "@/app/components/StyleStudio";
-import { TemplatePicker } from "@/app/components/TemplatePicker";
+import { parseStyleOptions, resolvePresentationMode, resolveStylePreset } from "@/app/components/styleState";
 import type { DraftEditRequest, ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
 import type { CleanupMode } from "@/lib/types";
-import { templateToVisualPlanOptions, type StoredTemplate } from "@/lib/templateBuilder";
 
-type LocalView = "main" | "text" | "precision" | "templates" | "export";
+type LocalView = EditorTab | "precision";
+type InitialView = LocalView | "main";
 type CompareMode = "after" | "before";
 
-export function ProjectCockpit({ projectId, initialView = "main" }: { projectId: string; initialView?: LocalView }) {
+export function ProjectCockpit({ projectId, initialView = "main" }: { projectId: string; initialView?: InitialView }) {
   const [payload, setPayload] = useState<ProjectPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
-  const [view, setView] = useState<LocalView>(initialView);
+  const [styleSaving, setStyleSaving] = useState(false);
+  const [view, setView] = useState<LocalView>(initialView === "main" ? "transcript" : initialView);
   const [compareMode, setCompareMode] = useState<CompareMode>("after");
   const [error, setError] = useState("");
   const [styleState, setStyleState] = useState<StyleState | null>(null);
+  const [styleDirtyAfterExport, setStyleDirtyAfterExport] = useState(false);
+  const styleSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStyleStateRef = useRef<StyleState | null>(null);
+  const styleSaveRequestRef = useRef<Promise<void> | null>(null);
 
   const status = payload?.project.status ?? "";
   const isProcessing = payload ? !["uploaded", "draft_ready", "review_ready", "done", "error"].includes(status) : false;
@@ -50,6 +54,10 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
       clearInterval(timer);
     };
   }, [projectId]);
+
+  useEffect(() => () => {
+    if (styleSaveTimeoutRef.current) clearTimeout(styleSaveTimeoutRef.current);
+  }, []);
 
   async function refresh() {
     const next = await fetchProject(projectId);
@@ -87,25 +95,12 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     }
   }
 
-  async function renderPreview(template: StoredTemplate) {
-    if (busy || isProcessing) return;
-    setBusy(true);
-    setError("");
-    const nextStyleState = styleStateForTemplate(template);
+  async function saveStyleState(nextStyleState: StyleState) {
+    if (isProcessing) return;
     setStyleState(nextStyleState);
-    try {
-      await apiPatch(projectId, {
-        presentationMode: nextStyleState.presentationMode,
-        stylePreset: nextStyleState.stylePreset,
-        styleOptionsJson: nextStyleState.styleOptions
-      });
-      await apiPost(`/api/projects/${projectId}/render`);
-      setView("main");
-      await refresh();
-    } catch (requestError) {
-      setBusy(false);
-      setError(messageFromError(requestError));
-    }
+    if (payload?.downloadUrl) setStyleDirtyAfterExport(true);
+    setError("");
+    scheduleStyleSave(nextStyleState);
   }
 
   async function finalizeExport() {
@@ -113,8 +108,10 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     setBusy(true);
     setError("");
     try {
+      await flushPendingStyleSave();
       await apiPost(`/api/projects/${projectId}/finalize`);
-      setView("main");
+      setStyleDirtyAfterExport(false);
+      setView("transcript");
       await refresh();
     } catch (requestError) {
       setBusy(false);
@@ -127,6 +124,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
     setBusy(true);
     setError("");
     try {
+      await flushPendingStyleSave();
       await apiPost(`/api/projects/${projectId}/render-subtitled`);
       await refresh();
     } catch (requestError) {
@@ -137,173 +135,143 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
   }
 
   if (!payload || !styleState) {
-    return <ProjectShell><LoadingScreen title="Открываю проект" text="Подгружаю видео, текст и статус обработки." /></ProjectShell>;
+    return <ProjectAppShell activeSection="projects"><LoadingScreen title="Открываю проект" text="Подгружаю видео, текст и статус обработки." /></ProjectAppShell>;
   }
 
   if (status === "error") {
     return (
-      <ProjectShell>
+      <ProjectAppShell activeSection="projects">
         <div className="center-flow">
           <h1>Что-то пошло не так</h1>
           <p>{payload.project.errorMessage ?? "Ошибка обработки. Подробности доступны в логах проекта."}</p>
           <Link className="cta-button" href="/">Начать заново</Link>
         </div>
-      </ProjectShell>
+      </ProjectAppShell>
     );
   }
 
   if (status === "uploaded") {
     return (
-      <ProjectShell>
+      <ProjectAppShell activeSection="projects">
         <CleanupModeScreen busy={busy} error={error} onStart={startAnalyze} />
-      </ProjectShell>
+      </ProjectAppShell>
     );
   }
 
   if (isProcessing) {
     return (
-      <ProjectShell>
+      <ProjectAppShell activeSection="projects">
         <ProcessingScreen payload={payload} status={status} />
-      </ProjectShell>
+      </ProjectAppShell>
     );
   }
 
-  if (status === "draft_ready") {
+  if (status === "draft_ready" || status === "review_ready") {
     if (view === "precision") {
       return (
-        <ProjectShell>
-          <PrecisionTune payload={payload} editBusy={editBusy} onBack={() => setView("main")} onDraftEdit={applyDraftEdit} />
+        <ProjectAppShell activeSection="timeline" onNavigate={handleShellNavigate}>
+          <PrecisionTune payload={payload} editBusy={editBusy} onBack={() => setView("transcript")} onDraftEdit={applyDraftEdit} />
           {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
-      );
-    }
-
-    if (view === "templates") {
-      return (
-        <ProjectShell>
-          <TemplatePicker
-            projectId={projectId}
-            selectedTemplateId={styleState.styleOptions.visualTemplateId}
-            pending={busy}
-            onSelectTemplate={renderPreview}
-          />
-          {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
+        </ProjectAppShell>
       );
     }
 
     return (
-      <ProjectShell>
-        <DraftReview
+      <ProjectAppShell activeSection={sectionForView(view)} onNavigate={handleShellNavigate}>
+        <ProjectEditor
           payload={payload}
+          activeTab={view}
           compareMode={compareMode}
+          busy={busy}
           editBusy={editBusy}
+          styleSaving={styleSaving}
+          styleDirtyAfterExport={styleDirtyAfterExport}
+          error={error}
+          styleState={styleState}
+          onTabChange={setView}
           onCompareModeChange={setCompareMode}
           onDraftEdit={applyDraftEdit}
           onOpenPrecision={() => setView("precision")}
-          onContinue={() => setView("templates")}
-        />
-        <button className="mode-button secondary-action" type="button" disabled={busy || payload.subtitledVideoActive} onClick={renderSubtitledVideo}>
-          {payload.subtitledVideoActive ? "Собираю видео с субтитрами..." : "Скачать видео с субтитрами"}
-        </button>
-        {payload.subtitledVideoUrl ? <a className="mode-button secondary-action" href={payload.subtitledVideoUrl}>Скачать готовый MP4 с субтитрами</a> : null}
-        {error ? <p className="error floating-error">{error}</p> : null}
-      </ProjectShell>
-    );
-  }
-
-  if (status === "review_ready") {
-    if (view === "text") {
-      return (
-        <ProjectShell>
-          <DraftReview
-            payload={payload}
-            compareMode={compareMode}
-            editBusy={editBusy}
-            onCompareModeChange={setCompareMode}
-            onDraftEdit={applyDraftEdit}
-            onOpenPrecision={() => setView("precision")}
-            onContinue={() => setView("templates")}
-          />
-          {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
-      );
-    }
-
-    if (view === "precision") {
-      return (
-        <ProjectShell>
-          <PrecisionTune payload={payload} editBusy={editBusy} onBack={() => setView("main")} onDraftEdit={applyDraftEdit} />
-          {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
-      );
-    }
-
-    if (view === "templates") {
-      return (
-        <ProjectShell>
-          <TemplatePicker
-            projectId={projectId}
-            selectedTemplateId={styleState.styleOptions.visualTemplateId}
-            pending={busy}
-            onSelectTemplate={renderPreview}
-          />
-          {error ? <p className="error floating-error">{error}</p> : null}
-        </ProjectShell>
-      );
-    }
-
-    if (view === "export") {
-      return <ProjectShell><ExportScreen busy={busy} onBack={() => setView("main")} onExport={finalizeExport} /></ProjectShell>;
-    }
-
-    return (
-      <ProjectShell>
-        <FinalPreview
-          payload={payload}
-          styleState={styleState}
-          busy={busy}
-          onApprove={() => setView("export")}
-          onStyle={() => setView("templates")}
-          onText={() => setView("text")}
+          onStyleChange={saveStyleState}
+          onExport={finalizeExport}
           onSubtitledRender={renderSubtitledVideo}
         />
-      </ProjectShell>
+      </ProjectAppShell>
     );
   }
 
   return (
-    <ProjectShell>
+    <ProjectAppShell activeSection="projects">
       <DoneScreen payload={payload} />
-    </ProjectShell>
+    </ProjectAppShell>
   );
-}
 
-function styleStateForTemplate(template: StoredTemplate): StyleState {
-  const templateOptions = templateToVisualPlanOptions(template.data);
-  return {
-    presentationMode: "subtitles_only",
-    stylePreset: stylePresetForTemplate(templateOptions.presetPack),
-    styleOptions: {
-      subtitleFont: "manrope",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "glass",
-      infographicTone: "glass",
-      infographicAccent: "mint",
-      visualDensity: templateOptions.visualDensity ?? "medium",
-      motionIntensity: templateOptions.motionIntensity ?? "medium",
-      presetPack: templateOptions.presetPack ?? "balanced",
-      disabledTemplates: templateOptions.disabledTemplates ?? [],
-      visualTemplateId: template.id,
-      visualTemplate: template.data
+  function handleShellNavigate(section: AppSection) {
+    if (section === "home" || section === "projects") return;
+    if (section === "style") setView("style");
+    if (section === "transcript") setView("transcript");
+    if (section === "timeline") setView("transcript");
+  }
+
+  function scheduleStyleSave(nextStyleState: StyleState) {
+    pendingStyleStateRef.current = nextStyleState;
+    setStyleSaving(true);
+    if (styleSaveTimeoutRef.current) clearTimeout(styleSaveTimeoutRef.current);
+    styleSaveTimeoutRef.current = setTimeout(() => {
+      styleSaveTimeoutRef.current = null;
+      styleSaveRequestRef.current = persistPendingStyleSave();
+    }, 350);
+  }
+
+  async function flushPendingStyleSave() {
+    if (styleSaveTimeoutRef.current) {
+      clearTimeout(styleSaveTimeoutRef.current);
+      styleSaveTimeoutRef.current = null;
+      styleSaveRequestRef.current = persistPendingStyleSave();
     }
-  };
-}
 
-function stylePresetForTemplate(presetPack: string | undefined) {
-  if (presetPack === "viral") return "dynamic_viral";
-  if (presetPack === "premium") return "premium_calm";
-  return "clean_expert";
+    await styleSaveRequestRef.current;
+  }
+
+  async function persistPendingStyleSave() {
+    const pendingStyleState = pendingStyleStateRef.current;
+    if (!pendingStyleState) {
+      setStyleSaving(false);
+      return;
+    }
+
+    try {
+      await apiPatch(projectId, {
+        presentationMode: pendingStyleState.presentationMode,
+        stylePreset: pendingStyleState.stylePreset,
+        styleOptionsJson: pendingStyleState.styleOptions
+      });
+
+      setPayload((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          project: {
+            ...current.project,
+            presentationMode: pendingStyleState.presentationMode,
+            stylePreset: pendingStyleState.stylePreset,
+            styleOptionsJson: JSON.stringify(pendingStyleState.styleOptions)
+          }
+        };
+      });
+    } catch (requestError) {
+      setError(messageFromError(requestError));
+    } finally {
+      if (pendingStyleStateRef.current === pendingStyleState) {
+        pendingStyleStateRef.current = null;
+        setStyleSaving(false);
+      } else {
+        const nextPendingStyleState = pendingStyleStateRef.current;
+        if (nextPendingStyleState) scheduleStyleSave(nextPendingStyleState);
+      }
+      styleSaveRequestRef.current = null;
+    }
+  }
 }
 
 function styleStateFromPayload(payload: ProjectPayload): StyleState {
@@ -318,6 +286,35 @@ async function fetchProject(projectId: string) {
   const response = await fetch(`/api/projects/${projectId}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Не получилось открыть проект.");
   return (await response.json()) as ProjectPayload;
+}
+
+function ProjectAppShell({
+  activeSection,
+  children,
+  onNavigate
+}: {
+  activeSection: AppSection;
+  children: ReactNode;
+  onNavigate?: (section: AppSection) => void;
+}) {
+  return (
+    <AppShell
+      activeSection={activeSection}
+      title="Редактор проекта"
+      subtitle="Чистка текста, стили субтитров, предпросмотр и экспорт в одном рабочем столе."
+      action={<Link className="topbar-primary" href="/">Новая загрузка</Link>}
+      onNavigate={onNavigate}
+    >
+      {children}
+    </AppShell>
+  );
+}
+
+function sectionForView(view: LocalView): AppSection {
+  if (view === "style") return "style";
+  if (view === "transcript") return "transcript";
+  if (view === "precision") return "timeline";
+  return "projects";
 }
 
 async function apiPatch(projectId: string, body: unknown) {

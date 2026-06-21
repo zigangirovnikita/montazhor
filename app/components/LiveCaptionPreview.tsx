@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
+import type { CaptionPosition, CaptionSize, StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import type { BrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
 
 export type PreviewSeekRequest = {
@@ -116,19 +116,21 @@ export function LiveCaptionPreview({
             top: `${(plan.diagnostics.captionSafeArea.y / plan.height) * 100}%`,
             width: `${(plan.diagnostics.captionSafeArea.width / plan.width) * 100}%`,
             height: `${(plan.diagnostics.captionSafeArea.height / plan.height) * 100}%`,
-            fontFamily: skin.fontFamily
+            fontFamily: skin.fontFamily,
+            alignItems: alignItemsForPosition(styleOptions.captionPosition),
+            zIndex: 2
           }}
         >
           <div
             className={`live-caption-box backdrop-${skin.backdrop}`}
             style={{
               color: skin.textColor,
-              fontSize: skin.fontSize,
+              fontSize: fontSizeForCaptionSize(styleOptions.captionSize, skin.fontSize),
               fontWeight: skin.fontWeight,
               textTransform: skin.textTransform
             }}
           >
-            {activeCaption ? renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions.subtitleStyle, skin.highlightMode) : null}
+            {activeCaption ? renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions, skin) : null}
           </div>
         </div>
       </div>
@@ -148,9 +150,10 @@ function syncCurrentTime(
 function renderCaptionLines(
   caption: BrowserFrameRenderPlan["captions"][number],
   currentTime: number,
-  subtitleStyle: StyleDraftOptions["subtitleStyle"],
-  highlightMode: "fill" | "text" | "marker"
+  styleOptions: StyleDraftOptions,
+  skin: ReturnType<typeof captionSkin>
 ) {
+  const subtitleStyle = styleOptions.subtitleStyle;
   const activeWordIndex = caption.words.findIndex((word) => currentTime >= word.start && currentTime <= word.end);
   let sequentialIndex = 0;
 
@@ -166,8 +169,9 @@ function renderCaptionLines(
             className={[
               "live-caption-word",
               active ? "is-active" : "",
-              emphasized ? `is-${highlightMode}` : ""
+              emphasized ? `is-${skin.highlightMode}` : ""
             ].filter(Boolean).join(" ")}
+            style={emphasized ? emphasizedWordStyle(skin) : undefined}
             key={`${caption.id}-${lineIndex}-${wordIndex}-${token}`}
           >
             {token}
@@ -180,7 +184,8 @@ function renderCaptionLines(
 }
 
 function resolveCaptionAtTime(plan: BrowserFrameRenderPlan, currentTime: number) {
-  return plan.captions.find((caption) => currentTime >= caption.start && currentTime <= caption.end) ?? null;
+  const tolerance = 0.08;
+  return plan.captions.find((caption) => currentTime >= caption.start - tolerance && currentTime <= caption.end + tolerance) ?? null;
 }
 
 function normalizeToken(value: string) {
@@ -189,30 +194,35 @@ function normalizeToken(value: string) {
 
 function captionSkin(stylePreset: string, styleOptions: StyleDraftOptions) {
   const fontFamily = fontFamilyFor(styleOptions.subtitleFont);
+  const accentFontFamily = fontFamilyFor(styleOptions.accentFont ?? styleOptions.subtitleFont);
   const backdrop = styleOptions.subtitleBackdrop;
 
-  if (stylePreset === "premium_calm") {
+  if (stylePreset === "premium_calm" || stylePreset === "course_glass") {
     return {
       variant: "premium",
       fontFamily,
+      accentFontFamily,
       backdrop,
       fontSize: "clamp(1.8rem, 3.8vw, 3.5rem)",
       fontWeight: 700,
-      textColor: "#fff7e7",
-      textTransform: "none" as const,
+      textColor: styleOptions.subtitleColor ?? "#fff7e7",
+      accentColor: styleOptions.accentColor ?? "#d7b47f",
+      textTransform: styleOptions.textCase === "upper" ? "uppercase" as const : "none" as const,
       highlightMode: "text" as const
     };
   }
 
-  if (stylePreset === "dynamic_viral") {
+  if (stylePreset === "dynamic_viral" || stylePreset === "viral_kinetic") {
     return {
       variant: "viral",
       fontFamily,
+      accentFontFamily,
       backdrop,
       fontSize: "clamp(2rem, 4.4vw, 4.2rem)",
       fontWeight: 900,
-      textColor: "#ffffff",
-      textTransform: "uppercase" as const,
+      textColor: styleOptions.subtitleColor ?? "#ffffff",
+      accentColor: styleOptions.accentColor ?? "#ffe24f",
+      textTransform: styleOptions.textCase === "sentence" ? "none" as const : "uppercase" as const,
       highlightMode: styleOptions.subtitleStyle === "marker" ? "marker" as const : "fill" as const
     };
   }
@@ -220,11 +230,13 @@ function captionSkin(stylePreset: string, styleOptions: StyleDraftOptions) {
   return {
     variant: "clean",
     fontFamily,
+    accentFontFamily,
     backdrop,
     fontSize: "clamp(1.9rem, 4vw, 3.8rem)",
     fontWeight: 800,
-    textColor: "#ffffff",
-    textTransform: "none" as const,
+    textColor: styleOptions.subtitleColor ?? "#ffffff",
+    accentColor: styleOptions.accentColor ?? "#8fd4ff",
+    textTransform: styleOptions.textCase === "upper" ? "uppercase" as const : "none" as const,
     highlightMode: styleOptions.subtitleStyle === "marker" ? "marker" as const : "text" as const
   };
 }
@@ -235,4 +247,22 @@ function fontFamilyFor(font: StyleDraftOptions["subtitleFont"]) {
   if (font === "montserrat") return '"Montserrat", system-ui, sans-serif';
   if (font === "golos") return '"Golos Text", system-ui, sans-serif';
   return '"Manrope", system-ui, sans-serif';
+}
+
+function emphasizedWordStyle(skin: ReturnType<typeof captionSkin>) {
+  return {
+    fontFamily: skin.accentFontFamily,
+    ["--accent-color" as string]: skin.accentColor
+  };
+}
+
+function alignItemsForPosition(position: CaptionPosition | undefined) {
+  if (position === "middle") return "center";
+  return "flex-end";
+}
+
+function fontSizeForCaptionSize(size: CaptionSize | undefined, fallback: string) {
+  if (size === "sm") return "clamp(1.55rem, 3vw, 2.8rem)";
+  if (size === "lg") return "clamp(2.2rem, 4.8vw, 4.4rem)";
+  return fallback;
 }

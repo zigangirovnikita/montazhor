@@ -1,5 +1,5 @@
-import { UploadCockpit } from "@/app/components/UploadCockpit";
+import { DashboardHome } from "@/app/components/DashboardHome";
 
 export default function Home() {
-  return <UploadCockpit />;
+  return <DashboardHome />;
 }

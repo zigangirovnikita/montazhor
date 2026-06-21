@@ -1,11 +1,15 @@
 "use client";
 
-import { normalizePresentationMode } from "@/lib/presentationMode";
 import type { MotionIntensity, PresentationMode, StylePreset, VisualDensity, VisualPresetPack, VisualTemplateId } from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import { StyleStudioCatalog } from "@/app/components/StyleStudioCatalog";
 import { StylePresetGallery } from "@/app/components/StylePresetGallery";
 import type { ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
+import {
+  parseStyleOptions as parseSharedStyleOptions,
+  resolvePresentationMode as resolveSharedPresentationMode,
+  resolveStylePreset as resolveSharedStylePreset
+} from "@/app/components/styleState";
 
 const presetCards: Array<{ id: StylePreset; title: string; note: string; sample: string; pack: VisualPresetPack; density: VisualDensity; motion: MotionIntensity }> = [
   { id: "clean_expert", title: "Экспертный", note: "Чистые фразы, учебные акценты.", sample: "Главная мысль", pack: "educational", density: "medium", motion: "medium" },
@@ -329,44 +333,13 @@ function ToggleRow({
 }
 
 export function parseStyleOptions(raw: string | null | undefined): StyleDraftOptions {
-  const fallback: StyleDraftOptions = {
-    subtitleFont: "manrope",
-    subtitleStyle: "active_word",
-    subtitleBackdrop: "glass",
-    infographicTone: "glass",
-    infographicAccent: "mint",
-    visualDensity: "medium",
-    motionIntensity: "medium",
-    presetPack: "educational",
-    disabledTemplates: []
-  };
-
-  if (!raw) return fallback;
-  try {
-    const parsed = JSON.parse(raw) as Partial<StyleDraftOptions>;
-    return {
-      subtitleFont: parsed.subtitleFont ?? fallback.subtitleFont,
-      subtitleStyle: parsed.subtitleStyle ?? fallback.subtitleStyle,
-      subtitleBackdrop: parsed.subtitleBackdrop ?? fallback.subtitleBackdrop,
-      infographicTone: parsed.infographicTone ?? fallback.infographicTone,
-      infographicAccent: parsed.infographicAccent ?? fallback.infographicAccent,
-      visualDensity: parsed.visualDensity ?? fallback.visualDensity,
-      motionIntensity: parsed.motionIntensity ?? fallback.motionIntensity,
-      presetPack: parsed.presetPack ?? fallback.presetPack,
-      disabledTemplates: parsed.disabledTemplates ?? fallback.disabledTemplates,
-      visualTemplateId: parsed.visualTemplateId,
-      visualTemplate: parsed.visualTemplate
-    };
-  } catch {
-    return fallback;
-  }
+  return parseSharedStyleOptions(raw);
 }
 
 export function resolvePresentationMode(value: string | null | undefined): PresentationMode {
-  return normalizePresentationMode(value);
+  return resolveSharedPresentationMode(value);
 }
 
 export function resolveStylePreset(value: string | null | undefined): StylePreset {
-  if (value === "dynamic_viral" || value === "premium_calm") return value;
-  return "clean_expert";
+  return resolveSharedStylePreset(value);
 }

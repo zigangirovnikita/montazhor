@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCaptionSafeArea,
-  detectActiveBoxFromRgbFrame
+  detectActiveBoxFromRgbFrame,
+  parsePpm
 } from "./browserFrameActiveBox";
 
 describe("browserFrameActiveBox", () => {
@@ -59,6 +60,20 @@ describe("browserFrameActiveBox", () => {
     expect(safeArea.x + safeArea.width).toBeLessThan(1501);
     expect(safeArea.height).toBeLessThan(1080);
     expect(safeArea.marginBottom).toBeGreaterThan(0);
+  });
+
+  it("parses binary PPM when first pixel bytes look like whitespace", () => {
+    const header = Buffer.from("P6\n2 1\n255\n", "ascii");
+    const pixels = Buffer.from([
+      10, 32, 13,
+      255, 128, 64
+    ]);
+
+    const frame = parsePpm(Buffer.concat([header, pixels]));
+
+    expect(frame.width).toBe(2);
+    expect(frame.height).toBe(1);
+    expect([...frame.data.subarray(0, 6)]).toEqual([...pixels]);
   });
 });
 

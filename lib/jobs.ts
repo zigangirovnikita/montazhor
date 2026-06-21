@@ -1,24 +1,9 @@
 import { logProject, updateProjectStatus } from "@/lib/logger";
 import { prisma } from "@/lib/db";
-import { processProjectAnalyze } from "@/server/pipeline/processProject";
-import { finalizeProjectExport, renderStyledPreview } from "@/server/pipeline/renderProject";
-import { renderBrowserCaptionsForProject } from "@/server/render/renderBrowserCaptionsProject";
+import { PROCESSING_STATUS_SET, PROCESSING_STATUSES } from "@/lib/projectProcessingStatuses";
 
 const activeJobs = new Map<string, Promise<void>>();
 const activeJobLabels = new Map<string, string>();
-
-/** Statuses that indicate work is already in progress */
-const PROCESSING_STATUSES = new Set([
-  "extracting_audio",
-  "transcribing",
-  "planning",
-  "rendering_clean_video",
-  "rendering_preview",
-  "rendering_final",
-  "rendering_subtitles",
-  "rendering_motion",
-  "composing_final",
-]);
 
 async function runLocked(projectId: string, label: string, work: () => Promise<void>) {
   if (activeJobs.has(projectId)) {
@@ -27,7 +12,7 @@ async function runLocked(projectId: string, label: string, work: () => Promise<v
 
   // Guard against stale in-memory state: check DB status too
   const project = await prisma.project.findUnique({ where: { id: projectId } });
-  if (project && PROCESSING_STATUSES.has(project.status)) {
+  if (project && PROCESSING_STATUS_SET.has(project.status)) {
     throw new Error(
       `Project ${projectId} is already being processed (status: ${project.status}). ` +
       `If this is stuck, update the project status to "error" or "uploaded" first.`
@@ -49,19 +34,31 @@ async function runLocked(projectId: string, label: string, work: () => Promise<v
 }
 
 export function enqueueAnalyze(projectId: string) {
-  return runLocked(projectId, "Analysis", () => processProjectAnalyze(projectId));
+  return runLocked(projectId, "Analysis", async () => {
+    const { processProjectAnalyze } = await import("@/server/pipeline/processProject");
+    await processProjectAnalyze(projectId);
+  });
 }
 
 export function enqueueRender(projectId: string) {
-  return runLocked(projectId, "Preview render", () => renderStyledPreview(projectId));
+  return runLocked(projectId, "Preview render", async () => {
+    const { renderStyledPreview } = await import("@/server/pipeline/renderProject");
+    await renderStyledPreview(projectId);
+  });
 }
 
 export function enqueueFinalize(projectId: string) {
-  return runLocked(projectId, "Final export", () => finalizeProjectExport(projectId));
+  return runLocked(projectId, "Final export", async () => {
+    const { finalizeProjectExport } = await import("@/server/pipeline/renderProject");
+    await finalizeProjectExport(projectId);
+  });
 }
 
 export function enqueueSubtitledVideoRender(projectId: string) {
-  return runLocked(projectId, "Subtitled video render", () => renderBrowserCaptionsForProject(projectId).then(() => undefined));
+  return runLocked(projectId, "Subtitled video render", async () => {
+    const { renderBrowserCaptionsForProject } = await import("@/server/render/renderBrowserCaptionsProject");
+    await renderBrowserCaptionsForProject(projectId);
+  });
 }
 
 export function isProjectJobActive(projectId: string) {

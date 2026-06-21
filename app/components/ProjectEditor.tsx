@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveCaptionPreview } from "@/app/components/LiveCaptionPreview";
 import { DraftReview } from "@/app/components/DraftReview";
+import { SubtitleStyleStudio } from "@/app/components/SubtitleStyleStudio";
 import type { DraftEditRequest, ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
-import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import { outputTimeToSourceTime, sourceTimeToOutputTime } from "@/app/components/draftReviewTimeline";
-import type { StylePreset } from "@/lib/types";
 
 export type EditorTab = "transcript" | "style" | "enrichments" | "publish";
 
@@ -36,29 +35,6 @@ const editorTabs: Array<{ id: EditorTab; label: string }> = [
   { id: "publish", label: "Постинг" }
 ];
 
-const subtitlePresets: Array<{
-  id: string;
-  title: string;
-  note: string;
-  sample: string;
-  stylePreset: StylePreset;
-  options: Partial<StyleDraftOptions>;
-}> = [
-  { id: "bold-yellow", title: "Желтый акцент", note: "Крупный активный акцент", sample: "ВАЖНАЯ МЫСЛЬ", stylePreset: "dynamic_viral", options: { subtitleFont: "manrope", subtitleStyle: "active_word", subtitleBackdrop: "solid", presetPack: "viral", motionIntensity: "active" } },
-  { id: "clean-white", title: "Чистый белый", note: "Белый текст без шума", sample: "Чистая фраза", stylePreset: "clean_expert", options: { subtitleFont: "onest", subtitleStyle: "clean", subtitleBackdrop: "none", presetPack: "minimal", motionIntensity: "calm" } },
-  { id: "premium-minimal", title: "Премиум минимум", note: "Спокойный экспертный вид", sample: "Главный вывод", stylePreset: "premium_calm", options: { subtitleFont: "golos", subtitleStyle: "active_word", subtitleBackdrop: "glass", presetPack: "premium", motionIntensity: "calm" } },
-  { id: "coral-pop", title: "Оранжевый маркер", note: "Маркерный акцент", sample: "новый ракурс", stylePreset: "clean_expert", options: { subtitleFont: "montserrat", subtitleStyle: "marker", subtitleBackdrop: "glass", infographicAccent: "orange", presetPack: "educational" } },
-  { id: "purple-glow", title: "Темное свечение", note: "Контраст для динамики", sample: "быстрый рост", stylePreset: "dynamic_viral", options: { subtitleFont: "unbounded", subtitleStyle: "active_word", subtitleBackdrop: "glass", presetPack: "viral", visualDensity: "high" } },
-  { id: "dark-neon", title: "Темный неон", note: "Контраст для коротких роликов", sample: "НЕ ПРОПУСТИ", stylePreset: "viral_kinetic", options: { subtitleFont: "manrope", subtitleStyle: "active_word", subtitleBackdrop: "solid", presetPack: "viral", motionIntensity: "active" } }
-];
-
-const templateCombos = [
-  ["Экспертная чистка", "clean-white", "Текст + спокойный акцент"],
-  ["Вирусный хук", "bold-yellow", "Крупный первый экран"],
-  ["Премиальный разговор", "premium-minimal", "Мягкое оформление"],
-  ["Неоновый ролик", "dark-neon", "Контрастный вид"]
-];
-
 export function ProjectEditor({
   payload,
   activeTab,
@@ -77,7 +53,7 @@ export function ProjectEditor({
   onExport,
   onSubtitledRender
 }: ProjectEditorProps) {
-  const keptRanges = payload.draft?.edl?.keptRanges ?? [];
+  const keptRanges = useMemo(() => payload.draft?.edl?.keptRanges ?? [], [payload.draft?.edl?.keptRanges]);
   const [previewTime, setPreviewTime] = useState(0);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [seekRequest, setSeekRequest] = useState<{ id: number; time: number } | null>(null);
@@ -87,10 +63,10 @@ export function ProjectEditor({
     ? payload.originalUrl
     : payload.cleanPreviewUrl ?? payload.reviewUrl ?? payload.originalUrl;
   const showPreviewSubtitles = activeTab !== "transcript" && compareMode === "after";
-  const queueSeek = useEffectEvent((time: number) => {
+  const queueSeek = (time: number) => {
     seekRequestIdRef.current += 1;
     setSeekRequest({ id: seekRequestIdRef.current, time });
-  });
+  };
 
   useEffect(() => {
     const previousMode = previousCompareModeRef.current;
@@ -103,11 +79,9 @@ export function ProjectEditor({
       ? sourceTime
       : sourceTimeToOutputTime(keptRanges, sourceTime);
     queueSeek(nextPlaybackTime);
-    setPreviewTime(nextPlaybackTime);
   }, [compareMode, keptRanges, previewTime]);
 
   useEffect(() => {
-    setPreviewTime(0);
     queueSeek(0);
   }, [activeVideoUrl]);
 
@@ -214,42 +188,7 @@ function StyleStudioPanel({
   styleSaving: boolean;
   onStyleChange: (next: StyleState) => void | Promise<void>;
 }) {
-  return (
-    <div className="style-studio-desktop">
-      <section className="template-combos">
-        <div className="section-row-title">
-          <h2>Комбинации / шаблоны</h2>
-          <span>{styleSaving ? "Сохраняю..." : "мгновенный предпросмотр"}</span>
-        </div>
-        <div className="template-combo-grid">
-          {templateCombos.map(([title, presetId, note]) => (
-            <button key={title} type="button" onClick={() => applyPreset(presetId, styleState, onStyleChange)}>
-              <strong>{title}</strong>
-              <span>{note}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="subtitle-preset-grid">
-        {subtitlePresets.map((preset) => {
-          const selected = isPresetSelected(preset, styleState);
-          return (
-            <button
-              className={`subtitle-style-card ${selected ? "active" : ""} preset-${preset.id}`}
-              key={preset.id}
-              type="button"
-              onClick={() => applyPreset(preset.id, styleState, onStyleChange)}
-            >
-              <span className="style-sample">{preset.sample}</span>
-              <strong>{preset.title}</strong>
-              <small>{preset.note}</small>
-            </button>
-          );
-        })}
-      </section>
-    </div>
-  );
+  return <SubtitleStyleStudio styleState={styleState} styleSaving={styleSaving} onStyleChange={onStyleChange} />;
 }
 
 function EnrichmentsPanel({ payload }: { payload: ProjectPayload }) {
@@ -283,27 +222,6 @@ function PublishPanel({ payload }: { payload: ProjectPayload }) {
       <button className="mode-button secondary-action" type="button" disabled>Сгенерировать позже</button>
     </div>
   );
-}
-
-function applyPreset(id: string, styleState: StyleState, onStyleChange: (next: StyleState) => void | Promise<void>) {
-  const preset = subtitlePresets.find((item) => item.id === id);
-  if (!preset) return;
-  void onStyleChange({
-    presentationMode: "subtitles_only",
-    stylePreset: preset.stylePreset,
-    styleOptions: {
-      ...styleState.styleOptions,
-      ...preset.options
-    }
-  });
-}
-
-function isPresetSelected(
-  preset: (typeof subtitlePresets)[number],
-  styleState: StyleState
-) {
-  return styleState.stylePreset === preset.stylePreset &&
-    Object.entries(preset.options).every(([key, value]) => styleState.styleOptions[key as keyof StyleDraftOptions] === value);
 }
 
 function formatTime(value: number) {

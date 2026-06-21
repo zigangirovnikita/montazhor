@@ -3,12 +3,30 @@
 import type { ReactNode } from "react";
 import type { MotionIntensity, PresentationMode, StylePreset, VisualDensity, VisualPresetPack, VisualTemplateId } from "@/lib/types";
 
+export type SubtitleFontId = "manrope" | "onest" | "unbounded" | "montserrat" | "golos";
+export type SubtitleTextCase = "sentence" | "upper";
+export type CaptionPosition = "lower" | "middle";
+export type CaptionSize = "sm" | "md" | "lg";
+
 export type StyleDraftOptions = {
-  subtitleFont: "manrope" | "onest" | "unbounded" | "montserrat" | "golos";
+  styleRecipeId?: string;
+  subtitleFont: SubtitleFontId;
+  accentFont?: SubtitleFontId;
   subtitleStyle: "clean" | "active_word" | "marker";
   subtitleBackdrop: "none" | "glass" | "solid";
+  subtitleColor?: string;
+  accentColor?: string;
+  textCase?: SubtitleTextCase;
+  captionPosition?: CaptionPosition;
+  captionSize?: CaptionSize;
   infographicTone: "glass" | "dark" | "bright";
   infographicAccent: "mint" | "orange" | "cream";
+  emojiEnabled?: boolean;
+  autoLists?: boolean;
+  autoComparisons?: boolean;
+  autoCharts?: boolean;
+  autoCta?: boolean;
+  autoStrike?: boolean;
   visualDensity?: VisualDensity;
   motionIntensity?: MotionIntensity;
   presetPack?: VisualPresetPack;

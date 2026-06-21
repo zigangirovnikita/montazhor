@@ -9,5 +9,5 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   const { step } = await searchParams;
-  return <ProjectCockpit projectId={id} initialView={step === "templates" ? "templates" : "main"} />;
+  return <ProjectCockpit projectId={id} initialView={step === "style" || step === "templates" ? "style" : "main"} />;
 }
