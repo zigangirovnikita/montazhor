@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
 import { DEFAULT_TIMELINE_PX_PER_SECOND, DraftReviewRail } from "@/app/components/DraftReviewRail";
 import type { DraftEditOperation, DraftEditRequest, ProjectPayload } from "@/app/components/projectFlowTypes";
 import {
@@ -24,22 +23,24 @@ export function DraftReviewTicker({
   payload,
   compareMode,
   editBusy,
-  onCompareModeChange,
   onDraftEdit,
+  playbackTime,
+  playbackActive,
+  onSeekPlaybackTime,
   onContinue
 }: {
   payload: ProjectPayload;
   compareMode: "after" | "before";
   editBusy: boolean;
-  onCompareModeChange: (value: "after" | "before") => void;
   onDraftEdit: (request: DraftEditRequest) => void | Promise<void>;
+  playbackTime: number;
+  playbackActive: boolean;
+  onSeekPlaybackTime: (time: number) => void;
   onContinue: () => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const textViewportRef = useRef<HTMLDivElement | null>(null);
   const segmentRefs = useRef(new Map<string, HTMLDivElement>());
   const piecesRef = useRef<TimelinePiece[]>([]);
-  const [currentTime, setCurrentTime] = useState(0);
   const [scrubSourceTime, setScrubSourceTime] = useState<number | null>(null);
   const [selected, setSelected] = useState<TimelinePiece | null>(null);
   const [approvedCandidates, setApprovedCandidates] = useState<Set<string>>(() => new Set());
@@ -53,12 +54,12 @@ export function DraftReviewTicker({
   );
   const segments = useMemo(() => buildTextSegments(pieces), [pieces]);
   const duration = useMemo(() => timelineDuration(payload, pieces), [payload, pieces]);
-  const videoSrc = compareMode === "before" ? payload.originalUrl : payload.cleanPreviewUrl ?? payload.originalUrl;
   const keptRanges = payload.draft?.edl?.keptRanges ?? [];
-  const activeSourceTime = scrubSourceTime ?? (compareMode === "before" ? currentTime : outputTimeToSourceTime(keptRanges, currentTime));
+  const mappedPlaybackSourceTime = compareMode === "before" ? playbackTime : outputTimeToSourceTime(keptRanges, playbackTime);
+  const activeSourceTime = scrubSourceTime ?? mappedPlaybackSourceTime;
   const activePiece = scrubSourceTime !== null
     ? findPieceBySourceTime(pieces, scrubSourceTime)
-    : findPieceBySourceTime(pieces, activeSourceTime) ?? findActivePiece(pieces, currentTime);
+    : findPieceBySourceTime(pieces, activeSourceTime) ?? findActivePiece(pieces, playbackTime);
   const activeSegment = findSegmentBySourceTime(segments, activeSourceTime) ?? (activePiece ? findSegmentForPiece(segments, activePiece) : segments[0]);
   const displaySourceTime = scrubSourceTime ?? activeSourceTime;
   const hasPendingEdits = pendingEdits.length > 0;
@@ -68,7 +69,7 @@ export function DraftReviewTicker({
   }, [pieces]);
 
   useEffect(() => {
-    if (!activeSegment) return;
+    if (!playbackActive || !activeSegment) return;
     const frame = window.requestAnimationFrame(() => {
       const node = segmentRefs.current.get(activeSegment.id);
       const viewport = textViewportRef.current;
@@ -76,71 +77,22 @@ export function DraftReviewTicker({
       const nodeRect = node.getBoundingClientRect();
       const viewportRect = viewport.getBoundingClientRect();
       const targetTop = viewport.scrollTop + (nodeRect.top + nodeRect.height / 2) - (viewportRect.top + viewportRect.height / 2);
-      viewport.scrollTo({ top: Math.max(0, targetTop), behavior: videoRef.current?.paused ? "smooth" : "auto" });
+      viewport.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeSegment, activeSegment?.id]);
+  }, [activeSegment, playbackActive]);
 
-  function handleTimeUpdate() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (!video.paused && scrubSourceTime !== null) setScrubSourceTime(null);
-    setCurrentTime(video.currentTime);
-  }
-
-  function handleVideoClick(event: MouseEvent<HTMLVideoElement>) {
-    const video = videoRef.current;
-    if (!video) return;
-    const rect = video.getBoundingClientRect();
-    if (event.clientY >= rect.bottom - 64) return;
-    if (video.paused) {
-      void startPlayback();
-      return;
-    }
-    video.pause();
-  }
-
-  async function startPlayback() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (scrubSourceTime !== null) {
-      const targetPiece = findPieceBySourceTime(piecesRef.current, scrubSourceTime);
-      const targetTime = Math.max(0, targetPiece?.playbackStart ?? sourceTimeToOutputTime(payload.draft?.edl?.keptRanges ?? [], scrubSourceTime));
-      await seekVideo(video, targetTime);
+  useEffect(() => {
+    if (playbackActive && scrubSourceTime !== null) {
       setScrubSourceTime(null);
     }
-    await video.play();
-  }
-
-  async function seekVideo(video: HTMLVideoElement, targetTime: number) {
-    if (Math.abs(video.currentTime - targetTime) <= 0.02) return;
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      const timer = window.setTimeout(finish, 180);
-      const onSeeked = () => {
-        window.clearTimeout(timer);
-        finish();
-      };
-      video.addEventListener("seeked", onSeeked, { once: true });
-      video.currentTime = targetTime;
-      setCurrentTime(targetTime);
-    });
-  }
+  }, [playbackActive, scrubSourceTime]);
 
   function scrubToSourceTime(sourceTime: number) {
     setScrubSourceTime(sourceTime);
     const targetPiece = findPieceBySourceTime(piecesRef.current, sourceTime);
     const targetPlayback = compareMode === "before" ? sourceTime : targetPiece?.playbackStart ?? sourceTimeToOutputTime(keptRanges, sourceTime);
-    if (videoRef.current) {
-      if (!videoRef.current.paused) videoRef.current.pause();
-      videoRef.current.currentTime = Math.max(0, targetPlayback);
-      setCurrentTime(Math.max(0, targetPlayback));
-    }
+    onSeekPlaybackTime(Math.max(0, targetPlayback));
   }
 
   function selectPiece(piece: TimelinePiece) {
@@ -208,43 +160,6 @@ export function DraftReviewTicker({
 
   return (
     <section className="review-timeline-card">
-      <div className="review-player-shell">
-        <div className="review-video-stack">
-          <video
-            key={videoSrc}
-            ref={videoRef}
-            src={videoSrc}
-            controls
-            playsInline
-            onClick={handleVideoClick}
-            onTimeUpdate={handleTimeUpdate}
-            onSeeked={handleTimeUpdate}
-          />
-          <button
-            aria-label="Переключить воспроизведение"
-            className="video-tap-surface"
-            type="button"
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              if (video.paused) {
-                void startPlayback();
-                return;
-              }
-              video.pause();
-            }}
-          />
-        </div>
-        <div className="segmented-control" aria-label="Сравнение до и после">
-          <button className={compareMode === "after" ? "active" : ""} type="button" onClick={() => onCompareModeChange("after")}>
-            После
-          </button>
-          <button className={compareMode === "before" ? "active" : ""} type="button" onClick={() => onCompareModeChange("before")}>
-            До
-          </button>
-        </div>
-      </div>
-
       <DraftReviewRail
         activeLabel={activeSegment ? `${formatReviewTime(activeSegment.start)}-${formatReviewTime(activeSegment.end)}` : ""}
         duration={duration}
@@ -272,7 +187,7 @@ export function DraftReviewTicker({
                 {segment.pieces.map((piece) => (
                   <Fragment key={piece.id}>
                     <button
-                      className={textTokenClass(piece, selected?.id === piece.id)}
+                      className={textTokenClass(piece, selected?.id === piece.id, activePiece?.id === piece.id)}
                       type="button"
                       disabled={editBusy}
                       title={tokenTitle(piece)}
@@ -352,6 +267,6 @@ export function DraftReviewTicker({
   );
 }
 
-function textTokenClass(piece: TimelinePiece, selected: boolean) {
-  return ["review-word-token", piece.state, piece.kind === "range" ? "range" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
+function textTokenClass(piece: TimelinePiece, selected: boolean, active: boolean) {
+  return ["review-word-token", piece.state, piece.kind === "range" ? "range" : "", selected ? "selected" : "", active ? "active" : ""].filter(Boolean).join(" ");
 }

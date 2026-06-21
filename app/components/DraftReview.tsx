@@ -7,17 +7,21 @@ export function DraftReview({
   payload,
   compareMode,
   editBusy,
-  onCompareModeChange,
   onDraftEdit,
   onOpenPrecision,
-  onContinue
+  playbackTime,
+  playbackActive,
+  onSeekPlaybackTime,
+  onContinue,
 }: {
   payload: ProjectPayload;
   compareMode: "after" | "before";
   editBusy: boolean;
-  onCompareModeChange: (value: "after" | "before") => void;
   onDraftEdit: (request: DraftEditRequest) => void | Promise<void>;
   onOpenPrecision: () => void;
+  playbackTime: number;
+  playbackActive: boolean;
+  onSeekPlaybackTime: (time: number) => void;
   onContinue?: () => void;
 }) {
   const summary = summarizeDraft(payload);
@@ -39,8 +43,10 @@ export function DraftReview({
         payload={payload}
         compareMode={compareMode}
         editBusy={editBusy}
-        onCompareModeChange={onCompareModeChange}
         onDraftEdit={onDraftEdit}
+        playbackTime={playbackTime}
+        playbackActive={playbackActive}
+        onSeekPlaybackTime={onSeekPlaybackTime}
         onContinue={onContinue ?? (() => undefined)}
       />
 

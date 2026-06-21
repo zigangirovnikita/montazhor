@@ -37,18 +37,12 @@ export function CleanupModeScreen({
         <ModeCard title="Убрать паузы и запинки" text="Режем паузы, эээ/мэээ/нууу, нераспознанный голосовой мусор между словами и явные слова-паразиты." featured onClick={() => onStart("pauses_and_fillers")} disabled={busy} />
         <ModeCard title="Убрать лишнее по смыслу" text="AI собирает финальный монолог по смыслу, а затем автоматически чистятся паузы и речевой мусор." onClick={() => onStart("semantic_cleanup")} disabled={busy} />
       </div>
-      <div className="checklist-panel">
-        {["паузы режутся по точным границам слов", "внутри мысли остается по 0.1с после слова и до следующего", "естественные связки вроде «ну/вот/короче» сохраняются, если несут смысл", "спорные смысловые куски можно потом проверить в тексте", "субтитры и черновик собираются сразу"].map((item) => (
-          <label key={item}><input type="checkbox" defaultChecked /> {item}</label>
-        ))}
-      </div>
       {error ? <p className="error">{error}</p> : null}
     </div>
   );
 }
 
 export function ProcessingScreen({ payload, status }: { payload: ProjectPayload; status: string }) {
-  const removedCount = payload.draft?.edl?.removedRanges.length ?? 0;
   const currentIndex = Math.max(0, processingSteps.findIndex(([step]) => step === status));
   return (
     <div className="flow-stack center-processing">
@@ -64,10 +58,6 @@ export function ProcessingScreen({ payload, status }: { payload: ProjectPayload;
             <p>{label}</p>
           </div>
         ))}
-      </div>
-      <div className="value-card">
-        <strong>{removedCount || "—"}</strong>
-        <span>найденных удалений появятся здесь после анализа</span>
       </div>
     </div>
   );

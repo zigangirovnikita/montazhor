@@ -133,6 +133,29 @@ export function buildRailBlocks(pieces: TimelinePiece[], duration: number) {
   }));
 }
 
+export function buildWaveformBars(pieces: TimelinePiece[], duration: number, sampleCount = 160) {
+  if (duration <= 0 || sampleCount <= 0) return [];
+  const bucketDuration = duration / sampleCount;
+
+  return Array.from({ length: sampleCount }, (_, index) => {
+    const start = index * bucketDuration;
+    const end = start + bucketDuration;
+    const piece = pieces.find((item) => item.sourceEnd > start && item.sourceStart < end) ?? null;
+    const state = piece?.state ?? "kept";
+    const seed = Math.round((piece?.sourceStart ?? start) * 100) + index * 17 + (piece?.text.length ?? 3) * 13;
+    const normalized = pseudoRandom(seed);
+    const baseHeight = state === "removed" ? 0.42 : state === "candidate" ? 0.58 : 0.72;
+    const variance = state === "removed" ? 0.18 : 0.24;
+    return {
+      id: `wave-${index}-${piece?.id ?? "gap"}`,
+      left: (start / duration) * 100,
+      width: Math.max(0.28, (bucketDuration / duration) * 100),
+      height: Math.min(1, baseHeight + normalized * variance),
+      state
+    };
+  });
+}
+
 export function findActivePiece(pieces: TimelinePiece[], time: number) {
   return pieces.find((piece) => piece.playbackEnd - piece.playbackStart > 0.02 && time >= piece.playbackStart && time <= piece.playbackEnd)
     ?? pieces.find((piece) => piece.playbackStart >= time && piece.playbackEnd - piece.playbackStart > 0.02)
@@ -280,4 +303,9 @@ function displayRangeLabel(reason: string, duration: number, kind: "removed" | "
   if (reason === "profanity") return "Лишний фрагмент";
   if (GAP_REASONS.has(reason)) return `Пауза ${formatSeconds(duration)}`;
   return "Удалено";
+}
+
+function pseudoRandom(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
 }

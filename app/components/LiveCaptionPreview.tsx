@@ -4,22 +4,38 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import type { BrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
 
+export type PreviewSeekRequest = {
+  id: number;
+  time: number;
+};
+
 export function LiveCaptionPreview({
   videoUrl,
   plan,
   stylePreset,
-  styleOptions
+  styleOptions,
+  showSubtitles = true,
+  currentTime,
+  onTimeChange,
+  onPlayingChange,
+  seekRequest
 }: {
   videoUrl: string;
   plan: BrowserFrameRenderPlan | null;
   stylePreset: string;
   styleOptions: StyleDraftOptions;
+  showSubtitles?: boolean;
+  currentTime?: number;
+  onTimeChange?: (time: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  seekRequest?: PreviewSeekRequest | null;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [internalCurrentTime, setInternalCurrentTime] = useState(0);
+  const resolvedCurrentTime = currentTime ?? internalCurrentTime;
   const activeCaption = useMemo(
-    () => plan ? resolveCaptionAtTime(plan, currentTime) : null,
-    [plan, currentTime]
+    () => plan ? resolveCaptionAtTime(plan, resolvedCurrentTime) : null,
+    [plan, resolvedCurrentTime]
   );
 
   useEffect(() => {
@@ -28,18 +44,20 @@ export function LiveCaptionPreview({
 
     let frame = 0;
     const update = () => {
-      setCurrentTime(video.currentTime || 0);
+      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
       if (!video.paused && !video.ended) frame = window.requestAnimationFrame(update);
     };
 
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime || 0);
+    const handleTimeUpdate = () => syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
     const handlePlay = () => {
+      onPlayingChange?.(true);
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(update);
     };
     const handlePause = () => {
+      onPlayingChange?.(false);
       window.cancelAnimationFrame(frame);
-      setCurrentTime(video.currentTime || 0);
+      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
     };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
@@ -56,11 +74,30 @@ export function LiveCaptionPreview({
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handlePause);
     };
-  }, []);
+  }, [onPlayingChange, onTimeChange]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !seekRequest) return;
+
+    const applySeek = () => {
+      if (!video) return;
+      video.currentTime = Math.max(0, seekRequest.time);
+      syncCurrentTime(video.currentTime || 0, onTimeChange, setInternalCurrentTime);
+    };
+
+    if (video.readyState >= 1) {
+      applySeek();
+      return;
+    }
+
+    video.addEventListener("loadedmetadata", applySeek, { once: true });
+    return () => video.removeEventListener("loadedmetadata", applySeek);
+  }, [seekRequest, onTimeChange]);
 
   const skin = captionSkin(stylePreset, styleOptions);
 
-  if (!plan) {
+  if (!plan || !showSubtitles) {
     return (
       <div className="compare-player">
         <video ref={videoRef} src={videoUrl} controls playsInline />
@@ -91,12 +128,21 @@ export function LiveCaptionPreview({
               textTransform: skin.textTransform
             }}
           >
-            {activeCaption ? renderCaptionLines(activeCaption, currentTime, styleOptions.subtitleStyle, skin.highlightMode) : null}
+            {activeCaption ? renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions.subtitleStyle, skin.highlightMode) : null}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function syncCurrentTime(
+  value: number,
+  onTimeChange: ((time: number) => void) | undefined,
+  setInternalCurrentTime: (value: number) => void
+) {
+  setInternalCurrentTime(value);
+  onTimeChange?.(value);
 }
 
 function renderCaptionLines(

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { PointerEvent } from "react";
-import { buildRailBlocks, formatReviewTime, type TimelinePiece } from "@/app/components/draftReviewTimeline";
+import { buildRailBlocks, buildWaveformBars, formatReviewTime, type TimelinePiece } from "@/app/components/draftReviewTimeline";
 
 const MIN_PX_PER_SECOND = 14;
 const MAX_PX_PER_SECOND = 180;
@@ -30,6 +30,7 @@ export function DraftReviewRail({
   const trackWidth = Math.max(1, Math.ceil(duration * pxPerSecond));
   const playheadLeft = Math.max(0, Math.min(trackWidth, sourceTime * pxPerSecond));
   const timelineTicks = useMemo(() => buildTimelineTicks(duration, pxPerSecond), [duration, pxPerSecond]);
+  const waveformBars = useMemo(() => buildWaveformBars(pieces, duration), [pieces, duration]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -78,7 +79,19 @@ export function DraftReviewRail({
         }}
       >
         <div className="montage-track" style={{ width: `${trackWidth}px` }}>
-          <div className="montage-waveform" aria-hidden="true" />
+          <div className="montage-waveform" aria-hidden="true">
+            {waveformBars.map((bar) => (
+              <span
+                className={`montage-wave-bar ${bar.state}`}
+                key={bar.id}
+                style={{
+                  left: `${(bar.left / 100) * trackWidth}px`,
+                  width: `${Math.max(3, (bar.width / 100) * trackWidth)}px`,
+                  height: `${Math.max(18, bar.height * 54)}px`
+                }}
+              />
+            ))}
+          </div>
           {timelineTicks.map((tick) => (
             <span className={tick.major ? "montage-tick major" : "montage-tick"} data-label={tick.label} key={tick.time} style={{ left: `${tick.left}px` }} />
           ))}
