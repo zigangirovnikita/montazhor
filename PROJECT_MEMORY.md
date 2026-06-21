@@ -243,6 +243,21 @@ Files affected:
 Tradeoff:
 - Transcript mode still uses a throttled parent time channel by design, but with lower latency. If style preview still feels off after this, the next likely target is UI-only smoothing for STT words with `~80-100ms` windows rather than any EDL/cut-time change.
 
+### 2026-06-22 - Horizontal result was a pillarboxed portrait input, not a rotate-metadata miss
+Decision:
+- Treat centered portrait content inside a landscape upload as portrait during normalization and during clean-video rerenders.
+Reason:
+- The problematic server draft `cmqoakixh002bw1n09qo21ps3` was confirmed by artifacts, not guesswork: `original.mp4` was already `1920x1080`, while active-box detection found a centered `608x1080` content region. So the app did not accidentally rotate a vertical video into landscape; it faithfully kept a pillarboxed landscape file. The fix is to detect that content shape and crop it back to portrait before scaling/padding and before subtitle layout is derived.
+Files affected:
+- `server/video/normalization.ts`
+- `server/video/normalization.test.ts`
+- `server/video/ingest.ts`
+- `server/video/cutting.ts`
+- `server/render/browserFrameActiveBox.ts`
+- `server/render/browserFrameActiveBox.test.ts`
+Tradeoff:
+- Normalization now performs active-box sampling on uploads and clean-video rerenders. That adds a small FFmpeg frame-sampling cost, but it prevents portrait talking-head uploads wrapped in black side bars from being misclassified as landscape and producing broken subtitle layout.
+
 ## Working commands
 - dev: `pnpm dev`
 - build: `pnpm build`

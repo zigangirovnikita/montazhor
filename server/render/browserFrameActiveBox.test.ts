@@ -58,6 +58,7 @@ describe("browserFrameActiveBox", () => {
 
     expect(safeArea.x).toBeGreaterThan(420);
     expect(safeArea.x + safeArea.width).toBeLessThan(1501);
+    expect(safeArea.y).toBeGreaterThan(0);
     expect(safeArea.height).toBeLessThan(1080);
     expect(safeArea.marginBottom).toBeGreaterThan(0);
   });

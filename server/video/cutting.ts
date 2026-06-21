@@ -1,8 +1,11 @@
 import type { EditDecisionList, EditRange } from "@/lib/types";
 import { MIN_KEPT_FRAGMENT_SECONDS } from "@/server/ai/cutTimingPolicy";
+import { buildCropFilter, detectNormalizationPlanForVideo } from "@/server/video/normalization";
 import { scalePadFilter, standardMp4OutputArgs } from "@/server/video/encoding";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
+import { probeVideo } from "@/server/video/metadata";
 import type { VideoProfile } from "@/server/video/profile";
+import type { VideoNormalizationPlan } from "@/server/video/normalization";
 
 export function complementRanges(
   duration: number,
@@ -74,9 +77,16 @@ export async function renderCleanCut(
     throw new Error("No speech ranges remained after cut detection. Change the cleanup mode or review the transcript boundaries.");
   }
 
+  const normalization = await probeVideo(inputPath)
+    .then((metadata) => detectNormalizationPlanForVideo(inputPath, metadata))
+    .catch((): VideoNormalizationPlan => ({ profile, source: "metadata" }));
+  const normalizedProfile = normalization.profile;
+  const cropFilter = normalization.crop ? buildCropFilter(normalization.crop) : null;
+
   // For a single range, use simple -ss/-to (fastest path, avoids filtergraph overhead)
   if (edl.keptRanges.length === 1) {
     const range = edl.keptRanges[0];
+    const videoFilter = [cropFilter, scalePadFilter(normalizedProfile)].filter(Boolean).join(",");
     const args = [
       "-y",
       "-ss",
@@ -86,7 +96,7 @@ export async function renderCleanCut(
       "-i",
       inputPath,
       "-vf",
-      scalePadFilter(profile),
+      videoFilter,
     ];
     args.push(...standardMp4OutputArgs(), outputPath);
     await runCommand(ffmpegPath(), args);
@@ -111,7 +121,7 @@ export async function renderCleanCut(
   const n = edl.keptRanges.length;
   const concatInputs = edl.keptRanges.map((_, i) => `[v${i}][a${i}]`).join("");
   filters.push(`${concatInputs}concat=n=${n}:v=1:a=1[concatv][concata]`);
-  filters.push(`[concatv]${scalePadFilter(profile)}[outv]`);
+  filters.push(`[concatv]${[cropFilter, scalePadFilter(normalizedProfile)].filter(Boolean).join(",")}[outv]`);
 
   const filterComplex = filters.join(";");
 

@@ -149,13 +149,14 @@ export function detectActiveBoxFromRgbFrame(input: {
 
 export function buildCaptionSafeArea(activeVideoBox: BrowserFrameActiveVideoBox): BrowserFrameCaptionSafeArea {
   const marginX = clampInt(Math.round(activeVideoBox.width * 0.045), 36, 72);
-  const marginBottom = clampInt(Math.round(activeVideoBox.height * 0.11), 96, 140);
+  const marginBottom = clampInt(Math.round(activeVideoBox.height * 0.06), 48, 120);
+  const top = activeVideoBox.y + clampInt(Math.round(activeVideoBox.height * 0.52), 0, activeVideoBox.height - 1);
   const width = Math.max(1, activeVideoBox.width - marginX * 2);
-  const height = Math.max(1, activeVideoBox.height - marginBottom);
+  const height = Math.max(1, activeVideoBox.y + activeVideoBox.height - top - marginBottom);
 
   return {
     x: activeVideoBox.x + marginX,
-    y: activeVideoBox.y,
+    y: top,
     width,
     height,
     marginX,

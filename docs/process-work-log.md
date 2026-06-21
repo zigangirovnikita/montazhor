@@ -11,6 +11,13 @@ How to use:
 
 ## Entries
 
+### 2026-06-22 — Pillarboxed portrait uploads no longer stay landscape
+
+- Problem: the latest server project `cmqoakixh002bw1n09qo21ps3` looked horizontal with black side bars and oversized subtitles, even though the user expected a vertical talking-head result.
+- Decision: inspect the actual server artifact instead of guessing. The uploaded `original.mp4` for that project was already `1920x1080`, but active-box detection found a centered vertical content window `608x1080`. That confirmed the bug was not rotation metadata loss; it was a pillarboxed portrait file being treated as a true landscape video. Add content-aware normalization so uploads with a centered portrait active box inside a landscape frame are cropped back to portrait during ingest and during clean-video rerenders. Also move subtitle safe area into the central zone of the lower half of the active video box.
+- Result: focused tests now cover the exact problematic geometry (`1920x1080` source with `608x1080` active box) and confirm it resolves to portrait normalization. Active-box tests also confirm subtitle safe area now starts below mid-frame instead of spanning from the top. `pnpm exec vitest run server/video/normalization.test.ts server/render/browserFrameActiveBox.test.ts server/render/browserFrameRenderPlanFromProject.test.ts` and `pnpm typecheck` pass locally.
+- Follow-up: after deploy, rerender the affected draft so its existing `clean.mp4` and live preview plan are regenerated through the new crop-aware path.
+
 ### 2026-06-22 — Latest upload showed residual UI playback lag, not cut-time drift
 
 - Problem: after the first playback-sync fix, the newest server draft `cmqo9niy40000w1jrnckl6n19` still felt slightly behind on active-word highlighting.
