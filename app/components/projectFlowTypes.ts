@@ -10,6 +10,7 @@ import type {
   VisualOverlayPlan
 } from "@/lib/types";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
+import type { BrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
 
 export interface ProjectPayload {
   project: {
@@ -38,6 +39,7 @@ export interface ProjectPayload {
     scenePlan?: ScenePlan | null;
     compiledScenePlan?: CompiledScenePlan | null;
   } | null;
+  livePreviewPlan: BrowserFrameRenderPlan | null;
   originalUrl: string;
   cleanPreviewUrl: string | null;
   reviewUrl: string | null;

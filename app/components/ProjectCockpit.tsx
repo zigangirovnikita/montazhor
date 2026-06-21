@@ -261,6 +261,7 @@ export function ProjectCockpit({ projectId, initialView = "main" }: { projectId:
       <ProjectShell>
         <FinalPreview
           payload={payload}
+          styleState={styleState}
           busy={busy}
           onApprove={() => setView("export")}
           onStyle={() => setView("templates")}

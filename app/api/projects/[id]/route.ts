@@ -1,10 +1,11 @@
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getProjectJobLabel, isProjectJobActive } from "@/lib/jobs";
 import { CANONICAL_PRESENTATION_MODE, editModeForPresentationMode, isSupportedPresentationMode } from "@/lib/presentationMode";
 import { pathsForProject } from "@/lib/storage";
 import { readDraftProposal } from "@/server/pipeline/processProject";
+import { parseBrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,9 @@ export async function GET(_request: Request, context: RouteContext) {
   const paths = pathsForProject(id);
   const cleanPreviewReady = await stat(paths.cleanVideo).then(() => true).catch(() => false);
   const subtitledVideoReady = await stat(paths.subtitledVideo).then(() => true).catch(() => false);
+  const livePreviewPlan = await readFile(paths.browserRenderPlanLive, "utf8")
+    .then((raw) => parseBrowserFrameRenderPlan(JSON.parse(raw)))
+    .catch(() => null);
   const revision = project.updatedAt.getTime();
   const activeJobLabel = getProjectJobLabel(id);
   const subtitledVideoActive = isProjectJobActive(id) && activeJobLabel === "Subtitled video render";
@@ -47,6 +51,7 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json({
     project,
     draft,
+    livePreviewPlan,
     downloadUrl: project.finalVideoPath ? `/api/projects/${id}/download?v=${revision}` : null,
     reviewUrl: project.reviewVideoPath ? `/api/projects/${id}/review?v=${revision}` : null,
     cleanPreviewUrl: cleanPreviewReady ? `/api/projects/${id}/clean?v=${revision}` : null,

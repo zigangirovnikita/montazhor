@@ -632,6 +632,107 @@ p {
   box-shadow: var(--shadow);
 }
 
+.live-caption-preview {
+  gap: 0;
+}
+
+.live-caption-stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 214, 102, 0.18), transparent 28%),
+    radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.14), transparent 32%),
+    #111;
+  box-shadow: var(--shadow);
+}
+
+.live-caption-stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.live-caption-shell {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+  padding-bottom: clamp(18px, 3vw, 34px);
+}
+
+.live-caption-box {
+  max-width: 100%;
+  padding: 0.18em 0.28em;
+  border-radius: 22px;
+  text-align: center;
+  line-height: 1.03;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.36),
+    0 0 24px rgba(0, 0, 0, 0.2);
+}
+
+.live-caption-box.backdrop-glass {
+  background: linear-gradient(180deg, rgba(10, 10, 12, 0.12), rgba(10, 10, 12, 0.3));
+  backdrop-filter: blur(10px);
+}
+
+.live-caption-box.backdrop-solid {
+  background: rgba(10, 10, 12, 0.66);
+}
+
+.live-caption-box.backdrop-none {
+  background: transparent;
+}
+
+.live-caption-line {
+  display: block;
+}
+
+.live-caption-word {
+  display: inline;
+  border-radius: 0.2em;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.live-caption-word.is-text {
+  color: #ffe26d;
+}
+
+.live-caption-word.is-fill {
+  color: #101010;
+  background: #ffe24f;
+  box-shadow: 0 6px 18px rgba(255, 226, 79, 0.28);
+  text-shadow: none;
+}
+
+.live-caption-word.is-marker {
+  background-image: linear-gradient(transparent 52%, rgba(255, 221, 87, 0.9) 52%);
+}
+
+.live-caption-word.is-active {
+  transform: translateY(-1px);
+}
+
+.live-clean .live-caption-box {
+  -webkit-text-stroke: 0 transparent;
+}
+
+.live-viral .live-caption-box {
+  -webkit-text-stroke: 2px rgba(0, 0, 0, 0.88);
+}
+
+.live-premium .live-caption-box {
+  letter-spacing: -0.035em;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: 1fr 1fr;

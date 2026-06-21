@@ -20,6 +20,7 @@ import { resolveVideoProfile } from "@/server/video/profile";
 import { buildSubtitleDraft } from "@/server/video/subtitles";
 import { renderCleanCut } from "@/server/video/cutting";
 import { planCuts } from "@/server/pipeline/steps/planCuts";
+import { prepareLivePreviewPlan } from "@/server/render/prepareLivePreviewPlan";
 
 
 
@@ -213,6 +214,8 @@ export async function processProjectAnalyze(projectId: string) {
     metadata: { path: paths.subtitlesDraft },
     payload: subtitles,
   });
+
+  await prepareLivePreviewPlan(projectId);
 
 
 

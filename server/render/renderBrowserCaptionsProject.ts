@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import { browserCaptionStyleForPreset } from "@/lib/browserCaptionStyle";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
 import { pathsForProject } from "@/lib/storage";
@@ -46,7 +47,7 @@ export async function renderBrowserCaptionsArtifact(input: {
   const result = await renderBrowserFrames({
     projectDir: paths.project,
     outputPath: input.outputPath,
-    captionStyle: "bold-yellow",
+    captionStyle: browserCaptionStyleForPreset(project.stylePreset),
     enableCameraMoves: false,
     writePlanToProject: input.writePlanToProject,
     projectPlanOutputPath: input.projectPlanOutputPath,

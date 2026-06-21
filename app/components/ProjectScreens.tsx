@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LiveCaptionPreview } from "@/app/components/LiveCaptionPreview";
 import type { ProjectPayload } from "@/app/components/projectFlowTypes";
+import type { StyleState } from "@/app/components/projectFlowTypes";
 import type { CleanupMode } from "@/lib/types";
 
 export const processingSteps = [
@@ -73,6 +75,7 @@ export function ProcessingScreen({ payload, status }: { payload: ProjectPayload;
 
 export function FinalPreview({
   payload,
+  styleState,
   busy,
   onApprove,
   onStyle,
@@ -80,6 +83,7 @@ export function FinalPreview({
   onSubtitledRender
 }: {
   payload: ProjectPayload;
+  styleState: StyleState;
   busy: boolean;
   onApprove: () => void;
   onStyle: () => void;
@@ -92,9 +96,12 @@ export function FinalPreview({
         <p className="screen-step">Финальный предпросмотр</p>
         <h1>Оцени ролик перед экспортом</h1>
       </header>
-      <div className="compare-player">
-        <video src={payload.reviewUrl ?? payload.cleanPreviewUrl ?? payload.originalUrl} controls playsInline />
-      </div>
+      <LiveCaptionPreview
+        videoUrl={payload.cleanPreviewUrl ?? payload.reviewUrl ?? payload.originalUrl}
+        plan={payload.livePreviewPlan}
+        stylePreset={styleState.stylePreset}
+        styleOptions={styleState.styleOptions}
+      />
       <div className="review-button-grid">
         <button className="cta-button" type="button" onClick={onApprove}>Утвердить</button>
         <button className="mode-button secondary-action" type="button" disabled={busy} onClick={onSubtitledRender}>

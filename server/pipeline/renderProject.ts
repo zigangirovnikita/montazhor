@@ -5,6 +5,7 @@ import { logProject, updateProjectStatus } from "@/lib/logger";
 import { normalizePresentationMode } from "@/lib/presentationMode";
 import { pathsForProject } from "@/lib/storage";
 import type { EditDecisionList, StylePreset, TranscriptJson } from "@/lib/types";
+import { prepareLivePreviewPlan } from "@/server/render/prepareLivePreviewPlan";
 import { renderSubtitledVideoViaBrowserRenderer } from "@/server/pipeline/renderSubtitledVideoViaBrowserRenderer";
 import { ensureArtifact, fingerprintFile, hashJson } from "@/server/render/renderGraph";
 import { cleanupProjectArtifacts } from "@/server/video/cleanup";
@@ -25,38 +26,33 @@ export async function renderStyledPreview(projectId: string) {
     summary: "Styled preview render started.",
   });
 
-  const { stylePreset, presentationMode } = await buildStyledReview(projectId, "review");
+  const { stylePreset, presentationMode, cleanMetadata } = await buildStyledReview(projectId, "review");
 
   await updateProjectStatus(projectId, "rendering_preview");
-  await logProject(projectId, "info", "Composing review preview MP4...");
-  await safeUnlink(paths.reviewVideo);
-  await safeUnlink(paths.finalVideo);
-  await composeFinalVideo(paths.subtitledVideo, paths.reviewVideo, "review");
-  const reviewMetadata = await probeVideo(paths.reviewVideo);
-
-  await prisma.renderAsset.create({ data: { projectId, type: "review", path: paths.reviewVideo } });
+  await logProject(projectId, "info", "Refreshing live captions preview plan...");
+  await prepareLivePreviewPlan(projectId);
   await prisma.project.update({
     where: { id: projectId },
     data: {
       status: "review_ready",
-      reviewVideoPath: paths.reviewVideo,
+      reviewVideoPath: null,
       finalVideoPath: null,
-      durationFinal: reviewMetadata.duration
+      durationFinal: cleanMetadata.duration
     }
   });
 
   await logProject(
     projectId,
     "info",
-    `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, duration: ${reviewMetadata.duration.toFixed(2)}s.`
+    `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, live overlay on clean.mp4 (${cleanMetadata.duration.toFixed(2)}s).`
   );
   await auditProjectEvent(projectId, {
     phase: "render_preview",
     step: "review_ready",
     kind: "result",
-    summary: `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, duration: ${reviewMetadata.duration.toFixed(2)}s.`,
-    metadata: { reviewVideoPath: paths.reviewVideo, duration: reviewMetadata.duration, presentationMode, stylePreset },
-    payload: { reviewMetadata },
+    summary: `Review preview is ready. Mode: ${presentationMode}, style: ${stylePreset}, live overlay on clean.mp4 (${cleanMetadata.duration.toFixed(2)}s).`,
+    metadata: { duration: cleanMetadata.duration, presentationMode, stylePreset, livePlanPath: paths.browserRenderPlanLive },
+    payload: { cleanMetadata },
   });
 }
 
@@ -152,18 +148,22 @@ async function buildStyledReview(projectId: string, renderProfile: RenderProfile
   }
 
   const cleanMetadata = await probeVideo(paths.cleanVideo);
-  await updateProjectStatus(projectId, "rendering_preview");
-  await renderSubtitledVideoViaBrowserRenderer(projectId);
-  await logProject(projectId, "info", `Browser-rendered subtitled video is ready after clean cut (${cleanMetadata.duration.toFixed(2)}s).`);
+  if (renderProfile === "final") {
+    await updateProjectStatus(projectId, "rendering_preview");
+    await renderSubtitledVideoViaBrowserRenderer(projectId);
+    await logProject(projectId, "info", `Browser-rendered subtitled video is ready after clean cut (${cleanMetadata.duration.toFixed(2)}s).`);
+  }
   await auditProjectEvent(projectId, {
     phase: "render_preview",
-    step: "browser_renderer_mvp",
+    step: renderProfile === "final" ? "browser_renderer_mvp" : "live_preview_plan",
     kind: "result",
-    summary: "Preview rendered via browser-renderer MVP path.",
+    summary: renderProfile === "final"
+      ? "Preview rendered via browser-renderer MVP path."
+      : "Live preview plan refreshed without MP4 rendering.",
     metadata: { renderProfile, presentationMode, stylePreset, duration: cleanMetadata.duration },
   });
 
-  return { profile, stylePreset, presentationMode };
+  return { profile, stylePreset, presentationMode, cleanMetadata };
 }
 
 async function invalidatePreviewArtifacts(paths: ReturnType<typeof pathsForProject>) {
