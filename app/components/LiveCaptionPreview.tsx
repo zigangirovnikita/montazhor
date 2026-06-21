@@ -33,6 +33,7 @@ export function LiveCaptionPreview({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [internalCurrentTime, setInternalCurrentTime] = useState(0);
   const resolvedCurrentTime = internalCurrentTime || currentTime || 0;
+  const timedCaptionStageActive = Boolean(plan && showSubtitles);
   const activeCaption = useMemo(
     () => plan ? resolveCaptionAtTime(plan, resolvedCurrentTime) : null,
     [plan, resolvedCurrentTime]
@@ -74,7 +75,7 @@ export function LiveCaptionPreview({
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handlePause);
     };
-  }, [onPlayingChange, onTimeChange]);
+  }, [onPlayingChange, onTimeChange, timedCaptionStageActive, videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
