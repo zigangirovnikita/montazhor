@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveVisualOverlay } from "@/app/components/LiveVisualOverlay";
 import { buildCaptionDesign, captionBoxBackdropStyles } from "@/lib/captionDesign";
+import { computeLivePreviewScale, resolvePreviewFontSize, scaleCssPxString, scalePreviewPx } from "@/lib/livePreviewSizing";
 import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
 import { createPreviewTimeReporter } from "@/app/components/previewPlaybackSync";
 import type { BrowserFrameRenderPlan } from "@/server/render/browserFrameRendererPlan";
@@ -35,7 +36,9 @@ export function LiveCaptionPreview({
   seekRequest?: PreviewSeekRequest | null;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const [internalCurrentTime, setInternalCurrentTime] = useState(0);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const resolvedCurrentTime = internalCurrentTime || currentTime || 0;
   const timedCaptionStageActive = Boolean(plan && showSubtitles);
   const activeCaption = useMemo(
@@ -110,6 +113,25 @@ export function LiveCaptionPreview({
     return () => video.removeEventListener("loadedmetadata", applySeek);
   }, [seekRequest, onTimeChange]);
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || typeof ResizeObserver === "undefined") return;
+
+    const updateSize = () => {
+      const rect = stage.getBoundingClientRect();
+      setStageSize((prev) => (
+        prev.width === rect.width && prev.height === rect.height
+          ? prev
+          : { width: rect.width, height: rect.height }
+      ));
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [plan?.width, plan?.height]);
+
   const design = useMemo(
     () => buildCaptionDesign(stylePreset, styleOptions),
     [stylePreset, styleOptions]
@@ -118,9 +140,35 @@ export function LiveCaptionPreview({
     () => captionBoxBackdropStyles(design),
     [design]
   );
+  const previewScale = useMemo(
+    () => plan ? computeLivePreviewScale({
+      frameWidth: plan.width,
+      frameHeight: plan.height,
+      stageWidth: stageSize.width,
+      stageHeight: stageSize.height
+    }) : 1,
+    [plan, stageSize.height, stageSize.width]
+  );
+  const scaledBackdropStyles = useMemo(
+    () => ({
+      ...backdropStyles,
+      border: scaleCssPxString(backdropStyles.border, previewScale),
+      boxShadow: scaleCssPxString(backdropStyles.boxShadow, previewScale),
+      backdropFilter: scaleCssPxString(backdropStyles.backdropFilter, previewScale)
+    }),
+    [backdropStyles, previewScale]
+  );
+  const previewFontSize = useMemo(
+    () => plan ? resolvePreviewFontSize(design.fontSize, plan.width, previewScale) : design.fontSize,
+    [design.fontSize, plan, previewScale]
+  );
+  const previewStrokeWidth = useMemo(
+    () => scalePreviewPx(design.strokeWidth, previewScale, { min: 0, max: 6 }),
+    [design.strokeWidth, previewScale]
+  );
   const captionMotionStyle = useMemo(
-    () => activeCaption ? captionMotionForPreview(activeCaption, resolvedCurrentTime, design.enterAnimation) : null,
-    [activeCaption, resolvedCurrentTime, design.enterAnimation]
+    () => activeCaption ? captionMotionForPreview(activeCaption, resolvedCurrentTime, design.enterAnimation, previewScale) : null,
+    [activeCaption, resolvedCurrentTime, design.enterAnimation, previewScale]
   );
 
   if (!plan || !showSubtitles) {
@@ -141,8 +189,8 @@ export function LiveCaptionPreview({
   }
 
   return (
-      <div className="compare-player live-caption-preview">
-      <div className="live-caption-stage" style={{ aspectRatio: `${plan.width} / ${plan.height}` }}>
+    <div className="compare-player live-caption-preview">
+      <div ref={stageRef} className="live-caption-stage" style={{ aspectRatio: `${plan.width} / ${plan.height}` }}>
         <video
           ref={videoRef}
           src={videoUrl}
@@ -156,7 +204,7 @@ export function LiveCaptionPreview({
             willChange: "transform"
           }}
         />
-        <LiveVisualOverlay beat={activeVisualBeat} />
+        <LiveVisualOverlay beat={activeVisualBeat} previewScale={previewScale} stageWidth={stageSize.width} />
         <div
           className={`live-caption-shell live-${design.variant}`}
           style={{
@@ -166,6 +214,8 @@ export function LiveCaptionPreview({
             height: `${(plan.diagnostics.captionSafeArea.height / plan.height) * 100}%`,
             fontFamily: design.fontFamily,
             alignItems: design.position === "middle" ? "center" : "flex-end",
+            paddingBottom: `${scalePreviewPx(26, previewScale, { min: 12 })}px`,
+            paddingTop: `${scalePreviewPx(26, previewScale, { min: 12 })}px`,
             zIndex: 2
           }}
         >
@@ -174,15 +224,16 @@ export function LiveCaptionPreview({
               className={`live-caption-box backdrop-${design.backdrop}`}
               style={{
                 color: design.textColor,
-                fontSize: design.fontSize,
+                fontSize: previewFontSize,
                 fontWeight: design.fontWeight,
                 textTransform: design.textTransform,
                 letterSpacing: design.letterSpacing,
-                WebkitTextStroke: design.strokeWidth > 0 ? `${design.strokeWidth}px ${design.strokeColor}` : "0 transparent",
-                textShadow: design.textShadow,
+                WebkitTextStroke: previewStrokeWidth > 0 ? `${previewStrokeWidth}px ${design.strokeColor}` : "0 transparent",
+                textShadow: scaleCssPxString(design.textShadow, previewScale),
                 opacity: captionMotionStyle?.opacity,
                 transform: captionMotionStyle?.transform,
-                ...backdropStyles
+                borderRadius: `${scalePreviewPx(22, previewScale, { min: 10 })}px`,
+                ...scaledBackdropStyles
               }}
             >
               {renderCaptionLines(activeCaption, resolvedCurrentTime, styleOptions, design)}
@@ -255,7 +306,8 @@ function emphasizedWordStyle(design: ReturnType<typeof buildCaptionDesign>) {
 function captionMotionForPreview(
   caption: BrowserFrameRenderPlan["captions"][number],
   currentTime: number,
-  enterAnimation: ReturnType<typeof buildCaptionDesign>["enterAnimation"]
+  enterAnimation: ReturnType<typeof buildCaptionDesign>["enterAnimation"],
+  previewScale: number
 ) {
   const duration = Math.max(0.001, caption.end - caption.start);
   const rel = Math.max(0, Math.min(1, (currentTime - caption.start) / duration));
@@ -279,6 +331,6 @@ function captionMotionForPreview(
 
   return {
     opacity,
-    transform: `translate3d(0,${((1 - enter) * 24).toFixed(2)}px,0) scale(${(0.96 + enter * 0.04).toFixed(4)})`
+    transform: `translate3d(0,${(scalePreviewPx((1 - enter) * 24, previewScale, { min: 0 })).toFixed(2)}px,0) scale(${(0.96 + enter * 0.04).toFixed(4)})`
   };
 }

@@ -2,15 +2,23 @@
 
 import type { CSSProperties } from "react";
 import type { BrowserFrameVisualBeat } from "@/server/render/browserFrameRendererPlan";
+import { scaleCssPxString, scalePreviewPx } from "@/lib/livePreviewSizing";
 
 export function LiveVisualOverlay({
-  beat
+  beat,
+  previewScale = 1,
+  stageWidth
 }: {
   beat: BrowserFrameVisualBeat | null;
+  previewScale?: number;
+  stageWidth?: number;
 }) {
   if (!beat) return null;
 
-  const layoutStyle = layoutStyleFor(beat.layout);
+  const px = (value: number, options?: { min?: number; max?: number }) =>
+    `${scalePreviewPx(value, previewScale, options)}px`;
+  const cardWidth = resolveCardWidth(beat.layout, previewScale, stageWidth);
+  const layoutStyle = layoutStyleFor(beat.layout, cardWidth);
   const cardStyle = cardStyleFor(beat.templateId);
 
   return (
@@ -20,32 +28,35 @@ export function LiveVisualOverlay({
         position: "absolute",
         zIndex: 1,
         display: "grid",
-        gap: "0.55rem",
-        padding: "0.9rem 1rem",
-        borderRadius: "1.2rem",
+        gap: px(10, { min: 4 }),
+        padding: `${px(18, { min: 8 })} ${px(20, { min: 10 })}`,
+        borderRadius: px(22, { min: 10 }),
         border: "1px solid rgba(255,255,255,0.14)",
-        boxShadow: "0 24px 48px rgba(0,0,0,0.22)",
-        backdropFilter: "blur(16px)",
+        boxShadow: scaleCssPxString("0 24px 48px rgba(0,0,0,0.22)", previewScale),
+        backdropFilter: `blur(${px(16, { min: 8 })})`,
         background: "rgba(9, 13, 20, 0.58)",
         color: "#fff8ef",
-        width: "min(42%, 20rem)",
+        width: `${cardWidth}px`,
+        maxWidth: "58%",
         ...layoutStyle,
         ...cardStyle
       }}
     >
-      {renderBeatContent(beat)}
+      {renderBeatContent(beat, previewScale)}
     </div>
   );
 }
 
-function renderBeatContent(beat: BrowserFrameVisualBeat) {
+function renderBeatContent(beat: BrowserFrameVisualBeat, previewScale: number) {
   const payload = beat.payload;
+  const px = (value: number, options?: { min?: number; max?: number }) =>
+    `${scalePreviewPx(value, previewScale, options)}px`;
 
   if (beat.templateId === "big_number") {
     return (
       <>
-        <strong style={{ fontSize: "clamp(2rem, 4vw, 3.4rem)", lineHeight: 0.95 }}>{stringValue(payload.value)}</strong>
-        <span style={{ fontSize: "0.95rem", opacity: 0.88 }}>{stringValue(payload.label)}</span>
+        <strong style={{ fontSize: px(68, { min: 18 }), lineHeight: 0.95 }}>{stringValue(payload.value)}</strong>
+        <span style={{ fontSize: px(16, { min: 10 }), opacity: 0.88 }}>{stringValue(payload.label)}</span>
       </>
     );
   }
@@ -56,17 +67,17 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
     if (payload.mode === "table" && rows.length) {
       return (
         <>
-          <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", opacity: 0.75 }}>{stringValue(payload.title)}</span>
-          <div style={{ display: "grid", gap: "0.35rem" }}>
+          <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", opacity: 0.75 }}>{stringValue(payload.title)}</span>
+          <div style={{ display: "grid", gap: px(8, { min: 4 }) }}>
             {rows.map((row, index) => (
               <div
                 key={`${beat.id}-row-${index}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr auto",
-                  gap: "0.7rem",
+                  gap: px(12, { min: 6 }),
                   alignItems: "center",
-                  padding: "0.3rem 0",
+                  padding: `${px(8, { min: 4 })} 0`,
                   borderBottom: index === rows.length - 1 ? "none" : "1px solid rgba(255,255,255,0.08)"
                 }}
               >
@@ -81,12 +92,12 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
 
     return (
       <>
-        <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", opacity: 0.75 }}>{stringValue(payload.title)}</span>
-        <div style={{ display: "grid", gap: "0.4rem" }}>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", opacity: 0.75 }}>{stringValue(payload.title)}</span>
+        <div style={{ display: "grid", gap: px(10, { min: 5 }) }}>
           {values.map((value, index) => (
-            <div key={`${beat.id}-metric-${index}`} style={{ display: "grid", gap: "0.18rem" }}>
-              <strong style={{ fontSize: "1.1rem" }}>{value}</strong>
-              <div style={{ height: "0.42rem", borderRadius: "999px", background: "rgba(255,255,255,0.12)", overflow: "hidden" }}>
+            <div key={`${beat.id}-metric-${index}`} style={{ display: "grid", gap: px(4, { min: 2 }) }}>
+              <strong style={{ fontSize: px(18, { min: 11 }) }}>{value}</strong>
+              <div style={{ height: px(7, { min: 4 }), borderRadius: "999px", background: "rgba(255,255,255,0.12)", overflow: "hidden" }}>
                 <div
                   style={{
                     width: `${Math.max(20, 100 - index * 24)}%`,
@@ -107,21 +118,21 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
     if (payload.mode === "timeline") {
       return (
         <>
-          <span style={{ fontSize: "0.78rem", letterSpacing: "0.12em", opacity: 0.78 }}>{stringValue(payload.title)}</span>
-          <div style={{ display: "grid", gap: "0.5rem" }}>
+          <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.12em", opacity: 0.78 }}>{stringValue(payload.title)}</span>
+          <div style={{ display: "grid", gap: px(10, { min: 5 }) }}>
             {arrayValues(payload.items).map((item, index) => {
               const [lead, ...rest] = item.split(" ");
               return (
-                <div key={`${beat.id}-timeline-${index}`} style={{ display: "grid", gridTemplateColumns: "3rem 1fr", gap: "0.55rem", alignItems: "start" }}>
+                <div key={`${beat.id}-timeline-${index}`} style={{ display: "grid", gridTemplateColumns: `${px(52, { min: 26 })} 1fr`, gap: px(8, { min: 4 }), alignItems: "start" }}>
                   <span
                     style={{
                       display: "inline-flex",
                       justifyContent: "center",
-                      padding: "0.2rem 0.35rem",
+                      padding: `${px(4, { min: 2 })} ${px(8, { min: 4 })}`,
                       borderRadius: "999px",
                       background: "rgba(115, 200, 255, 0.18)",
                       color: "#9fe5ff",
-                      fontSize: "0.82rem",
+                      fontSize: px(13, { min: 9 }),
                       fontWeight: 700
                     }}
                   >
@@ -138,10 +149,10 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
 
     return (
       <>
-        <span style={{ fontSize: "0.78rem", letterSpacing: "0.12em", opacity: 0.78 }}>{stringValue(payload.title)}</span>
-        <div style={{ display: "grid", gap: "0.42rem" }}>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.12em", opacity: 0.78 }}>{stringValue(payload.title)}</span>
+        <div style={{ display: "grid", gap: px(8, { min: 4 }) }}>
           {arrayValues(payload.items).map((item, index) => (
-            <div key={`${beat.id}-item-${index}`} style={{ display: "grid", gridTemplateColumns: "1rem 1fr", gap: "0.45rem", alignItems: "start" }}>
+            <div key={`${beat.id}-item-${index}`} style={{ display: "grid", gridTemplateColumns: `${px(18, { min: 10 })} 1fr`, gap: px(8, { min: 4 }), alignItems: "start" }}>
               <span style={{ color: "#9df79d" }}>✓</span>
               <span>{item}</span>
             </div>
@@ -154,7 +165,7 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
   if (beat.templateId === "myth_strike") {
     return (
       <>
-        <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", color: "#ffb284" }}>{stringValue(payload.eyebrow)}</span>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", color: "#ffb284" }}>{stringValue(payload.eyebrow)}</span>
         <span style={{ textDecoration: "line-through", opacity: 0.72 }}>{stringValue(payload.falseText)}</span>
         <strong style={{ color: "#c4ff89" }}>{stringValue(payload.trueText)}</strong>
       </>
@@ -164,8 +175,8 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
   if (beat.templateId === "cta_plate") {
     return (
       <>
-        <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", color: "#ffe24f" }}>{stringValue(payload.label)}</span>
-        <strong style={{ fontSize: "1.3rem", lineHeight: 1.05 }}>{stringValue(payload.text)}</strong>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", color: "#ffe24f" }}>{stringValue(payload.label)}</span>
+        <strong style={{ fontSize: px(30, { min: 14 }), lineHeight: 1.05 }}>{stringValue(payload.text)}</strong>
       </>
     );
   }
@@ -173,9 +184,9 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
   if (payload.mode === "definition") {
     return (
       <>
-        <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
-        <strong style={{ fontSize: "1.2rem", lineHeight: 1.05 }}>{stringValue(payload.title || payload.center)}</strong>
-        <div style={{ padding: "0.6rem 0.7rem", borderRadius: "0.95rem", background: "rgba(255,255,255,0.06)", fontSize: "0.92rem", lineHeight: 1.3 }}>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
+        <strong style={{ fontSize: px(26, { min: 13 }), lineHeight: 1.05 }}>{stringValue(payload.title || payload.center)}</strong>
+        <div style={{ padding: `${px(12, { min: 6 })} ${px(14, { min: 7 })}`, borderRadius: px(16, { min: 8 }), background: "rgba(255,255,255,0.06)", fontSize: px(16, { min: 10 }), lineHeight: 1.3 }}>
           {stringValue(payload.body || payload.caption)}
         </div>
       </>
@@ -185,53 +196,73 @@ function renderBeatContent(beat: BrowserFrameVisualBeat) {
   if (payload.mode === "mindmap") {
     return (
       <>
-        <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
-        <strong style={{ fontSize: "1.15rem", lineHeight: 1.05 }}>{stringValue(payload.center || payload.title)}</strong>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+        <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
+        <strong style={{ fontSize: px(26, { min: 13 }), lineHeight: 1.05 }}>{stringValue(payload.center || payload.title)}</strong>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: px(8, { min: 4 }) }}>
           {arrayValues(payload.branches).map((branch, index) => (
             <span
               key={`${beat.id}-branch-${index}`}
               style={{
-                padding: "0.35rem 0.6rem",
+                padding: `${px(6, { min: 3 })} ${px(10, { min: 5 })}`,
                 borderRadius: "999px",
                 background: "rgba(115, 200, 255, 0.14)",
                 border: "1px solid rgba(115, 200, 255, 0.18)",
-                fontSize: "0.84rem"
+                fontSize: px(14, { min: 9 })
               }}
             >
               {branch}
             </span>
           ))}
         </div>
-        {payload.caption ? <span style={{ fontSize: "0.82rem", opacity: 0.74 }}>{stringValue(payload.caption)}</span> : null}
+        {payload.caption ? <span style={{ fontSize: px(16, { min: 10 }), opacity: 0.74 }}>{stringValue(payload.caption)}</span> : null}
       </>
     );
   }
 
   return (
     <>
-      <span style={{ fontSize: "0.72rem", letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
-      <strong style={{ fontSize: "1.15rem", lineHeight: 1.05 }}>{stringValue(payload.center || payload.title)}</strong>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.92rem" }}>
+      <span style={{ fontSize: px(14, { min: 9 }), letterSpacing: "0.14em", opacity: 0.78 }}>{stringValue(payload.eyebrow)}</span>
+      <strong style={{ fontSize: px(26, { min: 13 }), lineHeight: 1.05 }}>{stringValue(payload.center || payload.title)}</strong>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: px(12, { min: 6 }), fontSize: px(16, { min: 10 }) }}>
         <span>{stringValue(payload.left)}</span>
         <span>{stringValue(payload.right)}</span>
       </div>
-      {payload.caption ? <span style={{ fontSize: "0.82rem", opacity: 0.74 }}>{stringValue(payload.caption)}</span> : null}
+      {payload.caption ? <span style={{ fontSize: px(16, { min: 10 }), opacity: 0.74 }}>{stringValue(payload.caption)}</span> : null}
     </>
   );
 }
 
-function layoutStyleFor(layout: BrowserFrameVisualBeat["layout"]): CSSProperties {
+function layoutStyleFor(layout: BrowserFrameVisualBeat["layout"], cardWidth: number): CSSProperties {
   if (layout === "left") return { left: "6%", top: "11%" };
   if (layout === "right") return { right: "6%", top: "11%" };
-  if (layout === "top") return { left: "50%", top: "8%", transform: "translateX(-50%)", width: "min(58%, 26rem)" };
-  return { left: "50%", top: "13%", transform: "translateX(-50%)", width: "min(56%, 24rem)" };
+  if (layout === "top") return { left: "50%", top: "8%", transform: "translateX(-50%)", width: `${cardWidth}px` };
+  return { left: "50%", top: "13%", transform: "translateX(-50%)", width: `${cardWidth}px` };
 }
 
 function cardStyleFor(templateId: BrowserFrameVisualBeat["templateId"]): CSSProperties {
   if (templateId === "cta_plate") return { background: "rgba(28, 18, 10, 0.7)" };
   if (templateId === "big_number" || templateId === "metric_chart") return { background: "rgba(8, 18, 34, 0.72)" };
   return {};
+}
+
+function resolveCardWidth(
+  layout: BrowserFrameVisualBeat["layout"],
+  previewScale: number,
+  stageWidth?: number
+) {
+  const availableWidth = stageWidth && stageWidth > 0 ? stageWidth : 0;
+  if (layout === "top") {
+    const scaledMax = scalePreviewPx(420, previewScale, { min: 180 });
+    return availableWidth > 0 ? Math.min(availableWidth * 0.58, scaledMax) : scaledMax;
+  }
+
+  if (layout === "center") {
+    const scaledMax = scalePreviewPx(380, previewScale, { min: 170 });
+    return availableWidth > 0 ? Math.min(availableWidth * 0.56, scaledMax) : scaledMax;
+  }
+
+  const scaledMax = scalePreviewPx(320, previewScale, { min: 160 });
+  return availableWidth > 0 ? Math.min(availableWidth * 0.42, scaledMax) : scaledMax;
 }
 
 function stringValue(value: unknown) {
