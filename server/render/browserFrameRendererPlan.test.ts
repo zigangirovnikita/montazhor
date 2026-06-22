@@ -68,6 +68,7 @@ describe("browserFrameRendererPlan", () => {
     expect(plan.fps).toBe(20);
     expect(plan.duration).toBe(12);
     expect(plan.captionStyle).toBe("bold-yellow");
+    expect(plan.captionDesign.variant).toBe("viral");
     expect(plan.captions.length).toBeGreaterThan(0);
     expect(plan.cameraMoves.length).toBe(1);
     expect(plan.diagnostics.activeVideoBox.source).toBe("full_frame_fallback");

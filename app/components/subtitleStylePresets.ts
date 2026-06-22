@@ -5,10 +5,12 @@ import type {
   SubtitleFontId,
   SubtitleTextCase
 } from "@/app/components/PresentationConfigurator";
+import { subtitleStyleRecipeOptions, type SubtitleStyleRecipeId } from "@/lib/subtitleStyleRecipe";
 import type { StylePreset, VisualTemplateId } from "@/lib/types";
 
 export type SubtitleStylePresetDefinition = {
   id: string;
+  recipeId: SubtitleStyleRecipeId;
   title: string;
   category: "clean" | "viral" | "premium" | "story";
   note: string;
@@ -16,257 +18,96 @@ export type SubtitleStylePresetDefinition = {
   normalSample: string;
   accentSample: string;
   stylePreset: StylePreset;
-  options: Partial<StyleDraftOptions>;
 };
 
 export const subtitleStylePresets: SubtitleStylePresetDefinition[] = [
   {
     id: "sales-punch",
+    recipeId: "sales-punch",
     title: "Sales Punch",
     category: "viral",
     note: "Жёсткий хук, контрастный акцент, CTA и сравнения.",
     chips: ["CTA", "Сравнения", "Графики"],
     normalSample: "Ты теряешь",
     accentSample: "внимание",
-    stylePreset: "dynamic_viral",
-    options: {
-      subtitleFont: "manrope",
-      accentFont: "montserrat",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "solid",
-      subtitleColor: "#ffffff",
-      accentColor: "#ffd84d",
-      textCase: "upper",
-      captionPosition: "lower",
-      captionSize: "lg",
-      infographicAccent: "orange",
-      presetPack: "viral",
-      visualDensity: "high",
-      motionIntensity: "active",
-      emojiEnabled: false,
-      autoLists: false,
-      autoComparisons: true,
-      autoCharts: true,
-      autoCta: true,
-      autoStrike: true
-    }
+    stylePreset: "dynamic_viral"
   },
   {
     id: "clean-expert",
+    recipeId: "clean-expert",
     title: "Clean Expert",
     category: "clean",
     note: "Спокойная экспертная подача без лишнего шума.",
     chips: ["Чисто", "Фразы"],
     normalSample: "Главная",
     accentSample: "мысль",
-    stylePreset: "clean_expert",
-    options: {
-      subtitleFont: "golos",
-      accentFont: "onest",
-      subtitleStyle: "clean",
-      subtitleBackdrop: "none",
-      subtitleColor: "#ffffff",
-      accentColor: "#8fd4ff",
-      textCase: "sentence",
-      captionPosition: "lower",
-      captionSize: "md",
-      infographicAccent: "mint",
-      presetPack: "minimal",
-      visualDensity: "low",
-      motionIntensity: "calm",
-      emojiEnabled: false,
-      autoLists: false,
-      autoComparisons: false,
-      autoCharts: false,
-      autoCta: false,
-      autoStrike: false
-    }
+    stylePreset: "clean_expert"
   },
   {
     id: "glass-focus",
+    recipeId: "glass-focus",
     title: "Glass Focus",
     category: "premium",
     note: "Премиальная плашка, мягкий свет, аккуратный акцент.",
     chips: ["Glass", "Премиум"],
     normalSample: "Точный",
     accentSample: "фокус",
-    stylePreset: "premium_calm",
-    options: {
-      subtitleFont: "manrope",
-      accentFont: "golos",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "glass",
-      subtitleColor: "#fff7e7",
-      accentColor: "#d7b47f",
-      textCase: "sentence",
-      captionPosition: "lower",
-      captionSize: "md",
-      infographicAccent: "cream",
-      presetPack: "premium",
-      visualDensity: "medium",
-      motionIntensity: "calm",
-      emojiEnabled: false,
-      autoLists: true,
-      autoComparisons: false,
-      autoCharts: false,
-      autoCta: true,
-      autoStrike: false
-    }
+    stylePreset: "premium_calm"
   },
   {
     id: "marker-pop",
+    recipeId: "marker-pop",
     title: "Marker Pop",
     category: "story",
     note: "Маркерные акценты для сторителлинга и тезисов.",
     chips: ["Маркер", "Списки"],
     normalSample: "Вот это",
     accentSample: "важно",
-    stylePreset: "clean_expert",
-    options: {
-      subtitleFont: "montserrat",
-      accentFont: "montserrat",
-      subtitleStyle: "marker",
-      subtitleBackdrop: "glass",
-      subtitleColor: "#ffffff",
-      accentColor: "#ff8b38",
-      textCase: "sentence",
-      captionPosition: "lower",
-      captionSize: "md",
-      infographicAccent: "orange",
-      presetPack: "educational",
-      visualDensity: "medium",
-      motionIntensity: "medium",
-      emojiEnabled: true,
-      autoLists: true,
-      autoComparisons: false,
-      autoCharts: false,
-      autoCta: false,
-      autoStrike: true
-    }
+    stylePreset: "clean_expert"
   },
   {
     id: "neon-pulse",
+    recipeId: "neon-pulse",
     title: "Neon Pulse",
     category: "viral",
     note: "Для резких вертикальных роликов с мощным визуальным ударом.",
     chips: ["Неон", "Вирусно"],
     normalSample: "Не делай",
     accentSample: "так",
-    stylePreset: "viral_kinetic",
-    options: {
-      subtitleFont: "unbounded",
-      accentFont: "unbounded",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "solid",
-      subtitleColor: "#f7fbff",
-      accentColor: "#b9ff5c",
-      textCase: "upper",
-      captionPosition: "middle",
-      captionSize: "lg",
-      infographicAccent: "mint",
-      presetPack: "viral",
-      visualDensity: "high",
-      motionIntensity: "active",
-      emojiEnabled: true,
-      autoLists: false,
-      autoComparisons: true,
-      autoCharts: true,
-      autoCta: true,
-      autoStrike: true
-    }
+    stylePreset: "viral_kinetic"
   },
   {
     id: "calm-authority",
+    recipeId: "calm-authority",
     title: "Calm Authority",
     category: "premium",
     note: "Уверенный экспертный тон с дорогой типографикой.",
     chips: ["Эксперт", "Спокойно"],
     normalSample: "Разберём",
     accentSample: "спокойно",
-    stylePreset: "premium_calm",
-    options: {
-      subtitleFont: "golos",
-      accentFont: "unbounded",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "none",
-      subtitleColor: "#f6efe3",
-      accentColor: "#73c8ff",
-      textCase: "sentence",
-      captionPosition: "lower",
-      captionSize: "sm",
-      infographicAccent: "cream",
-      presetPack: "premium",
-      visualDensity: "low",
-      motionIntensity: "calm",
-      emojiEnabled: false,
-      autoLists: true,
-      autoComparisons: false,
-      autoCharts: false,
-      autoCta: false,
-      autoStrike: false
-    }
+    stylePreset: "premium_calm"
   },
   {
     id: "story-ledger",
+    recipeId: "story-ledger",
     title: "Story Ledger",
     category: "story",
     note: "Под списки, тезисы и пошаговые объяснения.",
     chips: ["Списки", "Шаги", "Схемы"],
     normalSample: "Три",
     accentSample: "шага",
-    stylePreset: "clean_expert",
-    options: {
-      subtitleFont: "onest",
-      accentFont: "montserrat",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "glass",
-      subtitleColor: "#ffffff",
-      accentColor: "#ffd061",
-      textCase: "sentence",
-      captionPosition: "lower",
-      captionSize: "md",
-      infographicAccent: "mint",
-      presetPack: "educational",
-      visualDensity: "medium",
-      motionIntensity: "medium",
-      emojiEnabled: false,
-      autoLists: true,
-      autoComparisons: true,
-      autoCharts: true,
-      autoCta: false,
-      autoStrike: true
-    }
+    stylePreset: "clean_expert"
   },
   {
     id: "sharp-cta",
+    recipeId: "sharp-cta",
     title: "Sharp CTA",
     category: "viral",
     note: "Финальные призывы, контрастные концовки и сильный хук.",
     chips: ["CTA", "Финал"],
     normalSample: "Жми",
     accentSample: "сейчас",
-    stylePreset: "dynamic_viral",
-    options: {
-      subtitleFont: "montserrat",
-      accentFont: "unbounded",
-      subtitleStyle: "active_word",
-      subtitleBackdrop: "solid",
-      subtitleColor: "#ffffff",
-      accentColor: "#66f2ff",
-      textCase: "upper",
-      captionPosition: "middle",
-      captionSize: "lg",
-      infographicAccent: "orange",
-      presetPack: "viral",
-      visualDensity: "medium",
-      motionIntensity: "active",
-      emojiEnabled: true,
-      autoLists: false,
-      autoComparisons: false,
-      autoCharts: false,
-      autoCta: true,
-      autoStrike: false
-    }
+    stylePreset: "dynamic_viral"
   }
 ];
 
@@ -284,8 +125,8 @@ export function applyStylePresetOptions(
 ): StyleDraftOptions {
   const merged = {
     ...currentOptions,
-    ...preset.options,
-    styleRecipeId: preset.id
+    ...subtitleStyleRecipeOptions(preset.recipeId),
+    styleRecipeId: preset.recipeId
   };
 
   return withTemplateToggles(merged);

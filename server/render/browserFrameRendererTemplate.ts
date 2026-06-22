@@ -1,4 +1,4 @@
-import { pathToFileURL } from "node:url";
+import { hyperframesLocalFontsCss } from "@/server/hyperframes/assets";
 
 export function buildBrowserFrameRendererHtml(input: {
   width: number;
@@ -9,24 +9,14 @@ export function buildBrowserFrameRendererHtml(input: {
     width: number;
     height: number;
   };
-  fontPath?: string;
 }) {
-  const fontUrl = input.fontPath ? pathToFileURL(input.fontPath).toString() : "";
-
   return `<!DOCTYPE html>
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      ${fontUrl ? `
-      @font-face {
-        font-family: "POCOnest";
-        src: url("${fontUrl}") format("truetype");
-        font-style: normal;
-        font-weight: 700;
-        font-display: block;
-      }` : ""}
+      ${hyperframesLocalFontsCss()}
       :root {
         color-scheme: only light;
       }
@@ -41,7 +31,7 @@ export function buildBrowserFrameRendererHtml(input: {
         background: #000;
       }
       body {
-        font-family: ${fontUrl ? '"POCOnest",' : ""} "Arial Black", Arial, sans-serif;
+        font-family: "HF Manrope", Arial, sans-serif;
       }
       #frame-root {
         position: relative;
@@ -75,6 +65,113 @@ export function buildBrowserFrameRendererHtml(input: {
           radial-gradient(circle at center, transparent 35%, rgba(0, 0, 0, 0.18) 100%);
         pointer-events: none;
       }
+      #visual-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .visual-card {
+        position: absolute;
+        display: grid;
+        gap: 10px;
+        padding: 18px 20px;
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(9, 13, 20, 0.58);
+        backdrop-filter: blur(16px);
+        color: #fff8ef;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
+        width: min(42%, 320px);
+      }
+      .visual-card.layout-left { left: 6%; top: 11%; }
+      .visual-card.layout-right { right: 6%; top: 11%; }
+      .visual-card.layout-top { left: 50%; top: 8%; width: min(58%, 420px); transform: translateX(-50%); }
+      .visual-card.layout-center { left: 50%; top: 13%; width: min(56%, 380px); transform: translateX(-50%); }
+      .visual-eyebrow {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        opacity: 0.78;
+      }
+      .visual-number {
+        font-size: clamp(44px, 6vw, 68px);
+        line-height: 0.95;
+        font-weight: 800;
+      }
+      .visual-subtle {
+        font-size: 16px;
+        opacity: 0.86;
+        line-height: 1.2;
+      }
+      .visual-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        font-size: 18px;
+      }
+      .visual-list {
+        display: grid;
+        gap: 8px;
+      }
+      .visual-list-item {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 8px;
+      }
+      .visual-timeline-item {
+        grid-template-columns: 52px 1fr;
+        align-items: start;
+      }
+      .visual-chip {
+        display: inline-flex;
+        justify-content: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(115, 200, 255, 0.18);
+        color: #9fe5ff;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .visual-chart-list {
+        display: grid;
+        gap: 10px;
+      }
+      .visual-table {
+        display: grid;
+        gap: 2px;
+      }
+      .visual-table-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .visual-branch-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .visual-branch-chip {
+        display: inline-flex;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(115, 200, 255, 0.14);
+        border: 1px solid rgba(115, 200, 255, 0.18);
+        font-size: 14px;
+      }
+      .visual-chart-bar {
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+      .visual-chart-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #73c8ff 0%, #ffe24f 100%);
+      }
       #caption-shell {
         position: absolute;
         left: ${input.captionSafeArea.x}px;
@@ -82,7 +179,6 @@ export function buildBrowserFrameRendererHtml(input: {
         width: ${input.captionSafeArea.width}px;
         height: ${input.captionSafeArea.height}px;
         display: flex;
-        align-items: flex-end;
         justify-content: center;
         pointer-events: none;
       }
@@ -90,49 +186,11 @@ export function buildBrowserFrameRendererHtml(input: {
         max-width: 100%;
         text-align: center;
         color: #fff;
-        font-size: 74px;
-        font-weight: 700;
-        line-height: 1.04;
-        letter-spacing: -0.04em;
-        text-transform: uppercase;
-        -webkit-text-stroke: 2px rgba(0, 0, 0, 0.9);
-        text-shadow:
-          0 4px 0 rgba(0, 0, 0, 0.42),
-          0 14px 28px rgba(0, 0, 0, 0.38),
-          0 0 24px rgba(0, 0, 0, 0.18);
         opacity: 0;
         transform: translate3d(0, 24px, 0) scale(0.94);
         will-change: transform, opacity;
-      }
-      #caption-box[data-style="bold-yellow"] {
-        font-size: 74px;
-        font-weight: 700;
-        letter-spacing: -0.04em;
-        text-transform: uppercase;
-        -webkit-text-stroke: 2px rgba(0, 0, 0, 0.9);
-        text-shadow:
-          0 4px 0 rgba(0, 0, 0, 0.42),
-          0 14px 28px rgba(0, 0, 0, 0.38),
-          0 0 24px rgba(0, 0, 0, 0.18);
-      }
-      #caption-box[data-style="clean-white"] {
-        font-size: 68px;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        text-transform: none;
-        -webkit-text-stroke: 0 transparent;
-        text-shadow:
-          0 6px 18px rgba(0, 0, 0, 0.42),
-          0 0 18px rgba(0, 0, 0, 0.16);
-      }
-      #caption-box[data-style="premium-minimal"] {
-        font-size: 60px;
-        font-weight: 700;
-        letter-spacing: -0.035em;
-        text-transform: none;
-        -webkit-text-stroke: 0 transparent;
-        text-shadow:
-          0 8px 24px rgba(0, 0, 0, 0.28);
+        padding: 0.16em 0.22em;
+        border-radius: 0.34em;
       }
       .caption-line {
         display: block;
@@ -143,22 +201,35 @@ export function buildBrowserFrameRendererHtml(input: {
         padding: 0.02em 0.06em;
         border-radius: 0.12em;
       }
-      #caption-box[data-style="bold-yellow"] .caption-word.is-highlight {
+      .caption-word.is-emphasis {
+        font-family: var(--caption-accent-font, inherit);
+      }
+      #caption-box[data-highlight-mode="fill"] .caption-word.is-emphasis,
+      #caption-box[data-highlight-mode="fill"] .caption-word.is-active {
         color: #111;
-        background: #ffe44d;
+        background: var(--caption-accent-color, #ffe44d);
         -webkit-text-stroke: 0 transparent;
+        text-shadow: none;
         box-shadow:
           0 0 0 2px rgba(0, 0, 0, 0.18) inset,
           0 8px 24px rgba(255, 228, 77, 0.28);
-        text-shadow: none;
       }
-      #caption-box[data-style="clean-white"] .caption-word.is-highlight {
-        color: #ffe44d;
+      #caption-box[data-highlight-mode="text"] .caption-word.is-emphasis,
+      #caption-box[data-highlight-mode="text"] .caption-word.is-active {
+        color: var(--caption-accent-color, #8fd4ff);
       }
-      #caption-box[data-style="premium-minimal"] .caption-word.is-highlight {
-        color: #fff6d6;
-        background: rgba(255, 255, 255, 0.12);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+      #caption-box[data-highlight-mode="marker"] .caption-word.is-emphasis,
+      #caption-box[data-highlight-mode="marker"] .caption-word.is-active {
+        color: #fff;
+        background:
+          linear-gradient(180deg, transparent 0 44%, color-mix(in srgb, var(--caption-accent-color, #ffe44d) 88%, white 12%) 44% 92%, transparent 92% 100%);
+      }
+      #caption-box[data-word-animation="pulse"] .caption-word.is-emphasis,
+      #caption-box[data-word-animation="pulse"] .caption-word.is-active {
+        color: var(--caption-accent-color, #ffe44d);
+        transform: scale(1.06);
+        text-shadow:
+          0 0 22px color-mix(in srgb, var(--caption-accent-color, #ffe44d) 78%, white 22%);
       }
     </style>
   </head>
@@ -168,6 +239,7 @@ export function buildBrowserFrameRendererHtml(input: {
         <img id="background-image" alt="" />
       </div>
       <div id="vignette"></div>
+      <div id="visual-layer"></div>
       <div id="caption-shell">
         <div id="caption-box"></div>
       </div>
@@ -176,6 +248,8 @@ export function buildBrowserFrameRendererHtml(input: {
       (() => {
         const image = document.getElementById("background-image");
         const backgroundTrack = document.getElementById("background-track");
+        const visualLayer = document.getElementById("visual-layer");
+        const captionShell = document.getElementById("caption-shell");
         const captionBox = document.getElementById("caption-box");
         let currentBackground = "";
 
@@ -197,26 +271,142 @@ export function buildBrowserFrameRendererHtml(input: {
           return String(value || "").toLowerCase().replace(/[^\\p{L}\\p{N}%$€₽-]+/gu, "");
         }
 
+        function cssEscape(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
         function buildCaptionHtml(caption, time) {
           if (!caption) return "";
           const highlightSet = new Set(Array.isArray(caption.highlightedWords) ? caption.highlightedWords : []);
           const lines = Array.isArray(caption.lines) && caption.lines.length ? caption.lines : [caption.text];
+          let sequentialIndex = 0;
 
-          return lines.map((line) => {
+          return lines.map((line, lineIndex) => {
             const tokens = String(line).split(/\\s+/).filter(Boolean);
-            const lineHtml = tokens.map((token) => {
-              const safeText = String(token)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;");
-              const word = (caption.words || []).find((entry) => entry.text === token && time >= entry.start && time <= entry.end)
-                || (caption.words || []).find((entry) => entry.text === token);
+            const lineHtml = tokens.map((token, tokenIndex) => {
+              const wordIndex = sequentialIndex;
+              sequentialIndex += 1;
+              const word = (caption.words || [])[wordIndex];
               const active = Boolean(word && time >= word.start && time <= word.end);
               const emphasized = highlightSet.has(normalizeWord(token));
-              return '<span class="caption-word' + ((active || emphasized) ? ' is-highlight' : '') + '">' + safeText + '</span>';
-            }).join(" ");
-            return '<span class="caption-line">' + lineHtml + '</span>';
+              const classes = [
+                "caption-word",
+                active ? "is-active" : "",
+                (active || emphasized) ? "is-emphasis" : ""
+              ].filter(Boolean).join(" ");
+              return '<span class="' + classes + '">' + cssEscape(token) + (tokenIndex < tokens.length - 1 ? " " : "") + "</span>";
+            }).join("");
+            return '<span class="caption-line">' + lineHtml + "</span>";
           }).join("");
+        }
+
+        function applyCaptionDesign(design) {
+          if (!design) return;
+
+          captionShell.style.alignItems = design.position === "middle" ? "center" : "flex-end";
+          captionBox.dataset.highlightMode = design.highlightMode || "text";
+          captionBox.dataset.wordAnimation = design.wordAnimation || "text";
+          captionBox.style.fontFamily = design.fontFamily;
+          captionBox.style.color = design.textColor;
+          captionBox.style.fontSize = design.fontSize;
+          captionBox.style.fontWeight = String(design.fontWeight);
+          captionBox.style.letterSpacing = design.letterSpacing;
+          captionBox.style.textTransform = design.textTransform;
+          captionBox.style.webkitTextStroke = (design.strokeWidth || 0) > 0
+            ? design.strokeWidth + "px " + design.strokeColor
+            : "0 transparent";
+          captionBox.style.textShadow = design.textShadow;
+          captionBox.style.setProperty("--caption-accent-font", design.accentFontFamily);
+          captionBox.style.setProperty("--caption-accent-color", design.accentColor);
+
+          if (design.backdrop === "solid") {
+            captionBox.style.background = design.variant === "premium"
+              ? "rgba(18, 18, 18, 0.7)"
+              : "rgba(10, 10, 10, 0.76)";
+            captionBox.style.border = "1px solid rgba(255, 255, 255, 0.08)";
+            captionBox.style.boxShadow = "0 18px 36px rgba(0, 0, 0, 0.28)";
+            captionBox.style.backdropFilter = "none";
+          } else if (design.backdrop === "glass") {
+            captionBox.style.background = design.variant === "premium"
+              ? "rgba(255, 248, 234, 0.1)"
+              : "rgba(12, 15, 20, 0.34)";
+            captionBox.style.border = "1px solid rgba(255, 255, 255, 0.14)";
+            captionBox.style.boxShadow = "0 16px 34px rgba(0, 0, 0, 0.16)";
+            captionBox.style.backdropFilter = "blur(16px)";
+          } else {
+            captionBox.style.background = "transparent";
+            captionBox.style.border = "1px solid transparent";
+            captionBox.style.boxShadow = "none";
+            captionBox.style.backdropFilter = "none";
+          }
+        }
+
+        function renderVisualBeatHtml(beat) {
+          if (!beat) return "";
+          const payload = beat.payload || {};
+          const layoutClass = "layout-" + (beat.layout || "right");
+
+          if (beat.templateId === "big_number") {
+            return '<div class="visual-card ' + layoutClass + '"><strong class="visual-number">' + cssEscape(payload.value || "") + '</strong><span class="visual-subtle">' + cssEscape(payload.label || "") + '</span></div>';
+          }
+
+          if (beat.templateId === "metric_chart") {
+            if (payload.mode === "table" && Array.isArray(payload.rows)) {
+              const rows = payload.rows.map((row, index) => {
+                const label = row && typeof row.label === "string" ? row.label : "";
+                const value = row && typeof row.value === "string" ? row.value : "";
+                return '<div class="visual-table-row" style="' + (index === payload.rows.length - 1 ? "border-bottom:none" : "") + '"><span>' + cssEscape(label) + '</span><strong>' + cssEscape(value) + '</strong></div>';
+              }).join("");
+              return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.title || "") + '</span><div class="visual-table">' + rows + '</div></div>';
+            }
+
+            const values = Array.isArray(payload.values) ? payload.values : [];
+            const list = values.map((value, index) => {
+              const width = Math.max(20, 100 - index * 24);
+              return '<div class="visual-chart-item"><strong>' + cssEscape(String(value)) + '</strong><div class="visual-chart-bar"><div class="visual-chart-fill" style="width:' + width + '%"></div></div></div>';
+            }).join("");
+            return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.title || "") + '</span><div class="visual-chart-list">' + list + '</div></div>';
+          }
+
+          if (beat.templateId === "checklist") {
+            if (payload.mode === "timeline") {
+              const items = Array.isArray(payload.items) ? payload.items : [];
+              const list = items.map((item) => {
+                const parts = String(item).split(/\\s+/);
+                const lead = cssEscape(parts.shift() || "");
+                const body = cssEscape(parts.join(" ") || String(item));
+                return '<div class="visual-list-item visual-timeline-item"><span class="visual-chip">' + lead + '</span><span>' + body + '</span></div>';
+              }).join("");
+              return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.title || "") + '</span><div class="visual-list">' + list + '</div></div>';
+            }
+
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            const list = items.map((item) => '<div class="visual-list-item"><span style="color:#9df79d">✓</span><span>' + cssEscape(String(item)) + '</span></div>').join("");
+            return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.title || "") + '</span><div class="visual-list">' + list + '</div></div>';
+          }
+
+          if (beat.templateId === "myth_strike") {
+            return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow" style="color:#ffb284">' + cssEscape(payload.eyebrow || "") + '</span><span style="text-decoration:line-through;opacity:.72">' + cssEscape(payload.falseText || "") + '</span><strong style="color:#c4ff89">' + cssEscape(payload.trueText || "") + '</strong></div>';
+          }
+
+          if (beat.templateId === "cta_plate") {
+            return '<div class="visual-card ' + layoutClass + '" style="background:rgba(28,18,10,.7)"><span class="visual-eyebrow" style="color:#ffe24f">' + cssEscape(payload.label || "") + '</span><strong style="font-size:30px;line-height:1.05">' + cssEscape(payload.text || "") + '</strong></div>';
+          }
+
+          if (payload.mode === "definition") {
+            return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.eyebrow || "") + '</span><strong style="font-size:26px;line-height:1.05">' + cssEscape(payload.title || payload.center || "") + '</strong><div style="padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.06);font-size:16px;line-height:1.3">' + cssEscape(payload.body || payload.caption || "") + '</div></div>';
+          }
+
+          if (payload.mode === "mindmap") {
+            const branches = Array.isArray(payload.branches) ? payload.branches : [];
+            const chips = branches.map((branch) => '<span class="visual-branch-chip">' + cssEscape(String(branch)) + '</span>').join("");
+            return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.eyebrow || "") + '</span><strong style="font-size:26px;line-height:1.05">' + cssEscape(payload.center || payload.title || "") + '</strong><div class="visual-branch-list">' + chips + '</div><span class="visual-subtle">' + cssEscape(payload.caption || "") + '</span></div>';
+          }
+
+          return '<div class="visual-card ' + layoutClass + '"><span class="visual-eyebrow">' + cssEscape(payload.eyebrow || "") + '</span><strong style="font-size:26px;line-height:1.05">' + cssEscape(payload.center || payload.title || "") + '</strong><div class="visual-grid-2"><span>' + cssEscape(payload.left || "") + '</span><span>' + cssEscape(payload.right || "") + '</span></div><span class="visual-subtle">' + cssEscape(payload.caption || "") + '</span></div>';
         }
 
         async function ensureImage(url) {
@@ -242,20 +432,30 @@ export function buildBrowserFrameRendererHtml(input: {
           const rel = caption ? clamp01((time - caption.start) / captionDuration) : 0;
           const enter = clamp01(rel / 0.18);
           const exit = clamp01((1 - rel) / 0.14);
-          const opacity = Math.min(1, easeOutBack(enter), 1 - easeInQuad(1 - exit));
-          const scale = 0.92 + 0.08 * easeOutBack(enter);
-          const translateY = (1 - enter) * 30 - (1 - exit) * 10;
+          const activeDesign = frameData.captionDesign || {};
+          const opacity = activeDesign.enterAnimation === "fade"
+            ? Math.min(1, enter, exit + 0.02)
+            : Math.min(1, easeOutBack(enter), 1 - easeInQuad(1 - exit));
+          const scale = activeDesign.enterAnimation === "pop"
+            ? 0.9 + 0.12 * easeOutBack(enter)
+            : activeDesign.enterAnimation === "fade"
+              ? 1
+              : 0.92 + 0.08 * easeOutBack(enter);
+          const translateY = activeDesign.enterAnimation === "slide_up"
+            ? (1 - enter) * 30 - (1 - exit) * 10
+            : 0;
 
           backgroundTrack.style.transform = camera
-            ? 'translate3d(' + Math.round(camera.x * ${input.width}) + 'px,' + Math.round(camera.y * ${input.height}) + 'px,0) scale(' + camera.scale.toFixed(4) + ')'
-            : 'translate3d(0,0,0) scale(1)';
+            ? "translate3d(" + Math.round(camera.x * ${input.width}) + "px," + Math.round(camera.y * ${input.height}) + "px,0) scale(" + camera.scale.toFixed(4) + ")"
+            : "translate3d(0,0,0) scale(1)";
 
+          applyCaptionDesign(frameData.captionDesign);
+          visualLayer.innerHTML = renderVisualBeatHtml(frameData.visualBeat);
           captionBox.innerHTML = buildCaptionHtml(caption, time);
-          captionBox.dataset.style = frameData.captionStyle || "bold-yellow";
           captionBox.style.opacity = caption ? String(Math.max(0, opacity)) : "0";
           captionBox.style.transform = caption
-            ? 'translate3d(0,' + translateY.toFixed(2) + 'px,0) scale(' + scale.toFixed(4) + ')'
-            : 'translate3d(0,24px,0) scale(0.94)';
+            ? "translate3d(0," + translateY.toFixed(2) + "px,0) scale(" + scale.toFixed(4) + ")"
+            : "translate3d(0,24px,0) scale(0.94)";
         };
 
         document.fonts.ready

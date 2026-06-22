@@ -1,4 +1,6 @@
 import type {
+  AccentAnimation,
+  CaptionAnimation,
   CaptionPosition,
   CaptionSize,
   StyleDraftOptions,
@@ -7,10 +9,13 @@ import type {
 } from "@/app/components/PresentationConfigurator";
 import { withTemplateToggles } from "@/app/components/subtitleStylePresets";
 import { normalizePresentationMode } from "@/lib/presentationMode";
+import { subtitleStyleRecipeOptions } from "@/lib/subtitleStyleRecipe";
 import type { PresentationMode, StylePreset } from "@/lib/types";
 
 const subtitleFonts = new Set<SubtitleFontId>(["manrope", "onest", "unbounded", "montserrat", "golos"]);
 const subtitleStyles = new Set<StyleDraftOptions["subtitleStyle"]>(["clean", "active_word", "marker"]);
+const captionAnimations = new Set<CaptionAnimation>(["slide_up", "fade", "pop"]);
+const accentAnimations = new Set<AccentAnimation>(["text", "fill", "marker", "pulse"]);
 const subtitleBackdrops = new Set<StyleDraftOptions["subtitleBackdrop"]>(["none", "glass", "solid"]);
 const textCases = new Set<SubtitleTextCase>(["sentence", "upper"]);
 const captionPositions = new Set<CaptionPosition>(["lower", "middle"]);
@@ -26,6 +31,8 @@ export const defaultStyleOptions: StyleDraftOptions = {
   subtitleFont: "manrope",
   accentFont: "montserrat",
   subtitleStyle: "active_word",
+  captionAnimation: "slide_up",
+  accentAnimation: "fill",
   subtitleBackdrop: "glass",
   subtitleColor: "#ffffff",
   accentColor: "#73c8ff",
@@ -57,28 +64,68 @@ export function parseStyleOptions(raw: string | null | undefined): StyleDraftOpt
 }
 
 export function normalizeStyleOptions(parsed: Partial<StyleDraftOptions>): StyleDraftOptions {
+  const styleRecipeId = parsed.styleRecipeId ?? defaultStyleOptions.styleRecipeId;
+  const recipeDefaults = subtitleStyleRecipeOptions(styleRecipeId);
+
   return withTemplateToggles({
-    styleRecipeId: parsed.styleRecipeId ?? defaultStyleOptions.styleRecipeId,
-    subtitleFont: parseRequiredEnum(parsed.subtitleFont, subtitleFonts, defaultStyleOptions.subtitleFont),
-    accentFont: parseEnum(parsed.accentFont, subtitleFonts, defaultStyleOptions.accentFont),
-    subtitleStyle: parseRequiredEnum(parsed.subtitleStyle, subtitleStyles, defaultStyleOptions.subtitleStyle),
-    subtitleBackdrop: parseRequiredEnum(parsed.subtitleBackdrop, subtitleBackdrops, defaultStyleOptions.subtitleBackdrop),
-    subtitleColor: parseColor(parsed.subtitleColor, defaultStyleOptions.subtitleColor),
-    accentColor: parseColor(parsed.accentColor, defaultStyleOptions.accentColor),
-    textCase: parseEnum(parsed.textCase, textCases, defaultStyleOptions.textCase),
-    captionPosition: parseEnum(parsed.captionPosition, captionPositions, defaultStyleOptions.captionPosition),
-    captionSize: parseEnum(parsed.captionSize, captionSizes, defaultStyleOptions.captionSize),
+    styleRecipeId,
+    subtitleFont: parseRequiredEnum(parsed.subtitleFont, subtitleFonts, recipeDefaults.subtitleFont ?? defaultStyleOptions.subtitleFont),
+    accentFont: parseEnum(parsed.accentFont, subtitleFonts, recipeDefaults.accentFont ?? defaultStyleOptions.accentFont),
+    subtitleStyle: parseRequiredEnum(
+      parsed.subtitleStyle,
+      subtitleStyles,
+      recipeDefaults.subtitleStyle ?? defaultStyleOptions.subtitleStyle
+    ),
+    captionAnimation: parseEnum(
+      parsed.captionAnimation,
+      captionAnimations,
+      recipeDefaults.captionAnimation ?? defaultStyleOptions.captionAnimation
+    ),
+    accentAnimation: parseEnum(
+      parsed.accentAnimation,
+      accentAnimations,
+      recipeDefaults.accentAnimation ?? defaultStyleOptions.accentAnimation
+    ),
+    subtitleBackdrop: parseRequiredEnum(
+      parsed.subtitleBackdrop,
+      subtitleBackdrops,
+      recipeDefaults.subtitleBackdrop ?? defaultStyleOptions.subtitleBackdrop
+    ),
+    subtitleColor: parseColor(parsed.subtitleColor, recipeDefaults.subtitleColor ?? defaultStyleOptions.subtitleColor),
+    accentColor: parseColor(parsed.accentColor, recipeDefaults.accentColor ?? defaultStyleOptions.accentColor),
+    textCase: parseEnum(parsed.textCase, textCases, recipeDefaults.textCase ?? defaultStyleOptions.textCase),
+    captionPosition: parseEnum(
+      parsed.captionPosition,
+      captionPositions,
+      recipeDefaults.captionPosition ?? defaultStyleOptions.captionPosition
+    ),
+    captionSize: parseEnum(parsed.captionSize, captionSizes, recipeDefaults.captionSize ?? defaultStyleOptions.captionSize),
     infographicTone: parseRequiredEnum(parsed.infographicTone, infographicTones, defaultStyleOptions.infographicTone),
-    infographicAccent: parseRequiredEnum(parsed.infographicAccent, infographicAccents, defaultStyleOptions.infographicAccent),
-    emojiEnabled: parseBoolean(parsed.emojiEnabled, defaultStyleOptions.emojiEnabled),
-    autoLists: parseBoolean(parsed.autoLists, defaultStyleOptions.autoLists),
-    autoComparisons: parseBoolean(parsed.autoComparisons, defaultStyleOptions.autoComparisons),
-    autoCharts: parseBoolean(parsed.autoCharts, defaultStyleOptions.autoCharts),
-    autoCta: parseBoolean(parsed.autoCta, defaultStyleOptions.autoCta),
-    autoStrike: parseBoolean(parsed.autoStrike, defaultStyleOptions.autoStrike),
-    visualDensity: parseEnum(parsed.visualDensity, visualDensities, defaultStyleOptions.visualDensity),
-    motionIntensity: parseEnum(parsed.motionIntensity, motionIntensities, defaultStyleOptions.motionIntensity),
-    presetPack: parseEnum(parsed.presetPack, presetPacks, defaultStyleOptions.presetPack),
+    infographicAccent: parseRequiredEnum(
+      parsed.infographicAccent,
+      infographicAccents,
+      recipeDefaults.infographicAccent ?? defaultStyleOptions.infographicAccent
+    ),
+    emojiEnabled: parseBoolean(parsed.emojiEnabled, recipeDefaults.emojiEnabled ?? defaultStyleOptions.emojiEnabled),
+    autoLists: parseBoolean(parsed.autoLists, recipeDefaults.autoLists ?? defaultStyleOptions.autoLists),
+    autoComparisons: parseBoolean(
+      parsed.autoComparisons,
+      recipeDefaults.autoComparisons ?? defaultStyleOptions.autoComparisons
+    ),
+    autoCharts: parseBoolean(parsed.autoCharts, recipeDefaults.autoCharts ?? defaultStyleOptions.autoCharts),
+    autoCta: parseBoolean(parsed.autoCta, recipeDefaults.autoCta ?? defaultStyleOptions.autoCta),
+    autoStrike: parseBoolean(parsed.autoStrike, recipeDefaults.autoStrike ?? defaultStyleOptions.autoStrike),
+    visualDensity: parseEnum(
+      parsed.visualDensity,
+      visualDensities,
+      recipeDefaults.visualDensity ?? defaultStyleOptions.visualDensity
+    ),
+    motionIntensity: parseEnum(
+      parsed.motionIntensity,
+      motionIntensities,
+      recipeDefaults.motionIntensity ?? defaultStyleOptions.motionIntensity
+    ),
+    presetPack: parseEnum(parsed.presetPack, presetPacks, recipeDefaults.presetPack ?? defaultStyleOptions.presetPack),
     disabledTemplates: Array.isArray(parsed.disabledTemplates) ? parsed.disabledTemplates : defaultStyleOptions.disabledTemplates,
     visualTemplateId: typeof parsed.visualTemplateId === "string" ? parsed.visualTemplateId : undefined,
     visualTemplate: parsed.visualTemplate

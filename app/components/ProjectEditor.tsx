@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LiveCaptionPreview } from "@/app/components/LiveCaptionPreview";
 import { DraftReview } from "@/app/components/DraftReview";
 import { SubtitleStyleStudio } from "@/app/components/SubtitleStyleStudio";
+import { withTemplateToggles } from "@/app/components/subtitleStylePresets";
 import type { DraftEditRequest, ProjectPayload, StyleState } from "@/app/components/projectFlowTypes";
 import { outputTimeToSourceTime, sourceTimeToOutputTime } from "@/app/components/draftReviewTimeline";
 
@@ -132,7 +133,13 @@ export function ProjectEditor({
           <StyleStudioPanel styleState={styleState} styleSaving={styleSaving} onStyleChange={onStyleChange} />
         ) : null}
 
-        {activeTab === "enrichments" ? <EnrichmentsPanel payload={payload} /> : null}
+        {activeTab === "enrichments" ? (
+          <EnrichmentsPanel
+            payload={payload}
+            styleState={styleState}
+            onStyleChange={onStyleChange}
+          />
+        ) : null}
         {activeTab === "publish" ? <PublishPanel payload={payload} /> : null}
 
         {error ? <p className="error floating-error">{error}</p> : null}
@@ -200,23 +207,78 @@ function StyleStudioPanel({
   return <SubtitleStyleStudio styleState={styleState} styleSaving={styleSaving} onStyleChange={onStyleChange} />;
 }
 
-function EnrichmentsPanel({ payload }: { payload: ProjectPayload }) {
-  const fragments = payload.draft?.subtitles?.slice(0, 8) ?? [];
+function EnrichmentsPanel({
+  payload,
+  styleState,
+  onStyleChange
+}: {
+  payload: ProjectPayload;
+  styleState: StyleState;
+  onStyleChange: (next: StyleState) => void | Promise<void>;
+}) {
+  const options = styleState.styleOptions;
+  const beats = payload.livePreviewPlan?.visualBeats ?? [];
+
+  const toggleInsert = (patch: Partial<StyleState["styleOptions"]>) => {
+    void onStyleChange({
+      presentationMode: styleState.presentationMode,
+      stylePreset: styleState.stylePreset,
+      styleOptions: withTemplateToggles({
+        ...styleState.styleOptions,
+        ...patch,
+        styleRecipeId: undefined
+      })
+    });
+  };
+
   return (
     <div className="effects-panel">
       <div className="placeholder-inline">
-        <strong>Сделаем позже</strong>
-        <span>Смайлики, звуки, стикеры, картинки и видео-вставки пока показаны как каркас без тяжелой медиа-логики.</span>
+        <strong>Лёгкие авто-вставки уже работают</strong>
+        <span>Эта вкладка управляет тем, что браузер может показать сразу в preview: цифры, списки, сравнения, зачёркивания и CTA.</span>
       </div>
-      {fragments.length > 0 ? fragments.map((fragment) => (
-        <div className="effect-row" key={fragment.id}>
-          <div><strong>{formatTime(fragment.start)}-{formatTime(fragment.end)}</strong><span>{fragment.text}</span></div>
-          <button disabled>Добавить смайл</button>
-          <button disabled>Добавить звук</button>
-          <button disabled>Добавить картинку</button>
-          <button disabled>Добавить видео</button>
+
+      <section className="element-list">
+        <ToggleRow label="Списки" checked={options.autoLists !== false} onToggle={() => toggleInsert({ autoLists: options.autoLists === false })} />
+        <ToggleRow label="Сравнения / схемы" checked={options.autoComparisons !== false} onToggle={() => toggleInsert({ autoComparisons: options.autoComparisons === false })} />
+        <ToggleRow label="Цифры / графики" checked={options.autoCharts !== false} onToggle={() => toggleInsert({ autoCharts: options.autoCharts === false })} />
+        <ToggleRow label="CTA" checked={options.autoCta !== false} onToggle={() => toggleInsert({ autoCta: options.autoCta === false })} />
+        <ToggleRow label="Зачёркивания" checked={options.autoStrike !== false} onToggle={() => toggleInsert({ autoStrike: options.autoStrike === false })} />
+      </section>
+
+      <section className="choice-group">
+        <h3>Плотность вставок</h3>
+        <div>
+          {[
+            ["low", "Редко"],
+            ["medium", "Средне"],
+            ["high", "Плотно"]
+          ].map(([id, label]) => (
+            <button
+              className={(options.visualDensity ?? "medium") === id ? "active" : ""}
+              key={id}
+              type="button"
+              onClick={() => toggleInsert({ visualDensity: id as "low" | "medium" | "high" })}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      )) : <p className="empty-state">Фрагменты субтитров пока недоступны.</p>}
+      </section>
+
+      {beats.length > 0 ? (
+        <div className="effect-list">
+          {beats.map((beat) => (
+            <div className="effect-row" key={beat.id}>
+              <div>
+                <strong>{formatTime(beat.start)}-{formatTime(beat.end)}</strong>
+                <span>{beat.templateId}</span>
+              </div>
+              <span>{beatLabel(beat)}</span>
+            </div>
+          ))}
+        </div>
+      ) : <p className="empty-state">Сейчас auto-вставки не сгенерированы. Проверь тумблеры и плотность.</p>}
     </div>
   );
 }
@@ -237,6 +299,31 @@ function formatTime(value: number) {
   const minutes = Math.floor(value / 60);
   const seconds = Math.floor(value % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function beatLabel(beat: NonNullable<ProjectPayload["livePreviewPlan"]>["visualBeats"][number]) {
+  if (typeof beat.payload.value === "string") return beat.payload.value;
+  if (typeof beat.payload.text === "string") return beat.payload.text;
+  if (typeof beat.payload.title === "string") return beat.payload.title;
+  if (typeof beat.payload.center === "string") return beat.payload.center;
+  return beat.templateId;
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onToggle
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button className="toggle-row" type="button" onClick={onToggle}>
+      <span>{label}</span>
+      <i className={checked ? "on" : ""} aria-hidden="true" />
+    </button>
+  );
 }
 
 function projectStatusLabel(status: string) {

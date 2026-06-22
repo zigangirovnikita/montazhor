@@ -1,6 +1,7 @@
 import type {
   BrowserFrameCameraMove,
   BrowserFrameCaption,
+  BrowserFrameVisualBeat,
   BrowserFrameRenderPlan
 } from "@/server/render/browserFrameRendererPlan";
 
@@ -32,7 +33,7 @@ export function resolveCameraStateAtTime(cameraMoves: BrowserFrameCameraMove[], 
 
   const duration = move.end - move.start;
   const progress = duration <= 0 ? 1 : clamp01((time - move.start) / duration);
-  const eased = easeInOut(progress);
+  const eased = easeForMotionProfile(progress, move.motionProfile);
 
   return {
     id: move.id,
@@ -40,6 +41,12 @@ export function resolveCameraStateAtTime(cameraMoves: BrowserFrameCameraMove[], 
     x: interpolate(move.xFrom, move.xTo, eased),
     y: interpolate(move.yFrom, move.yTo, eased)
   };
+}
+
+export function resolveVisualBeatAtTime(visualBeats: BrowserFrameVisualBeat[], time: number) {
+  return visualBeats.find((beat) => time >= beat.start && time < beat.end)
+    ?? visualBeats.find((beat) => Math.abs(beat.end - time) < 0.0001)
+    ?? null;
 }
 
 export function buildFrameTimeline(plan: BrowserFrameRenderPlan) {
@@ -58,6 +65,38 @@ function easeInOut(value: number) {
   return value < 0.5
     ? 4 * value * value * value
     : 1 - Math.pow(-2 * value + 2, 3) / 2;
+}
+
+function easeOut(value: number) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function easeForMotionProfile(
+  value: number,
+  profile: BrowserFrameCameraMove["motionProfile"] | undefined
+) {
+  if (profile === "quick_push") {
+    return easeOut(value);
+  }
+
+  if (profile === "glide") {
+    return value < 0.5
+      ? 2 * value * value
+      : 1 - Math.pow(-2 * value + 2, 2) / 2;
+  }
+
+  if (profile === "late_punch") {
+    const delayed = clamp01((value - 0.34) / 0.66);
+    return easeOut(delayed);
+  }
+
+  if (profile === "sweep") {
+    return value < 0.35
+      ? 0.55 * easeOut(value / 0.35)
+      : 0.55 + 0.45 * easeInOut((value - 0.35) / 0.65);
+  }
+
+  return easeInOut(value);
 }
 
 function clamp01(value: number) {

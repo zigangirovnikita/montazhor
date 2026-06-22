@@ -11,6 +11,55 @@ How to use:
 
 ## Entries
 
+### 2026-06-22 — Browser auto-inserts now support lightweight tables and timelines
+
+- Problem: browser `visualBeats` already covered numbers, lists, comparisons, and CTA moments, but they still fell short of the MVP expectation for meaning-based motion inserts like tables and timeline-style callouts.
+- Decision: keep the browser path lightweight and extend existing beat contracts instead of adding a heavy new renderer branch. `metric_chart` can now render a compact `table` mode, and `checklist` can render a `timeline` mode. Semantic-block and subtitle fallback planners both detect these payloads deterministically from transcript text.
+- Result: live preview and browser export can now show table-like metric comparisons and timeline step/year callouts without touching HyperFrames or server-heavy scene rendering. Targeted planner tests and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: next useful expansion is richer comparison/mind-map payload shaping so `concept_map` covers more deliberate contrast/explanation structures instead of one generic card layout.
+
+### 2026-06-22 — Browser concept-map inserts now distinguish comparison, definition, and mind-map modes
+
+- Problem: even after adding more insert vocabulary, `concept_map` still rendered as one generic card shape, so explanations, definitions, and comparisons risked collapsing into the same visual treatment.
+- Decision: keep the lightweight browser renderer, but promote `concept_map` payloads to explicit modes: `comparison`, `definition`, `mindmap`, with deterministic extraction in both semantic-block and subtitle-fallback planners and matching render branches in live preview/export.
+- Result: browser preview/export can now present compare structures, definition cards, and chip-style mind-map clusters as different insert types without needing the heavier scene renderer path. Targeted tests and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: the next aligned improvement is to widen dynamic camera grammar so different semantic block types do not only change zoom strength, but also pacing and hold behavior.
+
+### 2026-06-22 — Browser camera grammar now varies by semantic intent, not only zoom strength
+
+- Problem: browser camera planning already reacted to semantic blocks, but the movement still mostly differed only by final zoom level and pan target, so hook/proof/list/CTA moments could feel too similar in rhythm.
+- Decision: extend `BrowserFrameCameraMove` with lightweight `motionProfile` variants (`steady`, `glide`, `quick_push`, `late_punch`, `sweep`) and let the semantic camera planner choose both movement profile and window duration per anchor type.
+- Result: hook moments now push in faster, proof/timeline beats glide longer, list/comparison blocks sweep more laterally, and CTA moments hold longer before a late punch. This improves the “dynamic cut” feel in browser preview/export without any heavy server render path. Targeted tests and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: the next useful layer is exposing motion-intensity presets more directly to camera grammar so the same semantic plan can feel calm or aggressive without changing block semantics.
+
+### 2026-06-22 — Browser preview/export now share caption design, camera emphasis, and lightweight visual beats
+
+- Problem: the browser live preview already exposed richer subtitle styling than the browser export path, while camera movement was still generic and there was no lightweight semantic insert layer for lists, numbers, comparisons, or CTA moments.
+- Decision: make `captionDesign` a first-class render-plan contract for both preview and export, switch the browser renderer to project-local font assets, enable client-side preview camera moves, and add a lightweight `visualBeats` layer with deterministic planners for `big_number`, `metric_chart`, `checklist`, `concept_map`, `myth_strike`, and `cta_plate`.
+- Result: `browser-render-plan` now carries one shared subtitle design object plus `visualBeats`; live preview and browser-rendered MP4 use the same styling source of truth, camera moves react to semantic anchors instead of a fixed cadence, and preview/export can show simple motion-graphics inserts without invoking heavy HyperFrames/server renders. `pnpm vitest run server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRenderPlanFromProject.test.ts server/render/browserFrameRendererTiming.test.ts` and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: next move semantic camera planning from subtitle-level heuristics to block-level scene intent, and upgrade `visualBeats` from lightweight browser cards into the broader scene/template pipeline where full recipe review is needed.
+
+### 2026-06-22 — Auto-insert toggles and density now actually drive browser visual beats
+
+- Problem: subtitle style UI already exposed toggles for lists/comparisons/charts/CTA/strike and a density control, but the new browser `visualBeats` planner ignored most of them, so the settings risked becoming decorative.
+- Decision: route `StyleDraftOptions` and `presentationMode` into `buildBrowserFrameRenderPlanFromProject`, make `browserFrameVisualPlanner` filter beats by `autoLists/autoComparisons/autoCharts/autoCta/autoStrike`, `disabledTemplates`, and `visualDensity`, and replace the editor’s old “Эффекты later” placeholder with a real lightweight effects panel backed by `livePreviewPlan.visualBeats`.
+- Result: changing effect toggles now changes generated browser inserts instead of only changing saved state; density limits are deterministic (`low/medium/high`), and the editor can show the currently generated visual inserts and let the user manage them without a heavy server render. `pnpm vitest run server/render/browserFrameVisualPlanner.test.ts server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRenderPlanFromProject.test.ts server/render/browserFrameRendererTiming.test.ts` and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: next replace subtitle-level heuristic insert detection with semantic-block-aware insert selection so these controls steer a stronger planner rather than only filtering subtitle-derived beats.
+
+### 2026-06-22 — Browser visual beats now prefer semantic blocks over subtitle-only heuristics
+
+- Problem: even after wiring toggles and density, browser auto-inserts still decided mostly from subtitle fragments, which is weaker than the already available `semantic-blocks.json` pipeline and can misclassify explanation blocks or split one idea across several inserts.
+- Decision: add a dedicated semantic-block-to-browser-beat mapper and let `browserFrameVisualPlanner` use `semanticBlocks` as the primary source when available, with subtitle heuristics kept only as fallback for older or partially generated draft artifacts.
+- Result: browser preview/export now chooses charts, lists, comparisons, myth-strikes, and CTA beats from semantic block intent first, which is closer to the project’s target `block -> scene -> micro-beats` architecture while still staying lightweight. `pnpm vitest run server/render/browserFrameVisualPlanner.test.ts server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRenderPlanFromProject.test.ts server/render/browserFrameRendererTiming.test.ts` and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: the next step is to drive camera emphasis from semantic block intent too, not only from the resulting browser beat anchors.
+
+### 2026-06-22 — Browser camera emphasis now reads semantic block intent first
+
+- Problem: browser auto-inserts already moved to semantic blocks, but camera planning still mostly reacted to resulting beat anchors and generic caption text, which kept the movement logic behind the semantic planner layer.
+- Decision: promote `semanticBlocks` into `browserFrameCameraPlanner` as the primary source of camera anchors, with `visualBeats` and plain captions kept only as fallback. Hook/proof/comparison/list/cta blocks now map to different zoom strengths and layout biases before the lighter fallback layers are considered.
+- Result: browser preview/export camera moves now follow semantic intent first, which is a closer approximation of a real editing plan without introducing heavy renders or a full scene compositor dependency in the browser path. `pnpm vitest run server/render/browserFrameVisualPlanner.test.ts server/render/browserFrameRendererPlan.test.ts server/render/browserFrameRenderPlanFromProject.test.ts server/render/browserFrameRendererTiming.test.ts` and `pnpm exec tsc --noEmit --pretty false` pass locally.
+- Follow-up: the next valuable step is expanding the subtitle constructor into stronger animation/style presets so the user controls can shape this semantic camera/visual layer more expressively.
+
 ### 2026-06-22 — Pillarboxed portrait uploads no longer stay landscape
 
 - Problem: the latest server project `cmqoakixh002bw1n09qo21ps3` looked horizontal with black side bars and oversized subtitles, even though the user expected a vertical talking-head result.
@@ -247,3 +296,10 @@ How to use:
 - Decision: keep the current scene-engine architecture, but reintroduce the strongest old cinematic heuristics as a focused deterministic recipe selector, trim duplicate subtitle/title payloads, normalize full-scene payloads for AIS renderer contracts, and drive speaker-box compositing from `speakerMode` instead of blindly from `layoutMode`.
 - Result: the current build now preserves the newer scene-library/compiler pipeline while regaining more varied scene choice, better timeline/card/trust-map payloads, less duplicate on-screen text, and safer speaker placement in full-scene compositions.
 - Follow-up: validate this branch on the remote `/opt/montazhor` runtime with a known-good talking-head fixture and tune any remaining layout defects per recipe instead of broad planner changes.
+
+### 2026-06-22 — Subtitle recipe defaults promoted from preset metadata to source of truth
+
+- Problem: `styleRecipeId` existed mostly as decorative preset metadata, while caption rendering and style-state normalization still fell back to hardcoded defaults, so recipe-only choices like animation, font pair, position, and accent behavior could drift between picker, preview, and export.
+- Decision: add a shared `subtitleStyleRecipe` catalog and make `buildCaptionDesign` plus `normalizeStyleOptions` inherit recipe defaults first, with explicit user overrides still winning afterward.
+- Result: one recipe id now drives consistent subtitle typography, enter animation, accent animation, colors, position, and related auto-style defaults across preset application, live preview, and browser-render plan generation.
+- Follow-up: if we later expose recipe-specific infographic defaults more deeply, keep extending the shared recipe catalog instead of adding new hardcoded fallback branches in UI and renderer code separately.

@@ -1,3 +1,4 @@
+import { parseStyleOptions } from "@/app/components/styleState";
 import { prisma } from "@/lib/db";
 import { browserCaptionStyleForPreset } from "@/lib/browserCaptionStyle";
 import { logProject } from "@/lib/logger";
@@ -11,7 +12,10 @@ export async function prepareLivePreviewPlan(projectId: string) {
   const result = await buildBrowserFrameRenderPlanFromProject({
     projectDir: paths.project,
     captionStyle: browserCaptionStyleForPreset(project.stylePreset),
-    enableCameraMoves: false,
+    presentationMode: project.presentationMode,
+    stylePreset: project.stylePreset,
+    styleOptions: parseStyleOptions(project.styleOptionsJson),
+    enableCameraMoves: true,
     writePlanToProject: true,
     projectPlanOutputPath: paths.browserRenderPlanLive,
     log: (message) => logProject(projectId, "info", `[live-preview] ${message}`)
@@ -20,7 +24,7 @@ export async function prepareLivePreviewPlan(projectId: string) {
   await logProject(
     projectId,
     "info",
-    `Live preview plan is ready: ${result.plan.width}x${result.plan.height}, ${result.plan.captions.length} captions, style ${result.plan.captionStyle}.`
+    `Live preview plan is ready: ${result.plan.width}x${result.plan.height}, ${result.plan.captions.length} captions, style ${result.plan.captionDesign.variant}, camera moves ${result.plan.cameraMoves.length}.`
   );
 
   return result;

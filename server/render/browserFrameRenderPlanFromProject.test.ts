@@ -99,8 +99,10 @@ describe("browserFrameRenderPlanFromProject", () => {
 
     expect(result.artifacts.cleanVideoPath).toContain("clean.mp4");
     expect(result.plan.captionStyle).toBe("clean-white");
+    expect(result.plan.captionDesign.variant).toBe("clean");
     expect(result.plan.duration).toBe(14.2);
     expect(result.plan.captions.length).toBeGreaterThanOrEqual(2);
+    expect(result.plan.visualBeats.length).toBeGreaterThanOrEqual(1);
     expect(result.plan.cameraMoves).toHaveLength(0);
     expect(result.plan.diagnostics.captionSource).toBe("transcript_edl_clean_time");
     expect(result.plan.diagnostics.edlApplied).toBe(true);
@@ -108,6 +110,41 @@ describe("browserFrameRenderPlanFromProject", () => {
     expect(result.plan.diagnostics.activeVideoBox.detected).toBe(false);
     expect(result.plan.diagnostics.captionSafeArea.width).toBeGreaterThan(0);
     expect(result.planPath).toBe(path.join(projectDir, "browser-render-plan.json"));
+  });
+
+  it("derives caption design from style preset and style options", async () => {
+    probeVideoMock.mockResolvedValueOnce({
+      duration: 10,
+      width: 1080,
+      height: 1920,
+      fps: 25,
+      hasAudio: true
+    });
+    const projectDir = await makeProjectFixture();
+    const result = await buildBrowserFrameRenderPlanFromProject({
+      projectDir,
+      stylePreset: "dynamic_viral",
+      styleOptions: {
+        subtitleFont: "unbounded",
+        accentFont: "golos",
+        subtitleBackdrop: "solid",
+        subtitleStyle: "marker",
+        captionAnimation: "pop",
+        accentAnimation: "pulse",
+        captionPosition: "middle",
+        infographicTone: "glass",
+        infographicAccent: "mint"
+      }
+    });
+
+    expect(result.plan.captionDesign.variant).toBe("viral");
+    expect(result.plan.captionDesign.fontFamily).toContain("HF Unbounded");
+    expect(result.plan.captionDesign.accentFontFamily).toContain("HF Golos Text");
+    expect(result.plan.captionDesign.backdrop).toBe("solid");
+    expect(result.plan.captionDesign.highlightMode).toBe("marker");
+    expect(result.plan.captionDesign.enterAnimation).toBe("pop");
+    expect(result.plan.captionDesign.wordAnimation).toBe("pulse");
+    expect(result.plan.captionDesign.position).toBe("middle");
   });
 
   it("preserves vertical video dimensions", async () => {
@@ -229,10 +266,65 @@ describe("browserFrameRenderPlanFromProject", () => {
   });
 
   it("builds calm camera move sequence across duration", () => {
-    const moves = buildCameraMoves(12);
-    expect(moves.length).toBeGreaterThanOrEqual(4);
+    const moves = buildCameraMoves({
+      duration: 12,
+      captions: [
+        {
+          id: "c1",
+          start: 0,
+          end: 1.4,
+          text: "Это важная система",
+          lines: ["Это важная система"],
+          words: [word("Это", 0, 0.3), word("важная", 0.3, 0.8), word("система", 0.8, 1.4)],
+          highlightedWords: ["важная"]
+        }
+      ],
+      visualBeats: [
+        {
+          id: "v1",
+          start: 2,
+          end: 3.4,
+          templateId: "big_number",
+          layout: "right",
+          payload: { value: "10%", label: "рост" },
+          priority: 2
+        }
+      ]
+    });
+    expect(moves.length).toBeGreaterThanOrEqual(2);
     expect(moves[0]?.scaleTo ?? 0).toBeGreaterThan(1);
-    expect(moves.at(-1)?.end).toBe(12);
+    expect(moves.some((move) => move.scaleTo >= 1.1)).toBe(true);
+  });
+
+  it("prefers semantic block intent for camera emphasis when available", () => {
+    const moves = buildCameraMoves({
+      duration: 8,
+      captions: [
+        {
+          id: "c1",
+          start: 0,
+          end: 1,
+          text: "обычный текст",
+          lines: ["обычный текст"],
+          words: [word("обычный", 0, 0.5), word("текст", 0.5, 1)],
+          highlightedWords: []
+        }
+      ],
+      semanticBlocks: [
+        makeSemanticBlock("b1", "hook", 0, 1.4, "главная мысль"),
+        makeSemanticBlock("b2", "proof", 2, 3.6, "рост 25%"),
+        makeSemanticBlock("b3", "cta", 4, 5.4, "напиши сейчас")
+      ]
+    });
+
+    expect(moves.length).toBeGreaterThanOrEqual(3);
+    expect(moves[0]?.motionProfile).toBe("quick_push");
+    expect(moves[1]?.motionProfile).toBe("glide");
+    expect(moves[2]?.motionProfile).toBe("late_punch");
+    expect(moves[0]?.scaleTo).toBeGreaterThan(1.08);
+    expect(moves[1]?.scaleTo).toBeGreaterThanOrEqual(1.11);
+    expect(moves[2]?.scaleTo).toBeGreaterThanOrEqual(1.14);
+    expect((moves[2]?.end ?? 0) - (moves[2]?.start ?? 0)).toBeLessThanOrEqual(1.2);
   });
 
   it("remaps caption timings into clean-time when EDL cuts source gaps", async () => {
@@ -320,6 +412,7 @@ describe("browserFrameRenderPlanFromProject", () => {
     const projectDir = await makeProjectFixture();
     const result = await buildBrowserFrameRenderPlanFromProject({ projectDir, enableCameraMoves: true });
     expect(result.plan.cameraMoves.length).toBeGreaterThan(0);
+    expect(result.plan.visualBeats.length).toBeGreaterThan(0);
     expect(result.plan.diagnostics.cameraMovesEnabled).toBe(true);
   });
 
@@ -419,6 +512,33 @@ function makeTranscript() {
         ]
       }
     ]
+  };
+}
+
+function makeSemanticBlock(
+  id: string,
+  type: "hook" | "proof" | "cta",
+  start: number,
+  end: number,
+  text: string
+) {
+  return {
+    id,
+    type,
+    start,
+    end,
+    text,
+    summary: text,
+    words: text.split(/\s+/).map((item, index, items) => ({
+      word: item,
+      start: start + ((end - start) / items.length) * index,
+      end: start + ((end - start) / items.length) * (index + 1)
+    })),
+    transcriptWordRange: {
+      startIndex: 0,
+      endIndex: Math.max(0, text.split(/\s+/).length - 1)
+    },
+    wordCount: text.split(/\s+/).length
   };
 }
 

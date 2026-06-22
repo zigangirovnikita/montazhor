@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { buildCaptionDesignFromLegacyStyle } from "../../lib/captionDesign";
 import {
   buildFrameTimeline,
   frameIndexToTimestamp,
   resolveCameraStateAtTime,
+  resolveVisualBeatAtTime,
   secondsToFrameCount
 } from "./browserFrameRendererTiming";
 import type { BrowserFrameRenderPlan } from "./browserFrameRendererPlan";
@@ -25,6 +27,7 @@ describe("browserFrameRendererTiming", () => {
         id: "cam-1",
         start: 0,
         end: 10,
+        motionProfile: "steady",
         scaleFrom: 1,
         scaleTo: 1.1,
         xFrom: 0,
@@ -40,6 +43,57 @@ describe("browserFrameRendererTiming", () => {
     expect(state?.y ?? 0).toBeLessThan(0);
   });
 
+  it("delays motion for late punch profile", () => {
+    const early = resolveCameraStateAtTime([
+      {
+        id: "cam-late",
+        start: 0,
+        end: 10,
+        motionProfile: "late_punch",
+        scaleFrom: 1.03,
+        scaleTo: 1.14,
+        xFrom: 0,
+        xTo: 0.04,
+        yFrom: 0,
+        yTo: -0.02
+      }
+    ], 3);
+    const late = resolveCameraStateAtTime([
+      {
+        id: "cam-late",
+        start: 0,
+        end: 10,
+        motionProfile: "late_punch",
+        scaleFrom: 1.03,
+        scaleTo: 1.14,
+        xFrom: 0,
+        xTo: 0.04,
+        yFrom: 0,
+        yTo: -0.02
+      }
+    ], 8.5);
+
+    expect(early?.scale).toBeLessThan(1.05);
+    expect(late?.scale ?? 0).toBeGreaterThan(1.1);
+    expect((late?.x ?? 0)).toBeGreaterThan((early?.x ?? 0));
+  });
+
+  it("resolves active visual beat by time", () => {
+    const beat = resolveVisualBeatAtTime([
+      {
+        id: "v1",
+        start: 1,
+        end: 2.4,
+        templateId: "big_number",
+        layout: "right",
+        payload: { value: "25%", label: "рост" },
+        priority: 2
+      }
+    ], 1.5);
+
+    expect(beat?.templateId).toBe("big_number");
+  });
+
   it("builds timeline with stable frame count", () => {
     const plan: BrowserFrameRenderPlan = {
       fps: 20,
@@ -47,7 +101,9 @@ describe("browserFrameRendererTiming", () => {
       height: 1920,
       duration: 2,
       captionStyle: "bold-yellow",
+      captionDesign: buildCaptionDesignFromLegacyStyle("bold-yellow"),
       captions: [],
+      visualBeats: [],
       cameraMoves: [],
       diagnostics: {
         sourceVideo: { width: 1080, height: 1920, duration: 2 },

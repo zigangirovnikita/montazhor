@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import { buildCaptionDesignFromLegacyStyle } from "../../lib/captionDesign";
 
 export const DEFAULT_BROWSER_POC_FPS = 20;
 export const DEFAULT_BROWSER_POC_DURATION_SECONDS = 15;
@@ -11,6 +12,27 @@ export const browserFrameCaptionStyleSchema = z.enum([
   "clean-white",
   "premium-minimal"
 ]);
+
+const browserFrameCaptionDesignSchema = z.object({
+  variant: z.enum(["clean", "viral", "premium"]),
+  fontFamily: z.string().trim().min(1),
+  accentFontFamily: z.string().trim().min(1),
+  backdrop: z.enum(["none", "glass", "solid"]),
+  textColor: z.string().trim().min(1),
+  accentColor: z.string().trim().min(1),
+  textTransform: z.enum(["none", "uppercase"]),
+  highlightMode: z.enum(["text", "fill", "marker"]),
+  fontSize: z.string().trim().min(1),
+  fontWeight: z.number().int().min(100).max(900),
+  letterSpacing: z.string().trim().min(1),
+  strokeWidth: z.number().min(0).max(6),
+  strokeColor: z.string().trim().min(1),
+  textShadow: z.string().trim().min(1),
+  position: z.enum(["lower", "middle"]),
+  size: z.enum(["sm", "md", "lg"]),
+  enterAnimation: z.enum(["slide_up", "fade", "pop"]),
+  wordAnimation: z.enum(["text", "fill", "marker", "pulse"])
+});
 
 const browserFrameWordSchema = z.object({
   text: z.string().trim().min(1),
@@ -32,12 +54,25 @@ const browserFrameCaptionSchema = z.object({
   message: "Caption end must be greater than start."
 });
 
+const browserFrameVisualBeatSchema = z.object({
+  id: z.string().trim().min(1),
+  start: z.number().min(0),
+  end: z.number().min(0),
+  templateId: z.enum(["big_number", "metric_chart", "checklist", "concept_map", "cta_plate", "myth_strike"]),
+  layout: z.enum(["left", "right", "center", "top"]),
+  payload: z.record(z.string(), z.any()),
+  priority: z.number().int().min(1).max(3).default(1)
+}).refine((beat) => beat.end > beat.start, {
+  message: "Visual beat end must be greater than start."
+});
+
 const cameraValueSchema = z.number().min(-0.5).max(0.5);
 
 const browserFrameCameraMoveSchema = z.object({
   id: z.string().trim().min(1),
   start: z.number().min(0),
   end: z.number().min(0),
+  motionProfile: z.enum(["steady", "glide", "quick_push", "late_punch", "sweep"]).default("steady"),
   scaleFrom: z.number().min(1).max(1.5),
   scaleTo: z.number().min(1).max(1.5),
   xFrom: cameraValueSchema.default(0),
@@ -92,11 +127,14 @@ export const browserFrameRenderPlanSchema = z.object({
   height: z.number().int().min(320).max(3840),
   duration: z.number().positive().max(MAX_BROWSER_RENDER_DURATION_SECONDS),
   captionStyle: browserFrameCaptionStyleSchema.default(DEFAULT_BROWSER_FRAME_STYLE),
+  captionDesign: browserFrameCaptionDesignSchema.optional(),
   captions: z.array(browserFrameCaptionSchema).default([]),
+  visualBeats: z.array(browserFrameVisualBeatSchema).default([]),
   cameraMoves: z.array(browserFrameCameraMoveSchema).default([]),
   diagnostics: browserFrameDiagnosticsSchema
 }).transform((plan) => ({
   ...plan,
+  captionDesign: plan.captionDesign ?? buildCaptionDesignFromLegacyStyle(plan.captionStyle),
   diagnostics: {
     ...plan.diagnostics,
     activeVideoBox: plan.diagnostics.activeVideoBox ?? {
@@ -150,6 +188,16 @@ export const browserFrameRenderPlanSchema = z.object({
     }
   }
 
+  for (const [beatIndex, beat] of plan.visualBeats.entries()) {
+    if (beat.start > plan.duration || beat.end > plan.duration) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["visualBeats", beatIndex],
+        message: "Visual beat must stay within plan duration."
+      });
+    }
+  }
+
   if (
     plan.diagnostics.activeVideoBox.x + plan.diagnostics.activeVideoBox.width > plan.width
     || plan.diagnostics.activeVideoBox.y + plan.diagnostics.activeVideoBox.height > plan.height
@@ -174,8 +222,10 @@ export const browserFrameRenderPlanSchema = z.object({
 });
 
 export type BrowserFrameCaptionStyle = z.infer<typeof browserFrameCaptionStyleSchema>;
+export type BrowserFrameCaptionDesign = z.infer<typeof browserFrameCaptionDesignSchema>;
 export type BrowserFrameWord = z.infer<typeof browserFrameWordSchema>;
 export type BrowserFrameCaption = z.infer<typeof browserFrameCaptionSchema>;
+export type BrowserFrameVisualBeat = z.infer<typeof browserFrameVisualBeatSchema>;
 export type BrowserFrameCameraMove = z.infer<typeof browserFrameCameraMoveSchema>;
 export type BrowserFrameDiagnostics = z.infer<typeof browserFrameDiagnosticsSchema>;
 export type BrowserFrameRenderPlan = z.infer<typeof browserFrameRenderPlanSchema>;
@@ -211,6 +261,7 @@ export function buildDemoBrowserFrameRenderPlan(input: {
     height: input.height,
     duration,
     captionStyle: input.captionStyle ?? DEFAULT_BROWSER_FRAME_STYLE,
+    captionDesign: buildCaptionDesignFromLegacyStyle(input.captionStyle ?? DEFAULT_BROWSER_FRAME_STYLE),
     captions: captions.map((text, index) =>
       buildDemoCaption({
         id: `caption-${index + 1}`,
@@ -219,6 +270,7 @@ export function buildDemoBrowserFrameRenderPlan(input: {
         end: roundTime(index === captions.length - 1 ? duration : segmentDuration * (index + 1))
       })
     ),
+    visualBeats: [],
     cameraMoves: [
       {
         id: "camera-main",

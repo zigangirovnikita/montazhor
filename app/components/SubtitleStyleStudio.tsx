@@ -209,6 +209,25 @@ export function SubtitleStyleStudio({
               value={options.subtitleStyle}
               onSelect={(subtitleStyle) => updateStyle(styleState, onStyleChange, { subtitleStyle })}
             />
+            <ChoiceRow
+              items={[
+                ["slide_up", "Снизу"],
+                ["fade", "Fade"],
+                ["pop", "Pop"]
+              ]}
+              value={options.captionAnimation ?? "slide_up"}
+              onSelect={(captionAnimation) => updateStyle(styleState, onStyleChange, { captionAnimation })}
+            />
+            <ChoiceRow
+              items={[
+                ["text", "Текст"],
+                ["fill", "Заливка"],
+                ["marker", "Маркер"],
+                ["pulse", "Пульс"]
+              ]}
+              value={options.accentAnimation ?? "fill"}
+              onSelect={(accentAnimation) => updateStyle(styleState, onStyleChange, { accentAnimation })}
+            />
           </BuilderSection>
 
           <BuilderSection title="Позиция">

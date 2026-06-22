@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import { parseStyleOptions } from "@/app/components/styleState";
 import { browserCaptionStyleForPreset } from "@/lib/browserCaptionStyle";
 import { prisma } from "@/lib/db";
 import { logProject } from "@/lib/logger";
@@ -48,7 +49,10 @@ export async function renderBrowserCaptionsArtifact(input: {
     projectDir: paths.project,
     outputPath: input.outputPath,
     captionStyle: browserCaptionStyleForPreset(project.stylePreset),
-    enableCameraMoves: false,
+    presentationMode: project.presentationMode,
+    stylePreset: project.stylePreset,
+    styleOptions: parseStyleOptions(project.styleOptionsJson),
+    enableCameraMoves: true,
     writePlanToProject: input.writePlanToProject,
     projectPlanOutputPath: input.projectPlanOutputPath,
     log: (message) => logProject(input.projectId, "info", `[browser-renderer] ${message}`)

@@ -7,12 +7,16 @@ export type SubtitleFontId = "manrope" | "onest" | "unbounded" | "montserrat" | 
 export type SubtitleTextCase = "sentence" | "upper";
 export type CaptionPosition = "lower" | "middle";
 export type CaptionSize = "sm" | "md" | "lg";
+export type CaptionAnimation = "slide_up" | "fade" | "pop";
+export type AccentAnimation = "text" | "fill" | "marker" | "pulse";
 
 export type StyleDraftOptions = {
   styleRecipeId?: string;
   subtitleFont: SubtitleFontId;
   accentFont?: SubtitleFontId;
   subtitleStyle: "clean" | "active_word" | "marker";
+  captionAnimation?: CaptionAnimation;
+  accentAnimation?: AccentAnimation;
   subtitleBackdrop: "none" | "glass" | "solid";
   subtitleColor?: string;
   accentColor?: string;

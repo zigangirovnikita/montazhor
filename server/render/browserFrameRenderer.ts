@@ -1,10 +1,11 @@
-import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import puppeteer from "puppeteer";
 import type { Browser } from "puppeteer";
-import { resolveAppDir } from "@/lib/runtimePaths";
+import type { StyleDraftOptions } from "@/app/components/PresentationConfigurator";
+import { buildCaptionDesignFromLegacyStyle } from "../../lib/captionDesign";
 import { probeVideo } from "@/server/video/metadata";
 import { ffmpegPath, runCommand } from "@/server/video/ffmpeg";
 import {
@@ -18,6 +19,7 @@ import {
   buildFrameTimeline,
   resolveCameraStateAtTime,
   resolveCaptionAtTime,
+  resolveVisualBeatAtTime,
   secondsToFrameCount
 } from "@/server/render/browserFrameRendererTiming";
 import { buildBrowserFrameRendererHtml } from "@/server/render/browserFrameRendererTemplate";
@@ -32,6 +34,9 @@ export interface BrowserFrameRendererOptions {
   outputPath: string;
   renderPlanPath?: string;
   captionStyle?: BrowserFrameCaptionStyle;
+  stylePreset?: string | null;
+  styleOptions?: StyleDraftOptions;
+  presentationMode?: string | null;
   enableCameraMoves?: boolean;
   maxDurationSeconds?: number;
   writePlanToProject?: boolean;
@@ -84,6 +89,8 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       sourceDuration: metadata.duration,
       projectDir: resolvedInput.projectDir,
       captionStyle: input.captionStyle,
+      stylePreset: input.stylePreset,
+      styleOptions: input.styleOptions,
       enableCameraMoves: input.enableCameraMoves,
       maxDurationSeconds: input.maxDurationSeconds,
       writePlanToProject: input.writePlanToProject,
@@ -93,14 +100,12 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
     });
     const timeline = buildFrameTimeline(plan);
     const totalFrames = secondsToFrameCount(plan.duration, plan.fps);
-    const fontPath = await resolveFontPath();
     await writeFile(planSnapshotPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
     await writeFile(
       htmlPath,
       buildBrowserFrameRendererHtml({
         width: plan.width,
         height: plan.height,
-        fontPath,
         captionSafeArea: plan.diagnostics.captionSafeArea
       }),
       "utf8"
@@ -138,6 +143,7 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
       const backgroundPath = path.join(backgroundDir, `bg_${String(frame.index + 1).padStart(5, "0")}.jpg`);
       const outputFramePath = path.join(renderedDir, `frame_${String(frame.index + 1).padStart(5, "0")}.png`);
       const caption = resolveCaptionAtTime(plan.captions, frame.time);
+      const visualBeat = resolveVisualBeatAtTime(plan.visualBeats, frame.time);
       const camera = resolveCameraStateAtTime(plan.cameraMoves, frame.time);
 
       await page.evaluate(
@@ -145,30 +151,38 @@ export async function renderBrowserFrames(input: BrowserFrameRendererOptions): P
           time: number;
           backgroundUrl: string;
           caption: BrowserFrameRenderPlan["captions"][number] | null;
+          visualBeat: BrowserFrameRenderPlan["visualBeats"][number] | null;
           camera: { id: string; scale: number; x: number; y: number } | null;
           captionStyle: BrowserFrameCaptionStyle;
+          captionDesign: BrowserFrameRenderPlan["captionDesign"];
         }) => {
           const renderWindow = window as Window & typeof globalThis & {
             renderFrame: (time: number, frameData: {
               backgroundUrl: string;
               caption: BrowserFrameRenderPlan["captions"][number] | null;
+              visualBeat: BrowserFrameRenderPlan["visualBeats"][number] | null;
               camera: { id: string; scale: number; x: number; y: number } | null;
               captionStyle: BrowserFrameCaptionStyle;
+              captionDesign: BrowserFrameRenderPlan["captionDesign"];
             }) => Promise<void>;
           };
           await renderWindow.renderFrame(frameData.time, {
             backgroundUrl: frameData.backgroundUrl,
             caption: frameData.caption,
+            visualBeat: frameData.visualBeat,
             camera: frameData.camera,
-            captionStyle: frameData.captionStyle
+            captionStyle: frameData.captionStyle,
+            captionDesign: frameData.captionDesign
           });
         },
         {
           time: frame.time,
           backgroundUrl: pathToFileURL(backgroundPath).toString(),
           caption,
+          visualBeat,
           camera,
-          captionStyle: plan.captionStyle
+          captionStyle: plan.captionStyle,
+          captionDesign: plan.captionDesign
         }
       );
       await frameRoot.screenshot({ path: outputFramePath, type: "png" });
@@ -220,6 +234,9 @@ async function resolveRenderPlan(
     sourceDuration: number;
     projectDir?: string;
     captionStyle?: BrowserFrameCaptionStyle;
+    stylePreset?: string | null;
+    styleOptions?: StyleDraftOptions;
+    presentationMode?: string | null;
     enableCameraMoves?: boolean;
     maxDurationSeconds?: number;
     writePlanToProject?: boolean;
@@ -239,7 +256,8 @@ async function resolveRenderPlan(
       plan: {
         ...plan,
         duration: Math.min(plan.duration, cappedDuration),
-        captionStyle: input.captionStyle ?? plan.captionStyle
+        captionStyle: input.captionStyle ?? plan.captionStyle,
+        captionDesign: input.captionStyle ? buildCaptionDesignFromLegacyStyle(input.captionStyle) : plan.captionDesign
       } satisfies BrowserFrameRenderPlan,
       planPath: input.renderPlanPath
     };
@@ -250,6 +268,9 @@ async function resolveRenderPlan(
       projectDir: input.projectDir,
       fps: DEFAULT_BROWSER_POC_FPS,
       captionStyle: input.captionStyle,
+      stylePreset: input.stylePreset,
+      styleOptions: input.styleOptions,
+      presentationMode: input.presentationMode,
       enableCameraMoves: input.enableCameraMoves,
       debugActiveBox: input.debugActiveBox,
       log: input.log,
@@ -356,25 +377,6 @@ async function composeBrowserRenderedVideo(input: {
     "-shortest",
     input.outputPath
   ]);
-}
-
-async function resolveFontPath() {
-  const appDir = resolveAppDir();
-  const fontCandidates = [
-    path.join(appDir, "public", "fonts", "onest-700.ttf"),
-    path.join(appDir, "assets", "fonts", "onest-700.ttf")
-  ];
-
-  for (const candidate of fontCandidates) {
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {
-      continue;
-    }
-  }
-
-  return undefined;
 }
 
 function currentRssMb() {
