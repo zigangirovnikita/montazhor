@@ -36,6 +36,7 @@ export async function detectActiveVideoBox(input: {
   height: number;
   duration: number;
   sampleFractions?: number[];
+  readFrameFile?: (framePath: string) => Promise<Buffer>;
   log?: (message: string) => void;
 }) {
   const sampleFractions = input.sampleFractions?.length ? input.sampleFractions : DEFAULT_SAMPLE_FRACTIONS;
@@ -46,13 +47,19 @@ export async function detectActiveVideoBox(input: {
     for (const [index, fraction] of sampleFractions.entries()) {
       const time = roundTime(resolveSampleTime(input.duration, fraction));
       const framePath = path.join(tempDir, `sample-${index + 1}.ppm`);
-      await extractFrameToPpm({ videoPath: input.videoPath, time, framePath });
-      const frame = parsePpm(await readFile(framePath));
-      detections.push(detectActiveBoxFromRgbFrame({
-        width: frame.width,
-        height: frame.height,
-        data: frame.data
-      }));
+      try {
+        await extractFrameToPpm({ videoPath: input.videoPath, time, framePath });
+        const frame = parsePpm(await (input.readFrameFile ?? readFile)(framePath));
+        detections.push(detectActiveBoxFromRgbFrame({
+          width: frame.width,
+          height: frame.height,
+          data: frame.data
+        }));
+      } catch (error) {
+        input.log?.(
+          `Browser active box sample ${index + 1} failed at ${time}s: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);

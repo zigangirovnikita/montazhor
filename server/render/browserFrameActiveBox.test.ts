@@ -1,9 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCaptionSafeArea,
+  detectActiveVideoBox,
   detectActiveBoxFromRgbFrame,
   parsePpm
 } from "./browserFrameActiveBox";
+
+vi.mock("../video/ffmpeg", () => ({
+  ffmpegPath: () => "ffmpeg",
+  runCommand: vi.fn(async () => ({ stdout: "", stderr: "" }))
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("browserFrameActiveBox", () => {
   it("detects vertical active box inside horizontal pillarbox", () => {
@@ -75,6 +85,21 @@ describe("browserFrameActiveBox", () => {
     expect(frame.width).toBe(2);
     expect(frame.height).toBe(1);
     expect([...frame.data.subarray(0, 6)]).toEqual([...pixels]);
+  });
+
+  it("falls back to full frame when ppm sample parsing fails", async () => {
+    const result = await detectActiveVideoBox({
+      videoPath: "/tmp/fake.mp4",
+      width: 1080,
+      height: 1920,
+      duration: 4,
+      sampleFractions: [0.5],
+      readFrameFile: async () => Buffer.from("broken", "ascii")
+    });
+
+    expect(result.activeVideoBox.detected).toBe(false);
+    expect(result.activeVideoBox.source).toBe("full_frame_fallback");
+    expect(result.captionSafeArea.width).toBeGreaterThan(0);
   });
 });
 
